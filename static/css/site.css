@@ -1,0 +1,25 @@
+:root {
+    font-family: system-ui, sans-serif;
+    color: #202020;
+    background: #f5f5f5;
+    line-height: 1.5;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+}
+
+.page {
+    width: min(calc(100% - 2rem), 48rem);
+    margin: 4rem auto;
+    padding: 1.5rem;
+    background: #fff;
+}
+
+h1 {
+    margin-top: 0;
+}

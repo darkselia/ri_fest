@@ -1,0 +1,21 @@
+# Local settings and secrets
+.env
+.env.*
+!.env.example
+
+# Python and development tools
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.idea/
+
+
+# Local database and generated files
+db.sqlite3
+db.sqlite3-*
+media/
+staticfiles/
+/docs/
