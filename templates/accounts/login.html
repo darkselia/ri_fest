@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Вход — РИ-фест{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/accounts.css' %}">{% endblock %}
+
+{% block content %}
+<section class="auth-layout" aria-labelledby="login-title">
+    <div class="auth-story">
+        <p class="eyebrow">Сибирский фестиваль ролевых игр</p>
+        <p class="auth-wordmark">РИ-фест<span class="text-accent">.</span></p>
+        {% include "components/brand_scene.html" %}
+    </div>
+    <div class="auth-panel">
+        <div class="auth-heading">
+            <p class="eyebrow">Личный кабинет</p>
+            <h1 id="login-title">Вход в аккаунт</h1>
+            <p class="muted">Укажите email и пароль своего аккаунта.</p>
+        </div>
+        <form method="post" class="account-form">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
+            {% endif %}
+            {% for field in form %}
+                {% include "components/form_field.html" %}
+            {% endfor %}
+            <button type="submit" class="button button-wide">Войти <span aria-hidden="true">→</span></button>
+        </form>
+        <a class="back-link" href="{% url 'home' %}"><span aria-hidden="true">←</span> На главную</a>
+    </div>
+</section>
+{% endblock %}
