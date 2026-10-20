@@ -22,6 +22,7 @@ DEBUG = env("DJANGO_DEBUG")
 ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 
 INSTALLED_APPS = [
+    "accounts.apps.AccountsConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -41,6 +42,10 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "ri_fest.urls"
+
+AUTH_USER_MODEL = "accounts.User"
+LOGIN_URL = "accounts:login"
+LOGOUT_REDIRECT_URL = "accounts:login"
 
 TEMPLATES = [
     {
@@ -106,7 +111,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_DIRS = [BASE_DIR / "static", ("brand", BASE_DIR / "assets")]
 
 MAILERS = {
     "default": {
