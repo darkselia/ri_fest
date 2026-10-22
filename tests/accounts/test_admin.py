@@ -70,7 +70,9 @@ def test_organizer_enters_admin_without_account_management(client, organizer):
     client.force_login(organizer)
     response = client.get(reverse("admin:index"))
     assert response.status_code == 200
-    assert not response.context["available_apps"]
+    assert {app["app_label"] for app in response.context["available_apps"]} == {
+        "festivals"
+    }
 
 
 @pytest.mark.parametrize("method", ["get", "post"])

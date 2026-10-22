@@ -3,7 +3,7 @@ minversion = "9.1"
 DJANGO_SETTINGS_MODULE = "ri_fest.settings_test"
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "--strict-config --strict-markers"
+addopts = "--strict-config --strict-markers --import-mode=importlib"
 
 [tool.ruff]
 target-version = "py313"

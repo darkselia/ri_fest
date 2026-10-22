@@ -1,0 +1,20 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'css/festival_admin.css' %}">
+{% endblock %}
+{% block content %}
+  <section class="festival-actions" aria-labelledby="festival-confirm-title">
+    <h2 id="festival-confirm-title">{{ original }}</h2>
+    <p>{{ description }}</p>
+    <form method="post">
+      {% csrf_token %}
+      {% if form %}{{ form.as_p }}{% endif %}
+      <div class="festival-actions__buttons">
+        <button type="submit" class="festival-action-button festival-action-button--primary">{{ confirm_label }}</button>
+        <a class="festival-action-button" href="{{ cancel_url }}">Отмена</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}

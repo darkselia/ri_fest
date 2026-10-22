@@ -1,0 +1,76 @@
+.festival-actions {
+  box-sizing: border-box;
+  margin: 0 0 24px;
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--darkened-bg);
+  color: var(--body-fg);
+}
+
+.festival-actions h2 {
+  margin: 0 0 16px;
+  padding: 0;
+  background: none;
+  color: var(--body-fg);
+  font-size: 1rem;
+}
+
+.festival-actions__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.festival-actions .festival-action-button {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 12px 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--body-bg);
+  color: var(--body-fg);
+  font: inherit;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.festival-actions .festival-action-button:hover {
+  border-color: var(--body-fg);
+}
+
+.festival-actions .festival-action-button--primary {
+  border-color: var(--default-button-bg);
+  background: var(--default-button-bg);
+  color: var(--button-fg);
+}
+
+.festival-actions .festival-action-button--primary:hover {
+  border-color: var(--default-button-hover-bg);
+  background: var(--default-button-hover-bg);
+}
+
+.festival-actions .festival-action-button:focus-visible {
+  outline: 3px solid var(--link-fg);
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .festival-actions {
+    padding: 16px;
+  }
+
+  .festival-actions .festival-action-button {
+    width: 100%;
+  }
+}

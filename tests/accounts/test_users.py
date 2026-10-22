@@ -110,4 +110,4 @@ def test_authentication_rejects_wrong_password_and_inactive_user(member):
 def test_organizers_group_is_seeded_without_account_permissions():
     group = Group.objects.get(name="Организаторы")
     assert Group.objects.filter(name="Организаторы").count() == 1
-    assert not group.permissions.exists()
+    assert not group.permissions.exclude(content_type__app_label="festivals").exists()

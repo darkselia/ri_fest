@@ -1,0 +1,432 @@
+import json
+import re
+from datetime import date, datetime, timezone
+
+import pytest
+from django.contrib.admin.templatetags.admin_list import result_headers
+from django.contrib.auth.models import Group, Permission
+from django.urls import reverse
+
+from festivals.models import Festival
+from festivals.services import publish_festival, sync_festival_states
+
+pytestmark = pytest.mark.django_db
+
+
+def test_admin_create_and_errors(client, organizer, now):
+    client.force_login(organizer)
+    url = reverse("admin:festivals_festival_add")
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.context["adminform"].form["timezone"].value() == "Asia/Krasnoyarsk"
+    assert "Актуальный статус" not in response.content.decode()
+    assert "Сохранённый статус" not in response.content.decode()
+    assert '<select name="timezone"' in response.content.decode()
+    assert "UTC+07:00 — Красноярск" in response.content.decode()
+    response = client.post(
+        url,
+        {
+            "name": "Синтетический",
+            "theme": "Тема",
+            "timezone": "invalid",
+        },
+    )
+    assert response.status_code == 200
+    assert response.context["adminform"].form["name"].value() == "Синтетический"
+    assert not Festival.objects.exists()
+    response = client.post(
+        url,
+        {
+            "name": "Черновик",
+            "timezone": "Asia/Krasnoyarsk",
+            "status": "open",
+            "published_at": "2030-01-01",
+        },
+    )
+    assert response.status_code == 302
+    festival = Festival.objects.get()
+    assert festival.status == "draft"
+    assert festival.published_at is None
+
+
+def test_admin_publish_search_filter_and_no_delete(client, organizer, draft, now):
+    client.force_login(organizer)
+    url = reverse("admin:festivals_festival_changelist")
+    change_url = reverse("admin:festivals_festival_change", args=[draft.pk])
+    response = client.get(change_url)
+    assert 'name="_publish"' in response.content.decode()
+    html = response.content.decode()
+    assert html.index("Управление фестивалем") < html.index(
+        'class="form-row field-name"'
+    )
+    response = client.post(
+        change_url,
+        {
+            "name": draft.name,
+            "theme": "Новая тема",
+            "start_date": "2030-01-28",
+            "end_date": "2030-01-31",
+            "timezone": "Asia/Krasnoyarsk",
+            "_publish": "1",
+        },
+    )
+    assert response.status_code == 302
+    draft.refresh_from_db()
+    assert draft.status == "open"
+    assert draft.theme == "Новая тема"
+    assert 'name="_publish"' not in client.get(change_url).content.decode()
+    response = client.get(
+        url, {"q": "Синтетический", "status__exact": "open", "o": "2"}
+    )
+    assert response.status_code == 200
+    assert list(response.context["cl"].queryset) == [draft]
+    assert 'name="action"' not in response.content.decode()
+    assert 'name="_selected_action"' not in response.content.decode()
+    assert "Актуальный статус" not in response.content.decode()
+    assert (
+        client.post(
+            reverse("admin:festivals_festival_delete", args=[draft.pk])
+        ).status_code
+        == 403
+    )
+
+
+@pytest.mark.parametrize("superuser", [False, True])
+def test_archive_direct_post_denied_and_restore_confirmed(
+    client, organizer, django_user_model, draft, now, superuser
+):
+    from datetime import datetime, timezone
+
+    actor = organizer
+    if superuser:
+        actor = django_user_model.objects.create_superuser("root@example.invalid")
+    publish_festival(draft.pk, actor=actor)
+    sync_festival_states(at=datetime(2031, 1, 1, tzinfo=timezone.utc))
+    client.force_login(actor)
+    url = reverse("admin:festivals_festival_change", args=[draft.pk])
+    response = client.get(url)
+    assert response.status_code == 200
+    assert 'name="_publish"' not in response.content.decode()
+    assert client.post(url, {"name": "Hack", "timezone": "UTC"}).status_code == 403
+    restore_url = reverse("admin:festivals_festival_restore", args=[draft.pk])
+    assert f'href="{restore_url}"' in response.content.decode()
+    response = client.get(restore_url)
+    assert response.status_code == 200
+    assert '<select name="timezone"' in response.content.decode()
+    draft.refresh_from_db()
+    assert draft.status == "archived"
+    response = client.post(
+        restore_url,
+        {"start_date": "2030-01-28", "end_date": "2030-01-31", "timezone": "UTC"},
+    )
+    assert response.status_code == 302
+    draft.refresh_from_db()
+    assert draft.status == "open"
+
+
+def test_restore_bad_form_keeps_values(client, organizer, draft, now):
+    client.force_login(organizer)
+    response = client.post(
+        reverse("admin:festivals_festival_restore", args=[draft.pk]),
+        {
+            "start_date": "2030-02-10",
+            "end_date": "2030-01-01",
+            "timezone": "UTC",
+        },
+    )
+    assert response.status_code == 200
+    assert response.context["form"].errors
+    assert response.context["form"]["start_date"].value() == "2030-02-10"
+
+
+def test_restore_csrf_and_permission(client, organizer, draft, now, django_user_model):
+    from django.test import Client
+
+    url = reverse("admin:festivals_festival_restore", args=[draft.pk])
+    csrf_client = Client(enforce_csrf_checks=True)
+    csrf_client.force_login(organizer)
+    assert csrf_client.post(url, {}).status_code == 403
+    staff = django_user_model.objects.create_user(
+        "staff@example.invalid", is_staff=True
+    )
+    client.force_login(staff)
+    assert client.get(url).status_code == 403
+
+
+def test_group_has_only_festival_permissions():
+    group = Group.objects.get(name="Организаторы")
+    assert set(group.permissions.values_list("codename", flat=True)) == {
+        "add_festival",
+        "view_festival",
+        "change_festival",
+        "publish_festival",
+        "restore_festival",
+    }
+
+
+def test_removed_bulk_publication_does_nothing(client, organizer, draft, now):
+    second = Festival.objects.create(
+        name="Другой", start_date=date(2030, 1, 28), end_date=date(2030, 1, 31)
+    )
+    client.force_login(organizer)
+    response = client.post(
+        reverse("admin:festivals_festival_changelist"),
+        {
+            "action": "publish_selected",
+            "_selected_action": [draft.pk, second.pk],
+        },
+    )
+    assert response.status_code == 200
+    assert not Festival.objects.exclude(status="draft").exists()
+
+
+def test_list_has_no_actions_and_sorts_only_by_start_date(
+    client, organizer, draft, now
+):
+    client.force_login(organizer)
+    later = Festival.objects.create(
+        name="Альфа", start_date=date(2030, 2, 1), end_date=date(2030, 2, 2)
+    )
+    list_url = reverse("admin:festivals_festival_changelist")
+    response = client.get(list_url)
+    headers = list(result_headers(response.context["cl"]))
+    assert [str(header["text"]) for header in headers if header["sortable"]] == [
+        "Дата начала"
+    ]
+    assert [obj.pk for obj in response.context["cl"].queryset] == [draft.pk, later.pk]
+    assert "Действия" not in [str(header["text"]) for header in headers]
+    assert "formaction=" not in response.content.decode()
+    assert "Актуальный статус" not in response.content.decode()
+    response = client.get(list_url, {"o": "-2"})
+    assert [obj.pk for obj in response.context["cl"].queryset] == [later.pk, draft.pk]
+
+
+def test_return_to_draft_requires_csrf_and_permission(
+    client, organizer, django_user_model, draft, now
+):
+    from django.test import Client
+
+    publish_festival(draft.pk, actor=organizer)
+    url = reverse("admin:festivals_festival_unpublish", args=[draft.pk])
+    csrf_client = Client(enforce_csrf_checks=True)
+    csrf_client.force_login(organizer)
+    assert csrf_client.post(url, {}).status_code == 403
+    viewer = django_user_model.objects.create_user(
+        "viewer@example.invalid", is_staff=True
+    )
+    viewer.user_permissions.add(
+        Permission.objects.get(
+            content_type__app_label="festivals", codename="view_festival"
+        )
+    )
+    client.force_login(viewer)
+    response = client.get(reverse("admin:festivals_festival_change", args=[draft.pk]))
+    assert response.status_code == 200
+    assert f'href="{url}"' not in response.content.decode()
+    assert client.get(url).status_code == 403
+    assert client.post(url, {}).status_code == 403
+    draft.refresh_from_db()
+    assert draft.status == "open"
+
+
+@pytest.mark.parametrize(
+    "at,stored_archive",
+    [
+        (datetime(2030, 1, 1, tzinfo=timezone.utc), False),
+        (datetime(2030, 1, 29, tzinfo=timezone.utc), False),
+        (datetime(2030, 2, 1, tzinfo=timezone.utc), True),
+        (datetime(2030, 2, 1, tzinfo=timezone.utc), False),
+    ],
+)
+def test_return_to_draft_from_every_state_is_confirmed(
+    client, organizer, draft, now, monkeypatch, at, stored_archive
+):
+    published = publish_festival(draft.pk, actor=organizer)
+    if stored_archive:
+        sync_festival_states(at=at)
+    monkeypatch.setattr("festivals.services.timezone.now", lambda: at)
+    client.force_login(organizer)
+    change_url = reverse("admin:festivals_festival_change", args=[draft.pk])
+    url = reverse("admin:festivals_festival_unpublish", args=[draft.pk])
+    response = client.get(change_url)
+    assert f'href="{url}"' in response.content.decode()
+    draft.refresh_from_db()
+    original_status = draft.status
+    response = client.get(url)
+    assert response.status_code == 200
+    assert "Подтвердить возврат в черновик" in response.content.decode()
+    draft.refresh_from_db()
+    assert draft.status == original_status
+    response = client.post(url, {})
+    assert response.status_code == 302
+    assert response.url == change_url
+    draft.refresh_from_db()
+    assert draft.status == "draft"
+    assert draft.published_at == published.published_at
+    assert draft.start_date == published.start_date
+    assert draft.end_date == published.end_date
+    assert draft.timezone == published.timezone
+    assert sync_festival_states(at=at) == 0
+    assert 'name="_publish"' in client.get(change_url).content.decode()
+
+
+def test_publish_invalid_form_keeps_values(client, organizer, draft, now):
+    client.force_login(organizer)
+    response = client.post(
+        reverse("admin:festivals_festival_change", args=[draft.pk]),
+        {
+            "name": "Исправленное название",
+            "start_date": "2030-02-10",
+            "end_date": "2030-01-01",
+            "timezone": "UTC",
+            "_publish": "1",
+        },
+    )
+    assert response.status_code == 200
+    form = response.context["adminform"].form
+    assert form.errors
+    assert form["name"].value() == "Исправленное название"
+    draft.refresh_from_db()
+    assert draft.status == "draft"
+    assert draft.name == "Синтетический фестиваль"
+
+
+@pytest.mark.parametrize("conflict", [False, True])
+def test_publish_business_error_keeps_draft(client, organizer, draft, now, conflict):
+    if conflict:
+        other = Festival.objects.create(
+            name="Другой", start_date=draft.start_date, end_date=draft.end_date
+        )
+        publish_festival(other.pk, actor=organizer)
+    client.force_login(organizer)
+    response = client.post(
+        reverse("admin:festivals_festival_change", args=[draft.pk]),
+        {
+            "name": draft.name,
+            "start_date": "2030-01-28" if conflict else "",
+            "end_date": "2030-01-31" if conflict else "",
+            "timezone": "UTC",
+            "_publish": "1",
+        },
+        follow=True,
+    )
+    assert response.status_code == 200
+    assert any(message.level == 40 for message in response.context["messages"])
+    draft.refresh_from_db()
+    assert draft.status == "draft"
+    assert draft.published_at is None
+
+
+def test_publish_csrf_and_permission(client, django_user_model, organizer, draft, now):
+    from django.test import Client
+
+    url = reverse("admin:festivals_festival_change", args=[draft.pk])
+    data = {
+        "name": "Не должно сохраниться",
+        "start_date": "2030-01-28",
+        "end_date": "2030-01-31",
+        "timezone": "UTC",
+        "_publish": "1",
+    }
+    csrf_client = Client(enforce_csrf_checks=True)
+    csrf_client.force_login(organizer)
+    assert csrf_client.post(url, data).status_code == 403
+    staff = django_user_model.objects.create_user(
+        "editor@example.invalid", is_staff=True
+    )
+    staff.user_permissions.add(
+        Permission.objects.get(
+            content_type__app_label="festivals", codename="change_festival"
+        )
+    )
+    client.force_login(staff)
+    assert 'name="_publish"' not in client.get(url).content.decode()
+    assert client.post(url, data).status_code == 403
+    draft.refresh_from_db()
+    assert draft.status == "draft"
+    assert draft.name == "Синтетический фестиваль"
+
+
+def test_timezone_negative_offset_selection(client, organizer, now):
+    client.force_login(organizer)
+    url = reverse("admin:festivals_festival_add")
+    response = client.get(url)
+    choices = dict(response.context["adminform"].form.fields["timezone"].choices)
+    assert len(choices) == 27
+    assert choices["Etc/GMT+12"] == "UTC-12:00"
+    assert choices["Etc/GMT-14"] == "UTC+14:00"
+    assert choices["UTC"] == "UTC+00:00"
+    assert choices["Etc/GMT+5"] == "UTC-05:00"
+    assert choices["Etc/GMT-3"] == "UTC+03:00"
+    assert [label for label in choices.values() if " — " in label] == [
+        "UTC+07:00 — Красноярск"
+    ]
+    response = client.post(url, {"name": "Западный пояс", "timezone": "Etc/GMT+5"})
+    assert response.status_code == 302
+    assert Festival.objects.get().timezone == "Etc/GMT+5"
+
+
+@pytest.mark.parametrize(
+    "zone,label",
+    [
+        ("Asia/Kathmandu", "UTC+05:45"),
+        ("Europe/Moscow", "UTC+03:00"),
+        ("America/New_York", "UTC-05:00"),
+    ],
+)
+def test_existing_timezone_is_preserved(client, organizer, draft, now, zone, label):
+    draft.timezone = zone
+    draft.save(update_fields=["timezone"])
+    client.force_login(organizer)
+    url = reverse("admin:festivals_festival_change", args=[draft.pk])
+    response = client.get(url)
+    form = response.context["adminform"].form
+    assert form["timezone"].value() == zone
+    assert dict(form.fields["timezone"].choices)[zone] == label
+    response = client.post(
+        url,
+        {
+            "name": draft.name,
+            "timezone": zone,
+            "start_date": "2030-01-28",
+            "end_date": "2030-01-31",
+        },
+    )
+    assert response.status_code == 302
+    draft.refresh_from_db()
+    assert draft.timezone == zone
+
+
+@pytest.mark.parametrize(
+    "direction,description",
+    [
+        ("ahead", "опережает его"),
+        ("behind", "отстаёт от него"),
+    ],
+)
+def test_admin_timezone_hint_is_russian(client, organizer, direction, description):
+    client.force_login(organizer)
+    response = client.get(reverse("admin:jsi18n"))
+    assert response.status_code == 200
+    catalog = json.loads(
+        re.search(
+            r"const newcatalog = (\{.*?\});",
+            response.content.decode(),
+            re.S,
+        ).group(1)
+    )
+    key = (
+        "Note: Enter times in the %(timezone)s timezone. "
+        f"(You are %(offset)s hour {direction}.)"
+    )
+    for form, suffix in zip(
+        catalog[key], ("час", "часа", "часов", "часа"), strict=True
+    ):
+        rendered = form % {"timezone": "UTC", "offset": 7}
+        assert rendered.startswith("Примечание: вводите время")
+        assert description in rendered
+        assert rendered.endswith(f"7 {suffix}.")
+
+
+def test_admin_javascript_catalog_requires_staff(client):
+    assert client.get(reverse("admin:jsi18n")).status_code == 302

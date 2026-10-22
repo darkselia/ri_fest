@@ -23,6 +23,7 @@ ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 
 INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
+    "festivals.apps.FestivalsConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -116,5 +117,23 @@ STATICFILES_DIRS = [BASE_DIR / "static", ("brand", BASE_DIR / "assets")]
 MAILERS = {
     "default": {
         "BACKEND": "django.core.mail.backends.console.EmailBackend",
+    },
+}
+
+# The request-time calendar checks remain authoritative between scheduled runs.
+CELERY_BROKER_URL = env.str("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
+CELERY_TIMEZONE = "UTC"
+CELERY_ENABLE_UTC = True
+CELERY_TASK_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+# Synchronize stored states hourly; requests check calendar boundaries immediately.
+FESTIVAL_SYNC_INTERVAL_SECONDS = 3600
+CELERY_BEAT_SCHEDULE = {
+    "sync-festival-states": {
+        "task": "festivals.tasks.synchronize_festivals",
+        "schedule": FESTIVAL_SYNC_INTERVAL_SECONDS,
+        "options": {"expires": FESTIVAL_SYNC_INTERVAL_SECONDS},
     },
 }
