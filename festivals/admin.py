@@ -103,6 +103,8 @@ class FestivalAdmin(admin.ModelAdmin):
         return request.user.has_perm("festivals.restore_festival")
 
     def save_model(self, request, obj, form, change):
+        if "_publish" in request.POST and not self.has_publish_permission(request):
+            raise PermissionDenied
         saved = save_festival(
             obj.pk if change else None,
             actor=request.user,
@@ -117,9 +119,14 @@ class FestivalAdmin(admin.ModelAdmin):
         self, request, context, add=False, change=False, form_url="", obj=None
     ):
         status = get_effective_status(obj) if obj else None
+        context["festival_is_draft"] = add or status == Festival.Status.DRAFT
         context["can_publish_festival"] = (
-            status == Festival.Status.DRAFT
-            and self.has_change_permission(request, obj)
+            context["festival_is_draft"]
+            and (
+                self.has_add_permission(request)
+                if add
+                else self.has_change_permission(request, obj)
+            )
             and self.has_publish_permission(request)
         )
         context["can_restore_festival"] = (
@@ -136,15 +143,24 @@ class FestivalAdmin(admin.ModelAdmin):
         )
         return super().render_change_form(request, context, add, change, form_url, obj)
 
+    def response_add(self, request, obj, post_url_continue=None):
+        if "_publish" in request.POST:
+            return self.response_publish(request, obj)
+        return super().response_add(request, obj, post_url_continue)
+
     def response_change(self, request, obj):
-        if "_publish" not in request.POST:
-            return super().response_change(request, obj)
-        if not self.has_publish_permission(request):
-            raise PermissionDenied
+        if "_publish" in request.POST:
+            return self.response_publish(request, obj)
+        return super().response_change(request, obj)
+
+    def response_publish(self, request, obj):
         try:
             festival = publish_festival(obj.pk, actor=request.user)
         except ValidationError as error:
-            self.message_user(request, " ".join(error.messages), messages.ERROR)
+            message = " ".join(error.messages)
+            if obj.status == Festival.Status.DRAFT:
+                message = f"Черновик сохранён. Публикация не выполнена: {message}"
+            self.message_user(request, message, messages.ERROR)
         else:
             self.log_change(request, festival, "Публикация фестиваля.")
             self.message_user(request, f"Опубликован: {festival}.", messages.SUCCESS)

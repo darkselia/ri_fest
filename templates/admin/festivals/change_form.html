@@ -6,22 +6,12 @@
   <link rel="stylesheet" href="{% static 'css/festival_admin.css' %}">
 {% endblock %}
 
-{% block form_top %}
+{% block object-tools-items %}
   {{ block.super }}
-  {% if can_publish_festival or can_restore_festival or can_unpublish_festival %}
-    <section class="festival-actions" aria-labelledby="festival-actions-title">
-      <h2 id="festival-actions-title">Управление фестивалем</h2>
-      <div class="festival-actions__buttons">
-        {% if can_publish_festival %}
-          <button type="submit" class="festival-action-button festival-action-button--primary" name="_publish" value="1">Сохранить и опубликовать</button>
-        {% endif %}
-        {% if can_restore_festival %}
-          <a class="festival-action-button festival-action-button--primary" href="{% url 'admin:festivals_festival_restore' original.pk %}">Вернуть в работу</a>
-        {% endif %}
-        {% if can_unpublish_festival %}
-          <a class="festival-action-button" href="{% url 'admin:festivals_festival_unpublish' original.pk %}">Вернуть в черновик</a>
-        {% endif %}
-      </div>
-    </section>
+  {% if can_restore_festival %}
+    <li><a class="festival-tool--restore" href="{% url 'admin:festivals_festival_restore' original.pk %}">Вернуть в работу</a></li>
+  {% endif %}
+  {% if can_unpublish_festival %}
+    <li><a class="festival-tool--draft" href="{% url 'admin:festivals_festival_unpublish' original.pk %}">Вернуть в черновик</a></li>
   {% endif %}
 {% endblock %}
