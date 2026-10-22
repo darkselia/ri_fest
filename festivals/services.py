@@ -34,6 +34,12 @@ def get_effective_status(festival, *, at=None):
     return calendar_status(festival, at)
 
 
+def assert_festival_mutable(festival, *, at=None):
+    """Reject archive edits; callers must lock and reload persisted festivals first."""
+    if get_effective_status(festival, at=at) == Festival.Status.ARCHIVED:
+        raise PermissionDenied("Архивный фестиваль доступен только для чтения.")
+
+
 def require_permission(actor, codename):
     if not actor.is_active or not actor.has_perm(f"festivals.{codename}_festival"):
         raise PermissionDenied
@@ -72,8 +78,7 @@ def save_festival(festival_id, *, actor, changes, at=None):
             else Festival()
         )
         now = moment(at)
-        if get_effective_status(festival, at=now) == Festival.Status.ARCHIVED:
-            raise PermissionDenied("Архив доступен только через возврат в работу.")
+        assert_festival_mutable(festival, at=now)
         for field, value in changes.items():
             setattr(festival, field, value)
         festival.full_clean()

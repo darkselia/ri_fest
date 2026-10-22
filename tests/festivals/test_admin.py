@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from django.contrib.admin.templatetags.admin_list import result_headers
@@ -122,6 +122,51 @@ def test_archive_direct_post_denied_and_restore_confirmed(
     assert response.status_code == 302
     draft.refresh_from_db()
     assert draft.status == "open"
+
+
+@pytest.mark.parametrize("superuser", [False, True])
+@pytest.mark.parametrize("day", [1, 29])
+def test_form_opened_before_archive_cannot_save_without_sync(
+    client, organizer, django_user_model, draft, now, monkeypatch, superuser, day
+):
+    actor = organizer
+    if superuser:
+        actor = django_user_model.objects.create_superuser(
+            "archive-root@example.invalid"
+        )
+    publish_festival(
+        draft.pk, actor=actor, at=datetime(2030, 1, day, tzinfo=timezone.utc)
+    )
+    boundary = datetime(2030, 1, 31, 17, tzinfo=timezone.utc)
+    opened_at = boundary - timedelta(microseconds=1)
+    monkeypatch.setattr("festivals.services.timezone.now", lambda: opened_at)
+    client.force_login(actor)
+    url = reverse("admin:festivals_festival_change", args=[draft.pk])
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.context["has_change_permission"]
+    before = Festival.objects.values().get(pk=draft.pk)
+
+    monkeypatch.setattr("festivals.services.timezone.now", lambda: boundary)
+    response = client.post(
+        url,
+        {
+            "name": "Не должно сохраниться",
+            "theme": "Правка открытой формы",
+            "start_date": "2031-01-28",
+            "end_date": "2031-01-31",
+            "timezone": "Etc/GMT+12",
+            "_save": "1",
+        },
+    )
+    assert response.status_code == 403
+    assert Festival.objects.values().get(pk=draft.pk) == before
+    response = client.get(url)
+    assert response.status_code == 200
+    assert not response.context["has_change_permission"]
+    assert response.context["can_restore_festival"]
+    assert response.context["can_unpublish_festival"]
+    assert Festival.objects.values().get(pk=draft.pk) == before
 
 
 def test_restore_bad_form_keeps_values(client, organizer, draft, now):

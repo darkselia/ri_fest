@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone
-from threading import Barrier
+from threading import Barrier, Event
 
 import pytest
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -96,21 +96,35 @@ def test_concurrent_restore_and_publication(django_user_model):
     assert Festival.objects.filter(status__in=["open", "running"]).count() == 1
 
 
-def test_row_lock_rechecks_archive_before_update(django_user_model):
-    from threading import Event
-
+@pytest.mark.parametrize("archive_reason", ["status", "calendar", "clock"])
+def test_row_lock_rechecks_archive_before_update(
+    django_user_model, monkeypatch, archive_reason
+):
     user = actor(django_user_model)
     festival = draft("Текущий")
     publish_festival(festival.pk, actor=user, at=NOW)
     started = Event()
+    checked_at = [NOW]
+    monkeypatch.setattr("festivals.services.timezone.now", lambda: checked_at[0])
+
+    def signal_lock_query(execute, sql, params, many, context):
+        if "FOR UPDATE" in sql:
+            started.set()
+        return execute(sql, params, many, context)
 
     def edit():
         close_old_connections()
-        started.set()
         try:
-            save_festival(
-                festival.pk, actor=user, changes={"theme": "Must not save"}, at=NOW
-            )
+            with connection.execute_wrapper(signal_lock_query):
+                save_festival(
+                    festival.pk,
+                    actor=user,
+                    changes={
+                        "theme": "Must not save",
+                        "start_date": date(2031, 1, 28),
+                        "end_date": date(2031, 1, 31),
+                    },
+                )
         finally:
             close_old_connections()
 
@@ -119,12 +133,21 @@ def test_row_lock_rechecks_archive_before_update(django_user_model):
             locked = Festival.objects.select_for_update().get(pk=festival.pk)
             pending = pool.submit(edit)
             assert started.wait(timeout=10)
-            locked.status = "archived"
-            locked.save(update_fields=["status"])
+            if archive_reason == "status":
+                locked.status = "archived"
+                locked.save(update_fields=["status"])
+            elif archive_reason == "calendar":
+                # Simulate a stale stored status after a concurrent calendar change.
+                locked.start_date = date(2029, 1, 28)
+                locked.end_date = date(2029, 1, 31)
+                locked.save(update_fields=["start_date", "end_date"])
+            else:
+                # Midnight arrives while the edit is waiting for the row lock.
+                checked_at[0] = datetime(2030, 1, 31, 17, tzinfo=timezone.utc)
+            expected = Festival.objects.values().get(pk=festival.pk)
         with pytest.raises(PermissionDenied):
             pending.result(timeout=15)
-    festival.refresh_from_db()
-    assert festival.theme == ""
+    assert Festival.objects.values().get(pk=festival.pk) == expected
 
 
 def test_concurrent_return_to_draft_and_calendar_sync(django_user_model):
