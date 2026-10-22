@@ -2,55 +2,26 @@
 
 Сайт регистрации на Сибирский фестиваль ролевых игр «РИ-фест».
 
-Стек: Django, PostgreSQL, Django Templates, Forms/ModelForms, Django Admin, обычный CSS и JavaScript.
+Django и PostgreSQL, серверные шаблоны и формы, стандартная Django Admin, обычный CSS и JavaScript.
 
+## Запуск
 
-## Локальный запуск
-
-Нужны Conda и запущенный PostgreSQL с отдельной базой и пользователем проекта.
-
-```powershell
-conda env create --file environment.yml
-conda activate ri_fest
-```
-
-Создайте `.env` по образцу [.env.example](.env.example), заполните `DJANGO_SECRET_KEY` и параметры `DB_*`. Для локальной разработки задайте `DJANGO_DEBUG=True`. Ключ можно сгенерировать командой:
+Нужен Docker Desktop с Linux-контейнерами. Создайте `.env` по образцу [.env.example](.env.example) и заполните `DJANGO_SECRET_KEY`, `DB_PASSWORD` и `POSTGRES_ADMIN_PASSWORD`. Пароли базы должны различаться; значения со знаком `$` заключайте в одинарные кавычки.
 
 ```powershell
-python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+docker compose up --build -d
 ```
 
-Для новой базы примените миграции, затем запустите сервер:
+Сайт: <http://127.0.0.1:8000/>. Миграции применяются автоматически. После изменения кода повторите команду запуска.
 
-```powershell
-python manage.py migrate
-python manage.py runserver
-```
-
-Сайт: <http://127.0.0.1:8000/>.
-
-## Аккаунты
-
-Единый вход: `/accounts/login/`. Пользователь с доступом в Admin (`is_staff`) после входа попадает в `/admin/`, остальные — в `/account/`. `/admin/login/` ведёт на ту же форму. Email сравнивается без учёта регистра, пробелы по краям убираются. Выход выполняется POST-формой.
-
-Первого технического администратора создайте интерактивно:
-
-```powershell
-python manage.py createsuperuser
-```
-
-Технический администратор управляет аккаунтами в Admin. Для назначения организатора добавьте пользователя в группу «Организаторы» и включите «Статус персонала» (`is_staff`), оставив статус суперпользователя выключенным. Прикладные разрешения группы будут добавляться вместе с моделями; управление аккаунтами организаторам недоступно. Кабинет пользователя пока содержит email и выход.
-
-## Оформление
-
-Публичные страницы оформлены в светлом стиле «Современный фестиваль». Шрифт Manrope загружается через Google Fonts; при его недоступности используется системный шрифт. Фирменная графика берётся из `assets` через static-префикс `brand`, дополнительный SVG-декор — из `static/img`. Общие стили находятся в `static/css/site.css`, стили аккаунтов — в `static/css/accounts.css`.
-
-Admin сохраняет штатную тему Django: по умолчанию следует системе, ручной выбор запоминается. Визуальная приёмка новых страниц на 360/768/1440 px ещё не выполнена: браузер недоступен в сессии инструмента.
+`docker compose down` останавливает контейнеры, сохраняя данные в томах. PostgreSQL работает внутри Docker; локальная установка не нужна. Изменение пароля в `.env` не меняет пароль уже созданной роли базы.
 
 ## Проверки
 
 ```powershell
-python check.py
+docker compose exec web python check.py
+docker compose --profile test run --rm tests
+docker compose exec web python manage.py makemigrations --check --dry-run
 ```
 
-Django check, pytest, Ruff и проверка форматирования без изменения файлов.
+`check.py` запускает Django check, pytest и Ruff, включая проверку форматирования без перезаписи. Обычные тесты используют SQLite в памяти; сервис `tests` в профиле `test` проверяет работу с отдельной PostgreSQL-базой `ri_fest_test`.
