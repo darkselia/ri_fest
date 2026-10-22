@@ -1,0 +1,101 @@
+name: ri-fest
+
+x-app: &app
+  image: ri-fest-app:local
+  build: .
+  environment: &app-env
+    DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Fill .env}
+    DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
+    DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}
+    DB_NAME: ${DB_NAME:-ri_fest}
+    DB_USER: ${DB_USER:-ri_fest}
+    DB_PASSWORD: ${DB_PASSWORD:?Fill .env}
+    DB_HOST: db
+    DB_PORT: "5432"
+    CELERY_BROKER_URL: redis://redis:6379/0
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Fill .env}
+      DB_NAME: ${DB_NAME:-ri_fest}
+      DB_USER: ${DB_USER:-ri_fest}
+      DB_PASSWORD: ${DB_PASSWORD:?Fill .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/10-app.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-bookworm
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    <<: *app
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "ri_fest", "worker", "--loglevel=INFO", "--concurrency=2"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  beat:
+    <<: *app
+    command: ["celery", "-A", "ri_fest", "beat", "--loglevel=INFO", "--schedule=/var/lib/ri-fest/beat/celerybeat-schedule"]
+    volumes:
+      - beat_data:/var/lib/ri-fest/beat
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  tests:
+    <<: *app
+    profiles: ["test"]
+    command: ["python", "-m", "pytest", "-q", "tests/festivals/test_postgres.py", "--ds=ri_fest.settings_test_postgres", "--reuse-db"]
+    environment:
+      <<: *app-env
+      DB_TEST_NAME: ri_fest_test
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  postgres_data:
+  redis_data:
+  beat_data:

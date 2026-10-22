@@ -1,0 +1,17 @@
+.git
+.idea
+.agents
+.codex
+.venv
+venv
+.env
+.env.*
+__pycache__
+**/__pycache__
+.pytest_cache
+.ruff_cache
+*.pyc
+*.sqlite3
+media
+staticfiles
+docs
