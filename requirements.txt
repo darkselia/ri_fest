@@ -1,0 +1,10 @@
+Django==6.1.2
+django-environ==0.14.0
+psycopg[binary]==3.3.4
+celery==5.6.3
+redis==8.1.0
+# IANA 2026c, matching the former Conda timezone database.
+tzdata==2026.3
+pytest==9.1.1
+pytest-django==4.13.0
+ruff==0.17.1

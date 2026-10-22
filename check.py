@@ -17,7 +17,7 @@ def main():
     )
     ruff = shutil.which("ruff", path=tool_path)
     if ruff is None:
-        print("Ruff is missing; update the environment from environment.yml.")
+        print("Ruff is missing; install dependencies from requirements.txt.")
         return 1
 
     commands = [
