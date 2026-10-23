@@ -13,6 +13,13 @@ x-app: &app
     DB_HOST: db
     DB_PORT: "5432"
     CELERY_BROKER_URL: redis://redis:6379/0
+    EMAIL_HOST: ${EMAIL_HOST:-mailpit}
+    EMAIL_PORT: ${EMAIL_PORT:-1025}
+    EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+    EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+    EMAIL_USE_TLS: ${EMAIL_USE_TLS:-False}
+    EMAIL_USE_SSL: ${EMAIL_USE_SSL:-False}
+    DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-no-reply@example.invalid}
   restart: unless-stopped
 
 services:
@@ -45,6 +52,18 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    profiles: ["dev-mail", "test"]
+    ports:
+      - "127.0.0.1:8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
   migrate:

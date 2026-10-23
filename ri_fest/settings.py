@@ -114,9 +114,24 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static", ("brand", BASE_DIR / "assets")]
 
+DEFAULT_FROM_EMAIL = env.str("DEFAULT_FROM_EMAIL", default="no-reply@example.invalid")
+email_use_tls = env.bool("EMAIL_USE_TLS", default=False)
+email_use_ssl = env.bool("EMAIL_USE_SSL", default=False)
+if email_use_tls and email_use_ssl:
+    raise ImproperlyConfigured("EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True.")
+
 MAILERS = {
     "default": {
-        "BACKEND": "django.core.mail.backends.console.EmailBackend",
+        "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+        "OPTIONS": {
+            "host": env.str("EMAIL_HOST", default="mailpit"),
+            "port": env.int("EMAIL_PORT", default=1025),
+            "username": env.str("EMAIL_HOST_USER", default=""),
+            "password": os.environ.get("EMAIL_HOST_PASSWORD", ""),
+            "use_tls": email_use_tls,
+            "use_ssl": email_use_ssl,
+            "timeout": 10,
+        },
     },
 }
 
