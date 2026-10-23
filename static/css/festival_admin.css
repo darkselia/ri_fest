@@ -1,3 +1,16 @@
+:root {
+  --color-transparent: transparent;
+  --color-restore: light-dark(#176b47, #70d5a2);
+  --color-restore-hover: light-dark(#115338, #9ae4be);
+  --color-on-restore: light-dark(#fff, #102f22);
+  --color-draft: light-dark(#f3cf75, #e8be62);
+  --color-draft-hover: light-dark(#e8bc55, #f5d48e);
+  --color-on-draft: #402e08;
+  --color-danger: light-dark(#a42b31, #f2a2a7);
+  --color-danger-hover: light-dark(#822027, #ffc4c8);
+  --color-on-danger: light-dark(#fff, #401016);
+}
+
 .app-festivals.model-festival .object-tools {
   display: flex;
   flex-wrap: wrap;
@@ -27,26 +40,32 @@
 }
 
 .app-festivals.model-festival .object-tools a.festival-tool--restore {
-  background: light-dark(#176b47, #70d5a2);
-  color: light-dark(#ffffff, #102f22);
+  background: var(--color-restore);
+  color: var(--color-on-restore);
 }
 
 .app-festivals.model-festival .object-tools a.festival-tool--restore:hover {
-  background: light-dark(#115338, #9ae4be);
+  background: var(--color-restore-hover);
 }
 
 .app-festivals.model-festival .object-tools a.festival-tool--draft {
-  background: light-dark(#f3cf75, #e8be62);
-  color: #402e08;
+  background: var(--color-draft);
+  color: var(--color-on-draft);
 }
 
 .app-festivals.model-festival .object-tools a.festival-tool--draft:hover {
-  background: light-dark(#e8bc55, #f5d48e);
+  background: var(--color-draft-hover);
 }
 
 .app-festivals.model-festival .object-tools a:focus-visible {
   outline: 3px solid var(--link-fg);
   outline-offset: 3px;
+}
+
+.festival-deleted-label {
+  margin-left: 6px;
+  color: var(--body-quiet-color);
+  font-size: 0.85em;
 }
 
 .festival-actions {
@@ -85,8 +104,7 @@
   color: var(--body-quiet-color);
 }
 
-.festival-actions .festival-action-button,
-.festival-save-actions .festival-action-button {
+:is(.festival-actions, .festival-save-actions) .festival-action-button {
   display: inline-flex;
   box-sizing: border-box;
   align-items: center;
@@ -108,26 +126,37 @@
   cursor: pointer;
 }
 
-.festival-actions .festival-action-button:hover,
-.festival-save-actions .festival-action-button:hover {
+:is(.festival-actions, .festival-save-actions) .festival-action-button:hover {
   border-color: var(--body-fg);
 }
 
-.festival-actions .festival-action-button--primary,
-.festival-save-actions .festival-action-button--primary {
+:is(.festival-actions, .festival-save-actions) .festival-action-button--primary {
   border-color: var(--default-button-bg);
   background: var(--default-button-bg);
   color: var(--button-fg);
 }
 
-.festival-actions .festival-action-button--primary:hover,
-.festival-save-actions .festival-action-button--primary:hover {
+:is(.festival-actions, .festival-save-actions) .festival-action-button--primary:hover {
   border-color: var(--default-button-hover-bg);
   background: var(--default-button-hover-bg);
 }
 
-.festival-actions .festival-action-button:focus-visible,
-.festival-save-actions .festival-action-button:focus-visible {
+.app-festivals.model-festival .object-tools a.festival-tool--delete,
+.app-accounts.model-user .object-tools a.account-delete-tool,
+:is(.festival-actions, .festival-save-actions) .festival-action-button--danger {
+  border-color: var(--color-transparent);
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+.app-festivals.model-festival .object-tools a.festival-tool--delete:hover,
+.app-accounts.model-user .object-tools a.account-delete-tool:hover,
+:is(.festival-actions, .festival-save-actions) .festival-action-button--danger:hover {
+  border-color: var(--color-transparent);
+  background: var(--color-danger-hover);
+}
+
+:is(.festival-actions, .festival-save-actions) .festival-action-button:focus-visible {
   outline: 3px solid var(--link-fg);
   outline-offset: 3px;
 }
@@ -137,8 +166,7 @@
     padding: 16px;
   }
 
-  .festival-actions .festival-action-button,
-  .festival-save-actions .festival-action-button {
+  :is(.festival-actions, .festival-save-actions) .festival-action-button {
     width: 100%;
   }
 }

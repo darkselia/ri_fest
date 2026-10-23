@@ -9,8 +9,10 @@ from django.db import IntegrityError, close_old_connections, connection, transac
 from festivals.models import Festival
 from festivals.services import (
     publish_festival,
+    restore_deleted_festival,
     restore_festival,
     save_festival,
+    soft_delete_festival,
     sync_festival_states,
     unpublish_festival,
 )
@@ -44,6 +46,61 @@ def race(operations):
 
 def actor(django_user_model):
     return django_user_model.objects.create_superuser("pg-admin@example.invalid")
+
+
+def test_concurrent_deletion_and_state_sync(django_user_model):
+    user = actor(django_user_model)
+    festival = draft("Удаление и синхронизация")
+    publish_festival(festival.pk, actor=user, at=NOW)
+    assert race(
+        [
+            lambda: soft_delete_festival(festival.pk, actor=user, at=NOW),
+            lambda: sync_festival_states(at=datetime(2031, 1, 1, tzinfo=timezone.utc)),
+        ]
+    ) == ["ok", "ok"]
+    festival.refresh_from_db()
+    assert festival.deleted_at is not None
+    assert not Festival.objects.not_deleted().filter(pk=festival.pk).exists()
+
+
+def test_concurrent_deletion_and_new_publication(django_user_model):
+    user = actor(django_user_model)
+    old, new = draft("Удаляемый"), draft("Новый")
+    publish_festival(old.pk, actor=user, at=NOW)
+    results = race(
+        [
+            lambda: soft_delete_festival(old.pk, actor=user, at=NOW),
+            lambda: publish_festival(new.pk, actor=user, at=NOW),
+        ]
+    )
+    assert results[0] == "ok" and results[1] in ("ok", "rejected")
+    new.refresh_from_db()
+    if new.status == "draft":
+        publish_festival(new.pk, actor=user, at=NOW)
+    assert (
+        Festival.objects.not_deleted().filter(status__in=["open", "running"]).count()
+        == 1
+    )
+
+
+def test_concurrent_restoration_applies_exactly_one_destination(django_user_model):
+    user = actor(django_user_model)
+    festival = draft("Два восстановления")
+    soft_delete_festival(festival.pk, actor=user, at=NOW)
+    assert sorted(
+        race(
+            [
+                lambda: restore_deleted_festival(
+                    festival.pk, actor=user, target_status="draft", at=NOW
+                ),
+                lambda: restore_deleted_festival(
+                    festival.pk, actor=user, target_status="archived", at=NOW
+                ),
+            ]
+        )
+    ) == ["ok", "rejected"]
+    festival.refresh_from_db()
+    assert festival.deleted_at is None and festival.status in ("draft", "archived")
 
 
 def draft(name):

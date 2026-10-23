@@ -278,6 +278,7 @@ def test_group_has_only_festival_permissions():
         "change_festival",
         "publish_festival",
         "restore_festival",
+        "delete_festival",
     }
 
 

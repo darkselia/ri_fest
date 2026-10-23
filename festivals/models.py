@@ -12,6 +12,11 @@ def validate_timezone(value):
         raise ValidationError("Укажите существующий часовой пояс.") from None
 
 
+class FestivalQuerySet(models.QuerySet):
+    def not_deleted(self):
+        return self.filter(deleted_at__isnull=True)
+
+
 class Festival(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Черновик"
@@ -43,6 +48,11 @@ class Festival(models.Model):
         blank=True,
         editable=False,
     )
+    deleted_at = models.DateTimeField(
+        "Удалён", null=True, blank=True, editable=False, db_index=True
+    )
+
+    objects = FestivalQuerySet.as_manager()
 
     class Meta:
         verbose_name = "фестиваль"
@@ -74,7 +84,7 @@ class Festival(models.Model):
             ),
             models.UniqueConstraint(
                 Value(1),
-                condition=Q(status__in=["open", "running"]),
+                condition=Q(status__in=["open", "running"], deleted_at__isnull=True),
                 name="festival_one_current",
             ),
         ]

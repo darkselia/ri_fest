@@ -12,7 +12,7 @@
       {% csrf_token %}
       {% if form %}{{ form.as_p }}{% endif %}
       <div class="festival-actions__buttons">
-        <button type="submit" class="festival-action-button festival-action-button--primary">{{ confirm_label }}</button>
+        <button type="submit" class="festival-action-button {% if danger %}festival-action-button--danger{% else %}festival-action-button--primary{% endif %}">{{ confirm_label }}</button>
         <a class="festival-action-button" href="{{ cancel_url }}">Отмена</a>
       </div>
     </form>
