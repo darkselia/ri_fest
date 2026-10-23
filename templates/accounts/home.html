@@ -1,33 +1,12 @@
-{% extends "base.html" %}
+{% extends "accounts/cabinet_base.html" %}
 {% load static %}
 
-{% block title %}Личный кабинет — РИ-фест{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/accounts.css' %}">{% endblock %}
-
-{% block content %}
-<section class="account-page" aria-labelledby="account-title">
-    <div class="account-heading">
-        <p class="eyebrow">Аккаунт РИ-феста</p>
-        <h1 id="account-title">Личный кабинет</h1>
-    </div>
-    <div class="account-layout">
-        <section class="account-empty" aria-labelledby="applications-title">
-            <img src="{% static 'img/ticket.svg' %}" alt="" width="96" height="72" aria-hidden="true">
-            <h2 id="applications-title">Анкеты участников</h2>
-            <p class="muted">Регистрация участников готовится к запуску.</p>
-        </section>
-        <aside class="profile-panel" aria-labelledby="profile-title">
-            <span class="profile-marker" aria-hidden="true">@</span>
-            <h2 id="profile-title">Ваш аккаунт</h2>
-            <dl class="profile-data">
-                <dt>Email</dt>
-                <dd>{{ user.email }}</dd>
-            </dl>
-            <form method="post" action="{% url 'accounts:logout' %}">
-                {% csrf_token %}
-                <button type="submit" class="button button-secondary button-wide">Выйти из аккаунта <span aria-hidden="true">↗</span></button>
-            </form>
-        </aside>
+{% block account_content %}
+<section class="account-empty" aria-labelledby="applications-title">
+    <img src="{% static 'img/ticket.svg' %}" alt="" width="96" height="72" aria-hidden="true">
+    <div>
+        <h2 id="applications-title">Анкеты участников</h2>
+        <p class="muted">Регистрация участников готовится к запуску.</p>
     </div>
 </section>
 {% endblock %}

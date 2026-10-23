@@ -23,11 +23,13 @@ def test_shared_login_form(client):
     ("fixture_name", "destination"),
     [
         ("member", "accounts:home"),
-        ("organizer", "admin:index"),
-        ("superuser", "admin:index"),
+        ("organizer", "accounts:home"),
+        ("superuser", "accounts:home"),
     ],
 )
-def test_login_redirects_by_saved_role(client, request, fixture_name, destination):
+def test_normal_login_opens_account_for_every_role(
+    client, request, fixture_name, destination
+):
     user = request.getfixturevalue(fixture_name)
     response = client.post(reverse("accounts:login"), login_data(user.email))
     assert response.status_code == 302
@@ -114,13 +116,43 @@ def test_account_requires_login_and_shows_current_user(client, member):
     client.force_login(member)
     response = client.get(reverse("accounts:home"))
     assert response.status_code == 200
-    assert member.email in response.text
+    assert "Анкеты участников" in response.text
+    assert member.email in client.get(reverse("accounts:profile")).text
 
 
-def test_authenticated_login_chooses_role_destination(client, organizer):
+def test_authenticated_normal_login_returns_to_account(client, organizer):
     client.force_login(organizer)
     response = client.get(reverse("accounts:login"))
-    assert response.url == reverse("admin:index")
+    assert response.url == reverse("accounts:home")
+
+
+def test_staff_login_from_admin_returns_to_requested_page(client, organizer):
+    destination = (
+        reverse("admin:festivals_festival_changelist") + "?status__exact=draft"
+    )
+    login_page = client.get(destination, follow=True)
+    assert "accounts/login.html" in {template.name for template in login_page.templates}
+    response = client.post(
+        login_page.request["PATH_INFO"] + "?" + login_page.request["QUERY_STRING"],
+        login_data(organizer.email),
+    )
+    assert response.url == destination
+
+
+@pytest.mark.parametrize(
+    "next_url",
+    [
+        "https://outside.invalid/admin/",
+        "//outside.invalid/admin/",
+        "https://testserver@outside.invalid/admin/",
+        "/accounts/login/",
+    ],
+)
+def test_staff_login_rejects_external_and_non_admin_return(client, organizer, next_url):
+    response = client.post(
+        reverse("accounts:login"), {**login_data(organizer.email), "next": next_url}
+    )
+    assert response.url == reverse("accounts:home")
 
 
 def test_login_requires_csrf(member):

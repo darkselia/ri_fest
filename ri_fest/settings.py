@@ -45,8 +45,29 @@ MIDDLEWARE = [
 ROOT_URLCONF = "ri_fest.urls"
 
 AUTH_USER_MODEL = "accounts.User"
+AUTHENTICATION_BACKENDS = ["accounts.backends.EmailVerificationBackend"]
 LOGIN_URL = "accounts:login"
 LOGOUT_REDIRECT_URL = "accounts:login"
+
+# Set True to require confirmation. False signs new users in without confirmation.
+EMAIL_VERIFICATION_REQUIRED = False
+EMAIL_VERIFICATION_TIMEOUT = 24 * 60 * 60
+PASSWORD_RESET_TIMEOUT = 24 * 60 * 60
+
+CACHES = {
+    "auth": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": "redis://redis:6379/2",
+        "KEY_PREFIX": "ri-fest-auth",
+        "OPTIONS": {"socket_connect_timeout": 2, "socket_timeout": 2},
+    },
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+}
+AUTH_RATE_LIMITS = {
+    "login": {"email_ip": (10, 900), "ip": (60, 900)},
+    "register": {"ip": (10, 3600)},
+    "mail": {"email": (3, 900), "ip": (20, 3600)},
+}
 
 TEMPLATES = [
     {

@@ -14,6 +14,13 @@ os.environ.update(
 from .settings import *  # noqa: E402, F403
 
 DEBUG = False
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    "auth": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "synthetic-auth-tests",
+    },
+}
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",

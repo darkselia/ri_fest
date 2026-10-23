@@ -5,6 +5,20 @@ PASSWORD = "synthetic-account-password-42"
 
 
 @pytest.fixture(autouse=True)
+def isolated_auth_cache(settings, request):
+    settings.CACHES = {
+        **settings.CACHES,
+        "auth": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": request.node.nodeid,
+        },
+    }
+    from django.core.cache import caches
+
+    caches["auth"].clear()
+
+
+@pytest.fixture(autouse=True)
 def fast_test_passwords(settings):
     settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 

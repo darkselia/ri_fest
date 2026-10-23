@@ -1,0 +1,13 @@
+{% extends "accounts/auth_base.html" %}
+
+{% block auth_content %}
+<p class="muted">Аккаунт создан. {% if can_skip %}Для подтверждения email откройте письмо{% else %}Чтобы войти, подтвердите email: откройте письмо{% endif %} для <strong>{{ pending_email }}</strong> и перейдите по ссылке. Ссылка действует 24 часа.</p>
+<p class="muted">Если письмо не пришло, проверьте папку «Спам» или <a href="{% url 'accounts:activation_resend' %}">запросите его повторно</a>.</p>
+{% if can_skip %}
+    <form method="post" action="{% url 'accounts:activation_skip' %}" class="account-form">
+        {% csrf_token %}
+        <button type="submit" class="button button-secondary button-wide">Пропустить</button>
+        <p class="field-help">Подтверждение сейчас необязательно. Email останется неподтверждённым.</p>
+    </form>
+{% endif %}
+{% endblock %}

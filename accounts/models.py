@@ -8,6 +8,16 @@ from .managers import UserManager
 class User(AbstractUser):
     username = None
     email = models.EmailField("email", unique=True)
+    email_verification_pending = models.BooleanField(
+        "Ожидает подтверждения email", default=False, editable=False
+    )
+    email_verified_at = models.DateTimeField(
+        "Email подтверждён", null=True, blank=True, editable=False
+    )
+    pending_email = models.EmailField(
+        "Новый email ожидает подтверждения", blank=True, default="", editable=False
+    )
+    email_change_id = models.UUIDField(null=True, blank=True, editable=False)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
