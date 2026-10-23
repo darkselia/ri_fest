@@ -2,6 +2,8 @@ import logging
 from uuid import uuid4
 
 from django.conf import settings
+from django.contrib.admin.models import DELETION, LogEntry
+from django.contrib.contenttypes.models import ContentType
 from django.core import signing
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.mail import EmailMessage
@@ -11,6 +13,10 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare
 
+from applications.models import Application
+from festivals.models import Festival
+from festivals.services import get_effective_status
+
 from .models import User
 
 logger = logging.getLogger(__name__)
@@ -18,6 +24,78 @@ VERIFICATION_SALT = "accounts.email-verification"
 EMAIL_CHANGE_SALT = "accounts.email-change"
 EMAIL_TAKEN = "Этот email уже используется другим аккаунтом."
 PENDING_SESSION_KEY = "pending_email_verification_user"
+
+
+class AccountDeletionConflict(ValidationError):
+    pass
+
+
+def delete_account(user_id, *, actor, password):
+    festival_ids = set(
+        Application.objects.filter(owner_id=user_id).values_list(
+            "festival_id", flat=True
+        )
+    )
+    with transaction.atomic():
+        festivals = {
+            festival.pk: festival
+            for festival in Festival.objects.select_for_update()
+            .filter(pk__in=festival_ids)
+            .order_by("pk")
+        }
+        users = {
+            user.pk: user
+            for user in User.objects.select_for_update()
+            .filter(pk__in=[actor.pk, user_id])
+            .order_by("pk")
+        }
+        current_actor, target = users.get(actor.pk), users.get(user_id)
+        if current_actor is None or not current_actor.is_active:
+            raise PermissionDenied
+        if target is None:
+            raise AccountDeletionConflict("Аккаунт уже удалён. Обновите страницу.")
+        if current_actor.pk != target.pk and not (
+            current_actor.is_superuser
+            and current_actor.has_perm("accounts.delete_user")
+        ):
+            raise PermissionDenied
+        if not current_actor.check_password(password):
+            raise ValidationError({"current_password": "Текущий пароль неверен."})
+        applications = list(
+            Application.objects.select_for_update().filter(owner=target).order_by("pk")
+        )
+        if any(
+            application.festival_id not in festivals for application in applications
+        ):
+            raise AccountDeletionConflict(
+                "Анкеты изменились. Повторите удаление аккаунта."
+            )
+        now = timezone.now()
+        for application in applications:
+            if (
+                get_effective_status(festivals[application.festival_id], at=now)
+                != Festival.Status.ARCHIVED
+            ):
+                application.status = Application.Status.WITHDRAWN
+            application.owner_id = None
+            application.anonymized_at = now
+            application.updated_at = now
+        Application.objects.bulk_update(
+            applications, ["owner", "status", "anonymized_at", "updated_at"]
+        )
+        LogEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(User), object_id=str(user_id)
+        ).update(object_repr="Удалённый аккаунт", change_message="Аккаунт удалён.")
+        if current_actor.pk != target.pk:
+            LogEntry.objects.create(
+                user=current_actor,
+                content_type=ContentType.objects.get_for_model(User),
+                object_id=str(user_id),
+                object_repr="Удалённый аккаунт",
+                action_flag=DELETION,
+                change_message="Удаление аккаунта с обезличиванием истории.",
+            )
+        target.delete()
 
 
 def verification_token(user):

@@ -17,6 +17,10 @@ from django.utils import timezone
 
 from accounts.forms import RegistrationForm
 from accounts.models import User
+from accounts.services import delete_account
+from applications.models import Application
+from festivals.models import Festival
+from festivals.services import soft_delete_festival
 
 pytestmark = [
     pytest.mark.django_db(transaction=True),
@@ -24,6 +28,36 @@ pytestmark = [
         connection.vendor != "postgresql", reason="Requires isolated PostgreSQL"
     ),
 ]
+
+
+def test_concurrent_account_and_festival_deletion_preserve_history():
+    user = User.objects.create_user(
+        "parallel-owner@example.invalid", "Synthetic-owner-42!"
+    )
+    admin = User.objects.create_superuser("parallel-admin@example.invalid")
+    festival = Festival.objects.create(name="Синтетическое удаление")
+    application = Application.objects.create(owner=user, festival=festival)
+    barrier = Barrier(2)
+
+    def run(operation):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            operation()
+        finally:
+            close_old_connections()
+
+    operations = [
+        lambda: delete_account(user.pk, actor=user, password="Synthetic-owner-42!"),
+        lambda: soft_delete_festival(festival.pk, actor=admin),
+    ]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(run, operations))
+    assert not User.objects.filter(pk=user.pk).exists()
+    application.refresh_from_db()
+    festival.refresh_from_db()
+    assert application.owner_id is None and application.anonymized_at is not None
+    assert application.status == "withdrawn" and festival.deleted_at is not None
 
 
 @pytest.mark.parametrize("required", [False, True])

@@ -2,7 +2,7 @@ from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, PasswordChangeView, PasswordResetView
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -20,6 +20,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import FormView, TemplateView
 
 from .forms import (
+    AccountDeletionForm,
     AccountPasswordChangeForm,
     AccountPasswordResetForm,
     EmailAuthenticationForm,
@@ -32,10 +33,12 @@ from .models import User
 from .rate_limits import RateLimitedMixin, rate_limit_response
 from .services import (
     PENDING_SESSION_KEY,
+    AccountDeletionConflict,
     cancel_email_change,
     change_email,
     confirm_email,
     confirm_email_change,
+    delete_account,
     email_change_user,
     send_email_change_confirmation,
     send_verification_email,
@@ -416,6 +419,40 @@ class EmailChangeConfirmView(View):
             self.template_name,
             {"title": "Email изменён", "changed": True, "new_email": user.email},
         )
+
+
+@method_decorator(never_cache, name="dispatch")
+@method_decorator(sensitive_post_parameters("current_password"), name="dispatch")
+class AccountDeletionView(LoginRequiredMixin, FormView):
+    template_name = "accounts/delete.html"
+    form_class = AccountDeletionForm
+    extra_context = {"title": "Удаление аккаунта", "account_tab": "profile"}
+
+    def get_form_kwargs(self):
+        return {**super().get_form_kwargs(), "user": self.request.user}
+
+    def post(self, request, *args, **kwargs):
+        response = rate_limit_response(request, "login", email=request.user.email)
+        if response is not None:
+            return response
+        return super().post(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        try:
+            delete_account(
+                self.request.user.pk,
+                actor=self.request.user,
+                password=form.cleaned_data["current_password"],
+            )
+        except ValidationError as error:
+            form.add_error(None, error)
+            return self.render_to_response(
+                self.get_context_data(form=form),
+                status=409 if isinstance(error, AccountDeletionConflict) else 200,
+            )
+        logout(self.request)
+        messages.success(self.request, "Аккаунт удалён.")
+        return redirect("accounts:login")
 
 
 class AccountPasswordChangeView(PasswordChangeView):

@@ -123,6 +123,24 @@ class EmailChangeForm(forms.Form):
         return password
 
 
+class AccountDeletionForm(forms.Form):
+    current_password = forms.CharField(
+        label="Текущий пароль",
+        strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}),
+    )
+
+    def __init__(self, *args, user, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_current_password(self):
+        password = self.cleaned_data["current_password"]
+        if not self.user.check_password(password):
+            raise forms.ValidationError("Текущий пароль неверен.")
+        return password
+
+
 class AccountCreationForm(AdminUserCreationForm):
     class Meta(AdminUserCreationForm.Meta):
         model = User

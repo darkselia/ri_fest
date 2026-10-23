@@ -9,6 +9,7 @@ from django.views.generic import TemplateView
 
 from .forms import AccountSetPasswordForm
 from .views import (
+    AccountDeletionView,
     AccountHomeView,
     AccountLoginView,
     AccountPasswordChangeView,
@@ -89,6 +90,7 @@ urlpatterns = [
     path("accounts/logout/", LogoutView.as_view(), name="logout"),
     path("account/", AccountHomeView.as_view(), name="home"),
     path("account/profile/", ProfileView.as_view(), name="profile"),
+    path("account/delete/", AccountDeletionView.as_view(), name="delete"),
     path("account/email-change/", EmailChangeView.as_view(), name="email_change"),
     path(
         "account/email-change/resend/",
