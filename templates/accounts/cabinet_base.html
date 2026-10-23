@@ -6,7 +6,7 @@
 {% block extra_css %}<link rel="stylesheet" href="{% static 'css/accounts.css' %}">{% endblock %}
 
 {% block content %}
-<section class="account-page" aria-labelledby="account-title">
+<section aria-labelledby="account-title">
     <div class="account-heading">
         {% firstof user.first_name.strip user.email as greeting_name %}
         <h1 id="account-title">Здравствуйте, {{ greeting_name }}!</h1>

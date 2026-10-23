@@ -2,12 +2,9 @@
     padding-block: clamp(24px, 3vw, 40px);
 }
 
-.auth-page .site-nav {
+.auth-page .site-nav,
+.account-shell .site-nav {
     min-height: 72px;
-}
-
-.auth-page .site-footer {
-    padding-block: 12px;
 }
 
 .auth-layout {
@@ -39,16 +36,21 @@
     margin-left: 24px;
 }
 
-.auth-panel {
+.auth-panel,
+.account-workspace {
     min-width: 0;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-panel);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-panel);
+}
+
+.auth-panel {
     overflow-wrap: anywhere;
     width: 100%;
     max-width: 600px;
     padding: clamp(24px, 2.5vw, 32px);
-    border: 1px solid rgb(215 209 195 / 70%);
-    border-radius: var(--radius-panel);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-panel);
+    border-color: var(--color-line-soft);
 }
 
 .auth-heading {
@@ -110,38 +112,33 @@
     font-weight: 700;
 }
 
-.form-field input,
-.form-field textarea,
-.form-field select {
+.form-field :is(input, textarea, select) {
     width: 100%;
     min-width: 0;
     min-height: 48px;
     padding: 10px 14px;
-    border: 1px solid #928979;
+    border: 1px solid var(--color-input-border);
     border-radius: var(--radius-control);
-    background: #fff;
+    background: var(--color-white);
     color: var(--color-ink);
     font-size: 16px;
     line-height: 1.5;
     transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.form-field input:focus-visible,
-.form-field textarea:focus-visible,
-.form-field select:focus-visible {
+.form-field :is(input, textarea, select):focus-visible {
     outline: 2px solid var(--color-ink);
     outline-offset: 2px;
     border-color: var(--color-ink);
 }
 
-.form-field input[aria-invalid="true"],
-.form-field.has-error input {
+.form-field :is(input, textarea, select)[aria-invalid="true"] {
     border-color: var(--color-red);
 }
 
 .form-errors,
 .field-errors {
-    color: #991b16;
+    color: var(--color-error);
     font-size: 13px;
 }
 
@@ -149,7 +146,7 @@
     padding: 14px 16px;
     border-left: 3px solid var(--color-red);
     border-radius: 8px;
-    background: #fff0eb;
+    background: var(--color-error-bg);
 }
 
 .errorlist {
@@ -181,10 +178,6 @@
 .account-shell .site-main {
     align-items: start;
     padding-block: 24px;
-}
-
-.account-shell .site-nav {
-    min-height: 72px;
 }
 
 .account-shell .site-footer {
@@ -224,19 +217,16 @@
     gap: 8px;
 }
 
-.account-tools .button {
-    min-height: 40px;
-    padding: 8px 14px;
-    gap: 10px;
+.account-tools .button,
+.account-email .button {
+    padding-inline: 14px;
     font-size: 13px;
 }
 
-.account-workspace {
-    min-width: 0;
-    border: 1px solid var(--color-line);
-    border-radius: var(--radius-panel);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-panel);
+.account-tools .button {
+    min-height: 40px;
+    padding-block: 8px;
+    gap: 10px;
 }
 
 .account-tabs {
@@ -252,7 +242,7 @@
     align-items: center;
     min-height: 50px;
     padding: 10px 0;
-    border-bottom: 3px solid transparent;
+    border-bottom: 3px solid var(--color-transparent);
     color: var(--color-muted);
     font-size: 14px;
     font-weight: 700;
@@ -330,15 +320,32 @@
 
 .account-email-address {
     margin-bottom: 12px;
-    overflow-wrap: anywhere;
     font-size: 14px;
     font-weight: 600;
 }
 
 .account-email .button {
     min-height: 44px;
-    padding: 10px 14px;
+    padding-block: 10px;
+}
+
+.account-delete-link {
+    margin-top: 30px;
     font-size: 13px;
+}
+
+.account-delete-link a {
+    color: var(--color-red);
+}
+
+.account-delete-actions,
+.email-change-actions {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.account-delete-actions {
+    gap: 12px;
 }
 
 .email-status {
@@ -353,13 +360,13 @@
 }
 
 .email-status-confirmed {
-    background: #e4efe0;
-    color: #285323;
+    background: var(--color-success-bg);
+    color: var(--color-success);
 }
 
 .email-status-pending {
-    background: #fff0c2;
-    color: #684a0c;
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
 }
 
 .email-change-pending {
@@ -369,8 +376,6 @@
 }
 
 .email-change-actions {
-    display: flex;
-    flex-wrap: wrap;
     gap: 8px;
 }
 
