@@ -1,0 +1,27 @@
+# Explicit development overlay: docker compose -f compose.yaml -f compose.dev.yaml ...
+x-dev: &dev
+  volumes:
+    - type: bind
+      source: .
+      target: /app
+      read_only: true
+  environment:
+    PYTEST_ADDOPTS: "-o cache_dir=/tmp/pytest-cache"
+    RUFF_CACHE_DIR: /tmp/ruff-cache
+
+services:
+  migrate:
+    <<: *dev
+
+  web:
+    <<: *dev
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+
+  worker:
+    <<: *dev
+
+  beat:
+    <<: *dev
+
+  tests:
+    <<: *dev
