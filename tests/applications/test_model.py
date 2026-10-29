@@ -20,12 +20,14 @@ def application(django_user_model):
         start_date=date(2030, 1, 28),
         end_date=date(2030, 1, 31),
     )
-    return Application.objects.create(owner=owner, festival=festival)
+    return Application.objects.create(
+        owner=owner, festival=festival, status=Application.Status.ACTIVE
+    )
 
 
 def test_owner_can_have_multiple_active_applications_for_one_festival(application):
     second = Application.objects.create(
-        owner=application.owner, festival=application.festival
+        owner=application.owner, festival=application.festival, status="active"
     )
     assert second.pk != application.pk
     assert application.status == second.status == Application.Status.ACTIVE
@@ -93,7 +95,11 @@ def test_festival_archival_preserves_applications_statuses_and_relations(
     assert sync_festival_states(at=datetime(2030, 2, 1, tzinfo=timezone.utc)) == 1
     application.festival.refresh_from_db()
     assert application.festival.status == Festival.Status.ARCHIVED
-    assert list(Application.objects.order_by("pk").values()) == before
+    after = list(Application.objects.order_by("pk").values())
+    for previous, current in zip(before, after, strict=True):
+        assert current["status"] == "draft"
+        for key in ("id", "owner_id", "festival_id", "created_at", "anonymized_at"):
+            assert current[key] == previous[key]
 
 
 @pytest.mark.parametrize("relation", ["owner", "festival"])
@@ -105,3 +111,14 @@ def test_related_records_cannot_be_deleted_with_applications(application, relati
     assert type(related).objects.filter(pk=related_id).exists()
     application.refresh_from_db()
     assert getattr(application, f"{relation}_id") == related_id
+
+
+def test_new_application_defaults_to_owned_draft(application):
+    draft = Application.objects.create(
+        owner=application.owner, festival=application.festival
+    )
+    assert draft.status == "draft"
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Application.objects.filter(pk=draft.pk).update(
+            owner=None, anonymized_at=datetime.now(timezone.utc)
+        )

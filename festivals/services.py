@@ -1,13 +1,26 @@
+import hashlib
+import json
+from copy import copy
+from datetime import date
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
+from django.core import signing
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import IntegrityError, transaction
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db import transaction
 from django.utils import timezone
+
+from applications.models import Application
 
 from .models import Festival
 
 EDITABLE_FIELDS = ("name", "theme", "start_date", "end_date", "timezone")
+CONFIRMATION_SALT = "festivals.confirm-action"
+
+
+class FestivalActionConflict(ValidationError):
+    pass
 
 
 def moment(at=None):
@@ -36,17 +49,9 @@ def get_effective_status(festival, *, at=None):
 
 
 def assert_festival_mutable(festival, *, at=None):
-    """Reject archive edits; callers must lock and reload persisted festivals first."""
-    assert_festival_not_deleted(festival)
+    """Call after locking/reloading the festival for ordinary mutations."""
     if get_effective_status(festival, at=at) == Festival.Status.ARCHIVED:
         raise PermissionDenied("Архивный фестиваль доступен только для чтения.")
-
-
-def assert_festival_not_deleted(festival):
-    if festival.deleted_at is not None:
-        raise PermissionDenied(
-            "Удалённый фестиваль доступен только для восстановления."
-        )
 
 
 def require_permission(actor, codename):
@@ -65,23 +70,155 @@ def validate_calendar(festival):
         raise ValidationError(errors)
 
 
-def check_current(festival):
-    if (
-        Festival.objects.not_deleted()
-        .filter(status__in=["open", "running"])
-        .exclude(pk=festival.pk)
-        .exists()
-    ):
-        raise ValidationError(
-            "Другой фестиваль уже опубликован. Если он завершился, "
-            "сначала выполните синхронизацию состояний."
+def _candidate(festival, changes):
+    if set(changes) - set(EDITABLE_FIELDS):
+        raise ValidationError("Переданы недоступные для редактирования поля.")
+    candidate = copy(festival)
+    for field, value in changes.items():
+        setattr(candidate, field, value)
+    candidate.full_clean()
+    return candidate
+
+
+def _applications(festival):
+    return list(
+        Application.objects.select_for_update().filter(festival=festival).order_by("pk")
+    )
+
+
+def _return_to_drafts(applications, at):
+    ids = [
+        application.pk
+        for application in applications
+        if application.owner_id is not None
+        and application.status != Application.Status.DRAFT
+    ]
+    if ids:
+        Application.objects.filter(pk__in=ids).update(
+            status=Application.Status.DRAFT, updated_at=at
+        )
+    return len(ids)
+
+
+def synchronize_locked_festival(festival, *, at):
+    """Caller holds the parent lock; account deletion uses this same transition."""
+    status = get_effective_status(festival, at=at)
+    if status == Festival.Status.ARCHIVED:
+        _return_to_drafts(_applications(festival), at)
+    changed = festival.status != status
+    if changed:
+        festival.status = status
+        festival.save(update_fields=["status"])
+    return changed
+
+
+def _check_action_permission(festival, actor, action, at):
+    if action == "unpublish":
+        require_permission(actor, "publish")
+        if get_effective_status(festival, at=at) == Festival.Status.ARCHIVED:
+            require_permission(actor, "restore")
+    elif action in ("archive", "save"):
+        require_permission(actor, "change")
+        if action == "save":
+            assert_festival_mutable(festival, at=at)
+        elif festival.status == Festival.Status.DRAFT:
+            raise ValidationError("Черновик нельзя архивировать.")
+    elif action == "delete":
+        require_permission(actor, "delete")
+    else:
+        raise ValidationError("Неизвестное действие.")
+
+
+def _fingerprint(festival, applications, at):
+    data = [
+        [getattr(festival, field) for field in EDITABLE_FIELDS],
+        festival.status,
+        festival.published_at,
+        get_effective_status(festival, at=at),
+        [
+            [item.pk, item.owner_id, item.status, item.updated_at]
+            for item in applications
+        ],
+    ]
+    encoded = json.dumps(data, cls=DjangoJSONEncoder, ensure_ascii=False)
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def _confirmation_data(festival, applications, actor, action, changes, at):
+    return {
+        "festival": festival.pk,
+        "actor": actor.pk,
+        "action": action,
+        "changes": json.loads(json.dumps(changes, cls=DjangoJSONEncoder)),
+        "fingerprint": _fingerprint(festival, applications, at),
+    }
+
+
+def festival_action_preview(festival_id, *, actor, action, changes=None, at=None):
+    changes = changes or {}
+    with transaction.atomic():
+        festival = Festival.objects.select_for_update().get(pk=festival_id)
+        now = moment(at)
+        _check_action_permission(festival, actor, action, now)
+        if action == "save":
+            candidate = _candidate(festival, changes)
+            validate_calendar(candidate)
+            if calendar_status(candidate, now) != Festival.Status.ARCHIVED:
+                raise ValidationError("Эти изменения не архивируют фестиваль.")
+        elif changes:
+            raise ValidationError("Действие не принимает изменения полей.")
+        applications = _applications(festival)
+        data = _confirmation_data(festival, applications, actor, action, changes, now)
+        return {
+            "festival": festival,
+            "application_count": sum(
+                item.owner_id is not None and item.status != Application.Status.DRAFT
+                for item in applications
+            ),
+            "total_application_count": len(applications),
+            "confirmation": signing.dumps(data, salt=CONFIRMATION_SALT),
+        }
+
+
+def _check_confirmation(
+    confirmation, festival, applications, actor, action, changes, at
+):
+    try:
+        data = signing.loads(confirmation or "", salt=CONFIRMATION_SALT, max_age=3600)
+    except signing.BadSignature:
+        raise FestivalActionConflict(
+            "Подтверждение недействительно. Проверьте сведения и подтвердите заново."
+        ) from None
+    expected = _confirmation_data(festival, applications, actor, action, changes, at)
+    if data != expected:
+        raise FestivalActionConflict(
+            "Фестиваль или анкеты изменились. Проверьте сведения и подтвердите заново."
         )
 
 
-def save_festival(festival_id, *, actor, changes, at=None):
+def confirmation_changes(confirmation, *, actor, festival_id):
+    """Read signed pending fields; the mutation rechecks the complete snapshot."""
+    try:
+        data = signing.loads(confirmation or "", salt=CONFIRMATION_SALT, max_age=3600)
+        if (
+            data["actor"] != actor.pk
+            or data["festival"] != festival_id
+            or data["action"] != "save"
+        ):
+            raise signing.BadSignature
+        changes = data["changes"]
+        for field in ("start_date", "end_date"):
+            if field in changes and changes[field] is not None:
+                changes[field] = date.fromisoformat(changes[field])
+        return changes
+    except (signing.BadSignature, KeyError, TypeError, ValueError):
+        raise FestivalActionConflict(
+            "Подтверждение изменений недействительно."
+        ) from None
+
+
+def save_festival(festival_id, *, actor, changes, at=None, confirmation=None):
     require_permission(actor, "change" if festival_id else "add")
-    if set(changes) - set(EDITABLE_FIELDS):
-        raise ValidationError("Переданы недоступные для редактирования поля.")
     with transaction.atomic():
         festival = (
             Festival.objects.select_for_update().get(pk=festival_id)
@@ -91,123 +228,109 @@ def save_festival(festival_id, *, actor, changes, at=None):
         now = moment(at)
         require_permission(actor, "change" if festival_id else "add")
         assert_festival_mutable(festival, at=now)
-        for field, value in changes.items():
-            setattr(festival, field, value)
-        festival.full_clean()
+        candidate = _candidate(festival, changes)
         if festival.status != Festival.Status.DRAFT:
-            validate_calendar(festival)
-            festival.status = calendar_status(festival, now)
-        festival.save()
-        return festival
+            validate_calendar(candidate)
+            candidate.status = calendar_status(candidate, now)
+            if candidate.status == Festival.Status.ARCHIVED:
+                applications = _applications(festival)
+                _check_confirmation(
+                    confirmation, festival, applications, actor, "save", changes, now
+                )
+                _return_to_drafts(applications, now)
+        candidate.save()
+        return candidate
 
 
 def publish_festival(festival_id, *, actor, at=None):
     require_permission(actor, "publish")
-    try:
-        with transaction.atomic():
-            festival = Festival.objects.select_for_update().get(pk=festival_id)
-            now = moment(at)
-            require_permission(actor, "publish")
-            assert_festival_not_deleted(festival)
-            if festival.status != Festival.Status.DRAFT:
-                raise ValidationError("Опубликовать можно только черновик.")
-            validate_calendar(festival)
-            status = calendar_status(festival, now)
-            if status == Festival.Status.ARCHIVED:
-                raise ValidationError("Завершившийся черновик нельзя опубликовать.")
-            check_current(festival)
-            festival.status = status
-            festival.published_at = festival.published_at or now
-            festival.save(update_fields=["status", "published_at"])
-            return festival
-    except IntegrityError as error:
-        raise ValidationError("Другой фестиваль уже опубликован.") from error
-
-
-def unpublish_festival(festival_id, *, actor, at=None):
-    require_permission(actor, "publish")
     with transaction.atomic():
         festival = Festival.objects.select_for_update().get(pk=festival_id)
+        now = moment(at)
         require_permission(actor, "publish")
-        assert_festival_not_deleted(festival)
-        if get_effective_status(festival, at=at) == Festival.Status.ARCHIVED:
-            require_permission(actor, "restore")
         if festival.status != Festival.Status.DRAFT:
-            festival.status = Festival.Status.DRAFT
-            festival.save(update_fields=["status"])
+            raise ValidationError("Опубликовать можно только черновик.")
+        validate_calendar(festival)
+        status = calendar_status(festival, now)
+        if status == Festival.Status.ARCHIVED:
+            raise ValidationError("Завершившийся черновик нельзя опубликовать.")
+        festival.status = status
+        festival.published_at = festival.published_at or now
+        festival.save(update_fields=["status", "published_at"])
         return festival
 
 
-def restore_festival(festival_id, *, actor, changes, at=None):
-    require_permission(actor, "restore")
-    if set(changes) != {"start_date", "end_date", "timezone"}:
-        raise ValidationError("Укажите обе даты и часовой пояс.")
-    try:
-        with transaction.atomic():
-            festival = Festival.objects.select_for_update().get(pk=festival_id)
-            now = moment(at)
-            require_permission(actor, "restore")
-            assert_festival_not_deleted(festival)
-            if get_effective_status(festival, at=now) != Festival.Status.ARCHIVED:
-                raise ValidationError("Фестиваль не находится в архиве.")
-            for field, value in changes.items():
-                setattr(festival, field, value)
-            validate_calendar(festival)
-            status = calendar_status(festival, now)
-            if status == Festival.Status.ARCHIVED:
-                raise ValidationError("Исправленный фестиваль уже завершился.")
-            check_current(festival)
-            festival.status = status
-            festival.save(update_fields=[*changes, "status"])
-            return festival
-    except IntegrityError as error:
-        raise ValidationError("Другой фестиваль уже опубликован.") from error
+def _confirmed_action(festival_id, *, actor, action, confirmation, at):
+    with transaction.atomic():
+        festival = Festival.objects.select_for_update().get(pk=festival_id)
+        now = moment(at)
+        _check_action_permission(festival, actor, action, now)
+        applications = _applications(festival)
+        _check_confirmation(
+            confirmation, festival, applications, actor, action, {}, now
+        )
+        if action == "delete":
+            Application.objects.filter(
+                pk__in=[item.pk for item in applications]
+            ).delete()
+            festival.delete()
+        else:
+            _return_to_drafts(applications, now)
+            target = (
+                Festival.Status.DRAFT
+                if action == "unpublish"
+                else Festival.Status.ARCHIVED
+            )
+            if festival.status != target:
+                festival.status = target
+                festival.save(update_fields=["status"])
+        return festival
+
+
+def unpublish_festival(festival_id, *, actor, confirmation=None, at=None):
+    return _confirmed_action(
+        festival_id,
+        actor=actor,
+        action="unpublish",
+        confirmation=confirmation,
+        at=at,
+    )
+
+
+def archive_festival(festival_id, *, actor, confirmation=None, at=None):
+    return _confirmed_action(
+        festival_id,
+        actor=actor,
+        action="archive",
+        confirmation=confirmation,
+        at=at,
+    )
+
+
+def delete_festival(festival_id, *, actor, confirmation=None, at=None):
+    return _confirmed_action(
+        festival_id,
+        actor=actor,
+        action="delete",
+        confirmation=confirmation,
+        at=at,
+    )
 
 
 def sync_festival_states(*, at=None):
-    now = moment(at)
     changed = 0
-    ids = (
-        Festival.objects.not_deleted()
-        .filter(status__in=["open", "running"])
+    ids = list(
+        Festival.objects.filter(status__in=["open", "running"])
+        .order_by("pk")
         .values_list("pk", flat=True)
     )
-    for festival_id in list(ids):
+    for festival_id in ids:
         with transaction.atomic():
-            festival = Festival.objects.select_for_update().get(pk=festival_id)
-            if festival.deleted_at is not None:
+            festival = (
+                Festival.objects.select_for_update().filter(pk=festival_id).first()
+            )
+            if festival is None:
                 continue
-            status = get_effective_status(festival, at=now)
-            if festival.status != status:
-                festival.status = status
-                festival.save(update_fields=["status"])
-                changed += 1
+            # The state may have changed while this worker waited for the lock.
+            changed += synchronize_locked_festival(festival, at=moment(at))
     return changed
-
-
-def soft_delete_festival(festival_id, *, actor, at=None):
-    with transaction.atomic():
-        festival = Festival.objects.select_for_update().get(pk=festival_id)
-        require_permission(actor, "delete")
-        if festival.deleted_at is None:
-            festival.deleted_at = moment(at)
-            festival.save(update_fields=["deleted_at"])
-        return festival
-
-
-def restore_deleted_festival(festival_id, *, actor, target_status, at=None):
-    if target_status not in (Festival.Status.DRAFT, Festival.Status.ARCHIVED):
-        raise ValidationError("Выберите восстановление в черновик или в архив.")
-    with transaction.atomic():
-        festival = Festival.objects.select_for_update().get(pk=festival_id)
-        require_permission(actor, "restore")
-        if festival.deleted_at is None:
-            raise ValidationError("Фестиваль уже восстановлен или не был удалён.")
-        if target_status == Festival.Status.ARCHIVED:
-            validate_calendar(festival)
-            festival.published_at = festival.published_at or moment(at)
-        festival.status = target_status
-        festival.deleted_at = None
-        festival.full_clean()
-        festival.save(update_fields=["status", "deleted_at", "published_at"])
-        return festival

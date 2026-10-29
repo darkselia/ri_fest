@@ -2,7 +2,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q, Value
+from django.db.models import Q
 
 
 def validate_timezone(value):
@@ -10,11 +10,6 @@ def validate_timezone(value):
         ZoneInfo(value)
     except (ZoneInfoNotFoundError, ValueError):
         raise ValidationError("Укажите существующий часовой пояс.") from None
-
-
-class FestivalQuerySet(models.QuerySet):
-    def not_deleted(self):
-        return self.filter(deleted_at__isnull=True)
 
 
 class Festival(models.Model):
@@ -48,11 +43,6 @@ class Festival(models.Model):
         blank=True,
         editable=False,
     )
-    deleted_at = models.DateTimeField(
-        "Удалён", null=True, blank=True, editable=False, db_index=True
-    )
-
-    objects = FestivalQuerySet.as_manager()
 
     class Meta:
         verbose_name = "фестиваль"
@@ -81,11 +71,6 @@ class Festival(models.Model):
                     )
                 ),
                 name="festival_publication_complete",
-            ),
-            models.UniqueConstraint(
-                Value(1),
-                condition=Q(status__in=["open", "running"], deleted_at__isnull=True),
-                name="festival_one_current",
             ),
         ]
 

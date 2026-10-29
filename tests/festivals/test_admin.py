@@ -9,6 +9,7 @@ from django.urls import reverse
 
 from festivals.models import Festival
 from festivals.services import (
+    festival_action_preview,
     publish_festival,
     sync_festival_states,
     unpublish_festival,
@@ -103,11 +104,9 @@ def test_admin_publish_search_filter_and_no_delete(client, organizer, draft, now
 
 
 @pytest.mark.parametrize("superuser", [False, True])
-def test_archive_direct_post_denied_and_restore_confirmed(
+def test_archive_direct_post_denied_and_return_to_draft_confirmed(
     client, organizer, django_user_model, draft, now, superuser
 ):
-    from datetime import datetime, timezone
-
     actor = organizer
     if superuser:
         actor = django_user_model.objects.create_superuser("root@example.invalid")
@@ -117,22 +116,20 @@ def test_archive_direct_post_denied_and_restore_confirmed(
     url = reverse("admin:festivals_festival_change", args=[draft.pk])
     response = client.get(url)
     assert response.status_code == 200
-    assert 'name="_publish"' not in response.content.decode()
+    assert 'name="_publish"' not in response.text
     assert client.post(url, {"name": "Hack", "timezone": "UTC"}).status_code == 403
-    restore_url = reverse("admin:festivals_festival_restore", args=[draft.pk])
-    assert f'href="{restore_url}"' in response.content.decode()
-    response = client.get(restore_url)
-    assert response.status_code == 200
-    assert '<select name="timezone"' in response.content.decode()
+    return_url = reverse("admin:festivals_festival_unpublish", args=[draft.pk])
+    assert f'href="{return_url}"' in response.text
+    preview = client.get(return_url)
+    assert preview.status_code == 200
     draft.refresh_from_db()
     assert draft.status == "archived"
     response = client.post(
-        restore_url,
-        {"start_date": "2030-01-28", "end_date": "2030-01-31", "timezone": "UTC"},
+        return_url, {"confirmation": preview.context["confirmation"]}
     )
     assert response.status_code == 302
     draft.refresh_from_db()
-    assert draft.status == "open"
+    assert draft.status == "draft"
 
 
 @pytest.mark.parametrize("state", ["draft", "open", "running", "archived", "expired"])
@@ -174,8 +171,8 @@ def test_return_links_are_in_history_toolbar_without_duplicates(
 
     for action, visible, css_class in [
         (
-            "restore",
-            role != "viewer" and state in {"archived", "expired"},
+            "archive",
+            role != "viewer" and state in {"open", "running"},
             "festival-tool--restore",
         ),
         ("unpublish", role != "viewer" and state != "draft", "festival-tool--draft"),
@@ -236,30 +233,54 @@ def test_form_opened_before_archive_cannot_save_without_sync(
     response = client.get(url)
     assert response.status_code == 200
     assert not response.context["has_change_permission"]
-    assert response.context["can_restore_festival"]
+    assert not response.context["can_archive_festival"]
     assert response.context["can_unpublish_festival"]
     assert Festival.objects.values().get(pk=draft.pk) == before
 
 
-def test_restore_bad_form_keeps_values(client, organizer, draft, now):
+def test_date_archival_requires_confirmation_and_preserves_pending_values(
+    client, organizer, draft, now
+):
+    publish_festival(draft.pk, actor=organizer)
     client.force_login(organizer)
+    url = reverse("admin:festivals_festival_change", args=[draft.pk])
+    before = Festival.objects.values().get(pk=draft.pk)
     response = client.post(
-        reverse("admin:festivals_festival_restore", args=[draft.pk]),
+        url,
         {
-            "start_date": "2030-02-10",
-            "end_date": "2030-01-01",
+            "name": "Новое название",
+            "theme": "Сохранённая тема",
+            "start_date": "2029-01-01",
+            "end_date": "2029-01-02",
             "timezone": "UTC",
+            "_save": "1",
         },
     )
     assert response.status_code == 200
-    assert response.context["form"].errors
-    assert response.context["form"]["start_date"].value() == "2030-02-10"
+    assert response.context["pending_save"]
+    assert response.context["application_count"] == 0
+    assert "Новое название" in response.text
+    assert Festival.objects.values().get(pk=draft.pk) == before
+    response = client.post(
+        url,
+        {
+            "_confirm_festival_save": "1",
+            "confirmation": response.context["confirmation"],
+            "name": "Подменённое название",
+        },
+    )
+    assert response.status_code == 302
+    draft.refresh_from_db()
+    assert draft.status == "archived"
+    assert draft.name == "Новое название"
+    assert draft.theme == "Сохранённая тема"
+    assert draft.end_date == date(2029, 1, 2)
 
 
-def test_restore_csrf_and_permission(client, organizer, draft, now, django_user_model):
+def test_archive_csrf_and_permission(client, organizer, draft, now, django_user_model):
     from django.test import Client
 
-    url = reverse("admin:festivals_festival_restore", args=[draft.pk])
+    url = reverse("admin:festivals_festival_archive", args=[draft.pk])
     csrf_client = Client(enforce_csrf_checks=True)
     csrf_client.force_login(organizer)
     assert csrf_client.post(url, {}).status_code == 403
@@ -372,10 +393,10 @@ def test_return_to_draft_from_every_state_is_confirmed(
     original_status = draft.status
     response = client.get(url)
     assert response.status_code == 200
-    assert "Подтвердить возврат в черновик" in response.content.decode()
+    assert "Вернуть фестиваль в черновик" in response.content.decode()
     draft.refresh_from_db()
     assert draft.status == original_status
-    response = client.post(url, {})
+    response = client.post(url, {"confirmation": response.context["confirmation"]})
     assert response.status_code == 302
     assert response.url == change_url
     draft.refresh_from_db()
@@ -436,10 +457,15 @@ def test_publish_business_error_keeps_draft(client, organizer, draft, now, confl
         follow=True,
     )
     assert response.status_code == 200
-    assert any(message.level == 40 for message in response.context["messages"])
     draft.refresh_from_db()
-    assert draft.status == "draft"
-    assert draft.published_at is None
+    if conflict:
+        assert draft.status == "open"
+        assert draft.published_at is not None
+        assert not any(message.level == 40 for message in response.context["messages"])
+    else:
+        assert any(message.level == 40 for message in response.context["messages"])
+        assert draft.status == "draft"
+        assert draft.published_at is None
 
 
 @pytest.mark.parametrize("create", [False, True])
@@ -515,13 +541,8 @@ def test_create_and_publish_in_one_post(
     assert "Сохранить изменения" in client.get(response.url).content.decode()
 
 
-@pytest.mark.parametrize("reason", ["missing_dates", "past", "conflict"])
+@pytest.mark.parametrize("reason", ["missing_dates", "past"])
 def test_failed_first_publication_saves_one_draft(client, organizer, now, reason):
-    if reason == "conflict":
-        other = Festival.objects.create(
-            name="Текущий", start_date=date(2030, 1, 28), end_date=date(2030, 1, 31)
-        )
-        publish_festival(other.pk, actor=organizer)
     data = {
         "name": "Черновик после ошибки публикации",
         "theme": "Сохранённые данные",
@@ -556,12 +577,13 @@ def test_failed_first_publication_saves_one_draft(client, organizer, now, reason
     assert response.status_code == 302
     assert Festival.objects.count() == count
     festival.refresh_from_db()
-    assert festival.status == ("draft" if reason == "conflict" else "open")
+    assert festival.status == "open"
 
 
 def test_save_draft_and_republish_keep_first_publication(client, organizer, draft, now):
     published = publish_festival(draft.pk, actor=organizer)
-    unpublish_festival(draft.pk, actor=organizer)
+    preview = festival_action_preview(draft.pk, actor=organizer, action="unpublish")
+    unpublish_festival(draft.pk, actor=organizer, confirmation=preview["confirmation"])
     client.force_login(organizer)
     url = reverse("admin:festivals_festival_change", args=[draft.pk])
     data = {
@@ -680,3 +702,79 @@ def test_admin_timezone_hint_is_russian(client, organizer, direction, descriptio
 
 def test_admin_javascript_catalog_requires_staff(client):
     assert client.get(reverse("admin:jsi18n")).status_code == 302
+
+
+@pytest.mark.parametrize("action", ["unpublish", "archive", "delete_permanently"])
+def test_action_confirmation_refreshes_after_new_application(
+    client, organizer, draft, now, django_user_model, action
+):
+    from applications.models import Application
+
+    publish_festival(draft.pk, actor=organizer)
+    client.force_login(organizer)
+    url = reverse(f"admin:festivals_festival_{action}", args=[draft.pk])
+    preview = client.get(url)
+    assert preview.context["application_count"] == 0
+    assert "Количество анкет" in preview.text
+    owner = django_user_model.objects.create_user("preview-owner@example.invalid")
+    record = Application.objects.create(owner=owner, festival=draft, status="active")
+    response = client.post(url, {"confirmation": preview.context["confirmation"]})
+    assert response.status_code == 409
+    assert response.context["application_count"] == 1
+    assert Festival.objects.get(pk=draft.pk).status == "open"
+    record.refresh_from_db()
+    assert record.status == "active"
+    response = client.post(url, {"confirmation": response.context["confirmation"]})
+    assert response.status_code == 302
+    if action == "delete_permanently":
+        assert not Festival.objects.filter(pk=draft.pk).exists()
+        assert not Application.objects.filter(pk=record.pk).exists()
+        assert django_user_model.objects.filter(pk=owner.pk).exists()
+    else:
+        record.refresh_from_db()
+        assert record.status == "draft"
+
+
+@pytest.mark.parametrize("suffix", ["restore", "soft-delete", "restore-deleted"])
+def test_removed_action_urls_cannot_mutate(client, organizer, draft, now, suffix):
+    publish_festival(draft.pk, actor=organizer)
+    client.force_login(organizer)
+    before = Festival.objects.values().get(pk=draft.pk)
+    response = client.post(f"/admin/festivals/festival/{draft.pk}/{suffix}/", {})
+    assert response.status_code in (302, 404)
+    assert Festival.objects.values().get(pk=draft.pk) == before
+
+
+def test_pending_date_confirmation_rejects_tampering(client, organizer, draft, now):
+    publish_festival(draft.pk, actor=organizer)
+    client.force_login(organizer)
+    url = reverse("admin:festivals_festival_change", args=[draft.pk])
+    before = Festival.objects.values().get(pk=draft.pk)
+    response = client.post(
+        url, {"_confirm_festival_save": "1", "confirmation": "forged"}
+    )
+    assert response.status_code == 409
+    assert Festival.objects.values().get(pk=draft.pk) == before
+
+
+def test_direct_archive_post_of_draft_is_rejected(client, organizer, draft, now):
+    client.force_login(organizer)
+    before = Festival.objects.values().get(pk=draft.pk)
+    response = client.post(
+        reverse("admin:festivals_festival_archive", args=[draft.pk]),
+        {"confirmation": "invalid"},
+    )
+    assert response.status_code == 400
+    assert Festival.objects.values().get(pk=draft.pk) == before
+
+
+def test_pending_date_confirmation_requires_csrf(organizer, draft, now):
+    from django.test import Client
+
+    secure = Client(enforce_csrf_checks=True)
+    secure.force_login(organizer)
+    response = secure.post(
+        reverse("admin:festivals_festival_change", args=[draft.pk]),
+        {"_confirm_festival_save": "1", "confirmation": "invalid"},
+    )
+    assert response.status_code == 403

@@ -1,24 +1,29 @@
+from copy import copy
 from zoneinfo import ZoneInfo
 
 from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
-from django.utils.html import format_html
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect
 
 from .models import Festival
 from .services import (
     EDITABLE_FIELDS,
-    assert_festival_not_deleted,
+    FestivalActionConflict,
+    archive_festival,
+    calendar_status,
+    confirmation_changes,
+    delete_festival,
+    festival_action_preview,
     get_effective_status,
     publish_festival,
-    restore_deleted_festival,
-    restore_festival,
     save_festival,
-    soft_delete_festival,
     unpublish_festival,
 )
 
@@ -57,53 +62,6 @@ class FestivalForm(forms.ModelForm):
         self.initial.setdefault("timezone", self.instance.timezone)
 
 
-class RestoreForm(FestivalForm):
-    class Meta:
-        model = Festival
-        fields = ("start_date", "end_date", "timezone")
-        widgets = {
-            "start_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
-            "end_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["start_date"].required = True
-        self.fields["end_date"].required = True
-
-
-class DeletedFestivalFilter(admin.SimpleListFilter):
-    title = "Удаление"
-    parameter_name = "deletion"
-
-    def lookups(self, request, model_admin):
-        return [("deleted", "Удалённые"), ("all", "Все")]
-
-    def choices(self, changelist):
-        for choice in super().choices(changelist):
-            if choice["query_string"] == changelist.get_query_string(
-                remove=[self.parameter_name]
-            ):
-                choice["display"] = "Неудалённые"
-            yield choice
-
-    def queryset(self, request, queryset):
-        if self.value() == "all":
-            return queryset
-        if self.value() == "deleted":
-            return queryset.filter(deleted_at__isnull=False)
-        return queryset.not_deleted()
-
-
-class RestoreDeletedForm(forms.Form):
-    target_status = forms.ChoiceField(
-        label="Куда восстановить",
-        choices=[("draft", "В черновик"), ("archived", "В архив")],
-        initial="draft",
-        help_text="Черновик скрыт с сайта. Архив доступен для просмотра независимо от дат.",
-    )
-
-
 @admin.register(Festival)
 class FestivalAdmin(admin.ModelAdmin):
     class Media:
@@ -112,7 +70,7 @@ class FestivalAdmin(admin.ModelAdmin):
     form = FestivalForm
     change_form_template = "admin/festivals/change_form.html"
     list_display = (
-        "festival_name",
+        "name",
         "status",
         "start_date",
         "end_date",
@@ -120,29 +78,18 @@ class FestivalAdmin(admin.ModelAdmin):
         "published_at",
     )
     search_fields = ("name", "theme")
-    list_filter = ("status", DeletedFestivalFilter)
+    list_filter = ("status",)
     ordering = ("start_date",)
     sortable_by = ("start_date",)
-    readonly_fields = ("status", "published_at", "deleted_at")
+    readonly_fields = ("status", "published_at")
     fields = (*EDITABLE_FIELDS, *readonly_fields)
     actions = None
-
-    @admin.display(description="Название")
-    def festival_name(self, obj):
-        if obj.deleted_at is not None:
-            return format_html(
-                '{} <span class="festival-deleted-label">Удалён</span>', obj.name
-            )
-        return obj.name
 
     def has_delete_permission(self, request, obj=None):
         return False
 
     def has_change_permission(self, request, obj=None):
-        if obj and (
-            obj.deleted_at is not None
-            or get_effective_status(obj) == Festival.Status.ARCHIVED
-        ):
+        if obj and get_effective_status(obj) == Festival.Status.ARCHIVED:
             return False
         return super().has_change_permission(request, obj)
 
@@ -165,6 +112,67 @@ class FestivalAdmin(admin.ModelAdmin):
         obj.published_at = saved.published_at
         obj._state = saved._state
 
+    @method_decorator(csrf_protect)
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        if request.method == "POST" and object_id is not None:
+            festival = get_object_or_404(Festival, pk=object_id)
+            if "_confirm_festival_save" in request.POST:
+                return self.pending_save_view(request, festival)
+            if self.has_change_permission(request, festival):
+                form = self.form(request.POST, request.FILES, instance=copy(festival))
+                if form.is_valid() and festival.status != Festival.Status.DRAFT:
+                    now = timezone.now()
+                    if calendar_status(form.instance, now) == Festival.Status.ARCHIVED:
+                        return self.confirmation_response(
+                            request,
+                            festival.pk,
+                            "save",
+                            changes={
+                                field: form.cleaned_data[field]
+                                for field in EDITABLE_FIELDS
+                            },
+                        )
+        return super().changeform_view(request, object_id, form_url, extra_context)
+
+    def pending_save_view(self, request, festival):
+        token = request.POST.get("confirmation", "")
+        try:
+            changes = confirmation_changes(
+                token, actor=request.user, festival_id=festival.pk
+            )
+        except FestivalActionConflict as error:
+            return TemplateResponse(
+                request,
+                "admin/festivals/confirm_action.html",
+                {
+                    **self.admin_site.each_context(request),
+                    "title": "Подтверждение недействительно",
+                    "original": festival,
+                    "description": " ".join(error.messages),
+                    "opts": self.model._meta,
+                    "cancel_url": reverse(
+                        "admin:festivals_festival_change", args=[festival.pk]
+                    ),
+                },
+                status=409,
+            )
+        try:
+            saved = save_festival(
+                festival.pk,
+                actor=request.user,
+                changes=changes,
+                confirmation=token,
+            )
+        except FestivalActionConflict as error:
+            return self.confirmation_response(
+                request, festival.pk, "save", changes=changes, error=error
+            )
+        except Festival.DoesNotExist:
+            raise Http404 from None
+        self.log_change(request, saved, "Сохранение с архивированием фестиваля.")
+        self.message_user(request, "Изменения сохранены. Фестиваль архивирован.")
+        return redirect("admin:festivals_festival_change", saved.pk)
+
     def render_change_form(
         self, request, context, add=False, change=False, form_url="", obj=None
     ):
@@ -179,15 +187,8 @@ class FestivalAdmin(admin.ModelAdmin):
             )
             and self.has_publish_permission(request)
         )
-        context["can_restore_festival"] = (
-            obj is not None
-            and obj.deleted_at is None
-            and status == Festival.Status.ARCHIVED
-            and self.has_restore_permission(request)
-        )
         context["can_unpublish_festival"] = (
             obj is not None
-            and obj.deleted_at is None
             and status != Festival.Status.DRAFT
             and self.has_publish_permission(request)
             and (
@@ -195,15 +196,13 @@ class FestivalAdmin(admin.ModelAdmin):
                 or self.has_restore_permission(request)
             )
         )
-        context["can_soft_delete_festival"] = (
+        context["can_archive_festival"] = (
             obj is not None
-            and obj.deleted_at is None
-            and request.user.has_perm("festivals.delete_festival")
+            and status in (Festival.Status.OPEN, Festival.Status.RUNNING)
+            and self.has_change_permission(request, obj)
         )
-        context["can_restore_deleted_festival"] = (
-            obj is not None
-            and obj.deleted_at is not None
-            and self.has_restore_permission(request)
+        context["can_delete_festival"] = obj is not None and request.user.has_perm(
+            "festivals.delete_festival"
         )
         return super().render_change_form(request, context, add, change, form_url, obj)
 
@@ -233,167 +232,132 @@ class FestivalAdmin(admin.ModelAdmin):
     def get_urls(self):
         return [
             path(
-                "<int:object_id>/soft-delete/",
-                self.admin_site.admin_view(self.soft_delete_view),
-                name="festivals_festival_soft_delete",
-            ),
-            path(
-                "<int:object_id>/restore-deleted/",
-                self.admin_site.admin_view(self.restore_deleted_view),
-                name="festivals_festival_restore_deleted",
-            ),
-            path(
                 "<int:object_id>/unpublish/",
                 self.admin_site.admin_view(self.unpublish_view),
                 name="festivals_festival_unpublish",
             ),
             path(
-                "<int:object_id>/restore/",
-                self.admin_site.admin_view(self.restore_view),
-                name="festivals_festival_restore",
+                "<int:object_id>/archive/",
+                self.admin_site.admin_view(self.archive_view),
+                name="festivals_festival_archive",
+            ),
+            path(
+                "<int:object_id>/delete-permanently/",
+                self.admin_site.admin_view(self.delete_permanently_view),
+                name="festivals_festival_delete_permanently",
             ),
         ] + super().get_urls()
 
-    def soft_delete_view(self, request, object_id):
-        if not request.user.has_perm("festivals.delete_festival"):
-            raise PermissionDenied
-        festival = get_object_or_404(Festival, pk=object_id)
-        if request.method == "POST":
-            festival = soft_delete_festival(object_id, actor=request.user)
-            self.log_change(request, festival, "Мягкое удаление фестиваля.")
-            self.message_user(
-                request, "Фестиваль удалён. Анкеты сохранены.", messages.SUCCESS
+    def confirmation_response(
+        self, request, object_id, action, *, changes=None, error=None
+    ):
+        try:
+            preview = festival_action_preview(
+                object_id, actor=request.user, action=action, changes=changes
             )
-            return redirect("admin:festivals_festival_change", object_id)
+        except Festival.DoesNotExist:
+            raise Http404 from None
+        except ValidationError as invalid:
+            return TemplateResponse(
+                request,
+                "admin/festivals/confirm_action.html",
+                {
+                    **self.admin_site.each_context(request),
+                    "title": "Действие недоступно",
+                    "description": " ".join(invalid.messages),
+                    "opts": self.model._meta,
+                    "cancel_url": reverse("admin:festivals_festival_changelist"),
+                },
+                status=400,
+            )
+        title = {
+            "unpublish": "Вернуть фестиваль в черновик",
+            "archive": "Архивировать фестиваль",
+            "save": "Сохранить и архивировать фестиваль",
+            "delete": "Удалить фестиваль навсегда",
+        }[action]
+        if action == "delete":
+            description = (
+                "Будут навсегда удалены фестиваль и все его анкеты. "
+                "Связанные данные также удаляются. Восстановление невозможно. "
+                "Аккаунты пользователей и другие фестивали сохранятся."
+            )
+        elif action == "unpublish":
+            description = (
+                "Регистрация закроется. Отправленные анкеты пользователей станут черновиками "
+                "и окажутся в разделе «Черновики». После открытия "
+                "приёма их можно будет отправить заново."
+            )
+        else:
+            description = (
+                "Внимание: Отправленные анкеты пользователей перенесутся в раздел «Архив»."
+                "Для редактирования фестиваля необходимо будет вернуть его в черновик."
+            )
         return TemplateResponse(
             request,
             "admin/festivals/confirm_action.html",
             {
                 **self.admin_site.each_context(request),
-                "title": "Удалить фестиваль",
-                "description": "Фестиваль будет скрыт с сайта и закрыт для изменений. Анкеты сохранятся. Фестиваль можно восстановить.",
-                "confirm_label": "Удалить фестиваль",
-                "danger": True,
+                "title": title,
+                "description": description,
+                "confirm_label": title,
+                "danger": action == "delete",
                 "opts": self.model._meta,
-                "original": festival,
+                "original": preview["festival"],
+                "application_count": (
+                    preview["total_application_count"]
+                    if action == "delete"
+                    else preview["application_count"]
+                ),
+                "confirmation": preview["confirmation"],
+                "pending_save": action == "save",
+                "pending_changes": changes,
+                "error_message": " ".join(error.messages) if error else "",
                 "cancel_url": reverse(
                     "admin:festivals_festival_change", args=[object_id]
                 ),
             },
+            status=409 if error else 200,
         )
 
-    def restore_deleted_view(self, request, object_id):
-        if not self.has_restore_permission(request):
-            raise PermissionDenied
+    def action_view(self, request, object_id, action):
         festival = get_object_or_404(Festival, pk=object_id)
-        form = RestoreDeletedForm(request.POST if request.method == "POST" else None)
-        if request.method == "POST" and form.is_valid():
+        if request.method == "POST":
+            operation = {
+                "unpublish": unpublish_festival,
+                "archive": archive_festival,
+                "delete": delete_festival,
+            }[action]
             try:
-                restored = restore_deleted_festival(
+                operation(
                     object_id,
                     actor=request.user,
-                    target_status=form.cleaned_data["target_status"],
+                    confirmation=request.POST.get("confirmation"),
+                )
+            except FestivalActionConflict as error:
+                return self.confirmation_response(
+                    request, object_id, action, error=error
                 )
             except ValidationError as error:
-                form.add_error(None, " ".join(error.messages))
-            else:
-                self.log_change(
-                    request, restored, "Восстановление удалённого фестиваля."
+                return self.confirmation_response(
+                    request, object_id, action, error=error
                 )
-                self.message_user(request, "Фестиваль восстановлен.", messages.SUCCESS)
-                return redirect("admin:festivals_festival_change", object_id)
-        return TemplateResponse(
-            request,
-            "admin/festivals/confirm_action.html",
-            {
-                **self.admin_site.each_context(request),
-                "title": "Восстановить фестиваль",
-                "description": "Выберите черновик или архив. Приём заявок автоматически не открывается. Все анкеты сохранятся.",
-                "confirm_label": "Восстановить фестиваль",
-                "form": form,
-                "opts": self.model._meta,
-                "original": festival,
-                "cancel_url": reverse(
-                    "admin:festivals_festival_change", args=[object_id]
-                ),
-            },
-        )
+            except Festival.DoesNotExist:
+                raise Http404 from None
+            if action == "delete":
+                self.log_deletions(request, [festival])
+                self.message_user(request, "Фестиваль удалён навсегда.")
+                return redirect("admin:festivals_festival_changelist")
+            self.log_change(request, festival, "Подтверждённая смена состояния.")
+            self.message_user(request, "Состояние фестиваля изменено.")
+            return redirect("admin:festivals_festival_change", object_id)
+        return self.confirmation_response(request, object_id, action)
 
     def unpublish_view(self, request, object_id):
-        if not self.has_publish_permission(request):
-            raise PermissionDenied
-        festival = get_object_or_404(Festival, pk=object_id)
-        assert_festival_not_deleted(festival)
-        status = get_effective_status(festival)
-        if status == Festival.Status.ARCHIVED and not self.has_restore_permission(
-            request
-        ):
-            raise PermissionDenied
-        if request.method == "POST":
-            festival = unpublish_festival(object_id, actor=request.user)
-            self.log_change(request, festival, "Возврат фестиваля в черновик.")
-            self.message_user(
-                request, "Фестиваль возвращён в черновик.", messages.SUCCESS
-            )
-            return redirect("admin:festivals_festival_change", festival.pk)
-        context = {
-            **self.admin_site.each_context(request),
-            "title": "Вернуть фестиваль в черновик",
-            "description": (
-                "Фестиваль станет непубличным, регистрация будет недоступна. "
-                "Все данные и дата первой публикации сохранятся. "
-                "Для повторной публикации потребуется действующий календарь."
-            ),
-            "confirm_label": "Подтвердить возврат в черновик",
-            "opts": self.model._meta,
-            "original": festival,
-            "cancel_url": reverse(
-                "admin:festivals_festival_change", args=[festival.pk]
-            ),
-        }
-        return TemplateResponse(request, "admin/festivals/confirm_action.html", context)
+        return self.action_view(request, object_id, "unpublish")
 
-    def restore_view(self, request, object_id):
-        if not self.has_restore_permission(request):
-            raise PermissionDenied
-        festival = get_object_or_404(Festival, pk=object_id)
-        assert_festival_not_deleted(festival)
-        form = RestoreForm(
-            request.POST if request.method == "POST" else None, instance=festival
-        )
-        if request.method == "POST" and form.is_valid():
-            try:
-                restored = restore_festival(
-                    object_id,
-                    actor=request.user,
-                    changes=form.cleaned_data,
-                )
-            except ValidationError as error:
-                if hasattr(error, "error_dict"):
-                    for field, errors in error.error_dict.items():
-                        form.add_error(field if field in form.fields else None, errors)
-                else:
-                    form.add_error(None, error)
-            else:
-                self.log_change(
-                    request, restored, "Возврат из архива с исправлением дат."
-                )
-                self.message_user(
-                    request, "Фестиваль возвращён в работу.", messages.SUCCESS
-                )
-                return redirect("admin:festivals_festival_change", object_id)
-        context = {
-            **self.admin_site.each_context(request),
-            "title": "Вернуть фестиваль в работу",
-            "description": (
-                "Укажите исправленные даты и подтвердите возврат. "
-                "Фестиваль снова станет доступен для работы. "
-                "Другой текущий фестиваль не должен быть опубликован."
-            ),
-            "confirm_label": "Подтвердить возврат в работу",
-            "opts": self.model._meta,
-            "original": festival,
-            "form": form,
-            "cancel_url": reverse("admin:festivals_festival_changelist"),
-        }
-        return TemplateResponse(request, "admin/festivals/confirm_action.html", context)
+    def archive_view(self, request, object_id):
+        return self.action_view(request, object_id, "archive")
+
+    def delete_permanently_view(self, request, object_id):
+        return self.action_view(request, object_id, "delete")

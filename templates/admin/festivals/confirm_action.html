@@ -8,11 +8,27 @@
   <section class="festival-actions" aria-labelledby="festival-confirm-title">
     <h2 id="festival-confirm-title">{{ original }}</h2>
     <p>{{ description }}</p>
+    {% if error_message %}<p role="alert">{{ error_message }}</p>{% endif %}
+    {% if application_count != None %}<p>Количество активных анкет пользователей: <strong
+    >{{ application_count }}</strong></p
+    >{% endif %}
+    {% if pending_changes %}
+      <p>Изменения будут применены только после подтверждения.</p>
+      <dl>
+        <dt>Название</dt><dd>{{ pending_changes.name }}</dd>
+        <dt>Тема</dt><dd>{{ pending_changes.theme|default:"—" }}</dd>
+        <dt>Дата начала</dt><dd>{{ pending_changes.start_date }}</dd>
+        <dt>Дата окончания</dt><dd>{{ pending_changes.end_date }}</dd>
+        <dt>Часовой пояс</dt><dd>{{ pending_changes.timezone }}</dd>
+      </dl>
+    {% endif %}
     <form method="post">
       {% csrf_token %}
+      {% if confirmation %}<input type="hidden" name="confirmation" value="{{ confirmation }}">{% endif %}
+      {% if pending_save %}<input type="hidden" name="_confirm_festival_save" value="1">{% endif %}
       {% if form %}{{ form.as_p }}{% endif %}
       <div class="festival-actions__buttons">
-        <button type="submit" class="festival-action-button {% if danger %}festival-action-button--danger{% else %}festival-action-button--primary{% endif %}">{{ confirm_label }}</button>
+        {% if confirm_label %}<button type="submit" class="festival-action-button {% if danger %}festival-action-button--danger{% else %}festival-action-button--primary{% endif %}">{{ confirm_label }}</button>{% endif %}
         <a class="festival-action-button" href="{{ cancel_url }}">Отмена</a>
       </div>
     </form>

@@ -8,9 +8,9 @@ from django.db import IntegrityError, transaction
 
 from festivals.models import Festival
 from festivals.services import (
+    festival_action_preview,
     get_effective_status,
     publish_festival,
-    restore_festival,
     save_festival,
     sync_festival_states,
     unpublish_festival,
@@ -18,6 +18,13 @@ from festivals.services import (
 
 pytestmark = pytest.mark.django_db
 UTC = timezone.utc
+
+
+def return_to_draft(festival_id, *, actor, at=None):
+    token = festival_action_preview(
+        festival_id, actor=actor, action="unpublish", at=at
+    )["confirmation"]
+    return unpublish_festival(festival_id, actor=actor, at=at, confirmation=token)
 
 
 def test_incomplete_draft_and_default_timezone(organizer, now):
@@ -84,17 +91,21 @@ def test_single_day_is_allowed(draft, organizer, now):
     assert festival.start_date == festival.end_date
 
 
-def test_one_current_service_and_database(draft, organizer, now):
+def test_multiple_current_festivals_are_allowed(draft, organizer, now):
     festival = publish_festival(draft.pk, actor=organizer)
     other = Festival.objects.create(
         name="Другой", start_date=draft.start_date, end_date=draft.end_date
     )
-    with pytest.raises(ValidationError):
-        publish_festival(other.pk, actor=organizer)
-    with pytest.raises(IntegrityError), transaction.atomic():
-        Festival.objects.filter(pk=other.pk).update(
-            status="open", published_at=festival.published_at
-        )
+    assert publish_festival(other.pk, actor=organizer).status == "open"
+    third = Festival.objects.create(
+        name="Третий",
+        start_date=draft.start_date,
+        end_date=draft.end_date,
+        status="open",
+        published_at=festival.published_at,
+    )
+    assert Festival.objects.filter(status="open").count() == 3
+    assert third.pk != other.pk
 
 
 @pytest.mark.parametrize(
@@ -146,11 +157,14 @@ def test_calendar_edit_reopens_running_and_archives(draft, organizer, now):
         at=later,
     )
     assert changed.status == "open"
+    changes = {"start_date": date(2030, 1, 1), "end_date": date(2030, 1, 2)}
+    with pytest.raises(ValidationError):
+        save_festival(draft.pk, actor=organizer, changes=changes, at=later)
+    token = festival_action_preview(
+        draft.pk, actor=organizer, action="save", changes=changes, at=later
+    )["confirmation"]
     changed = save_festival(
-        draft.pk,
-        actor=organizer,
-        changes={"start_date": date(2030, 1, 1), "end_date": date(2030, 1, 2)},
-        at=later,
+        draft.pk, actor=organizer, changes=changes, at=later, confirmation=token
     )
     assert changed.status == "archived"
     assert changed.published_at == published.published_at
@@ -184,7 +198,9 @@ def test_restore_archive_and_expired_state(
         sync_festival_states(at=at)
     with pytest.raises(PermissionDenied):
         save_festival(draft.pk, actor=organizer, changes={"name": "Изменение"}, at=at)
-    restored = restore_festival(
+    returned = return_to_draft(draft.pk, actor=organizer, at=at)
+    assert returned.status == "draft"
+    save_festival(
         draft.pk,
         actor=organizer,
         at=at,
@@ -194,34 +210,26 @@ def test_restore_archive_and_expired_state(
             "timezone": "UTC",
         },
     )
+    restored = publish_festival(draft.pk, actor=organizer, at=at)
     assert restored.pk == original.pk
     assert restored.published_at == original.published_at
     assert restored.status == expected
 
 
-def test_restore_conflict_and_bad_dates(draft, organizer, now):
+def test_returned_archive_rechecks_invalid_dates(draft, organizer, now):
     publish_festival(draft.pk, actor=organizer)
-    sync_festival_states(at=datetime(2030, 2, 1, tzinfo=UTC))
-    changes = {
-        "start_date": draft.start_date,
-        "end_date": draft.end_date,
-        "timezone": "UTC",
-    }
+    at = datetime(2030, 2, 1, tzinfo=UTC)
+    sync_festival_states(at=at)
+    return_to_draft(draft.pk, actor=organizer, at=at)
     with pytest.raises(ValidationError):
-        restore_festival(
+        publish_festival(draft.pk, actor=organizer, at=at)
+    with pytest.raises(ValidationError):
+        save_festival(
             draft.pk,
             actor=organizer,
-            changes=changes,
-            at=datetime(2030, 2, 1, tzinfo=UTC),
+            changes={"start_date": date(2030, 2, 5)},
+            at=at,
         )
-    other = Festival.objects.create(
-        name="Другой", start_date=draft.start_date, end_date=draft.end_date
-    )
-    publish_festival(other.pk, actor=organizer)
-    with pytest.raises(ValidationError):
-        restore_festival(draft.pk, actor=organizer, changes=changes)
-    draft.refresh_from_db()
-    assert draft.status == "archived"
 
 
 def test_staff_without_permission_cannot_publish(draft, django_user_model, now):
@@ -248,7 +256,7 @@ def test_return_to_draft_preserves_data_and_does_not_republish(
         draft.timezone,
         draft.published_at,
     )
-    returned = unpublish_festival(draft.pk, actor=organizer)
+    returned = return_to_draft(draft.pk, actor=organizer)
     assert returned.pk == draft.pk
     assert returned.status == "draft"
     assert (
@@ -259,7 +267,7 @@ def test_return_to_draft_preserves_data_and_does_not_republish(
         returned.timezone,
         returned.published_at,
     ) == values
-    assert unpublish_festival(draft.pk, actor=organizer).status == "draft"
+    assert return_to_draft(draft.pk, actor=organizer).status == "draft"
     assert sync_festival_states(at=datetime(2040, 1, 1, tzinfo=UTC)) == 0
 
 
@@ -267,7 +275,7 @@ def test_republication_keeps_first_publication_and_rechecks_calendar(
     draft, organizer, now
 ):
     original = publish_festival(draft.pk, actor=organizer)
-    unpublish_festival(draft.pk, actor=organizer)
+    return_to_draft(draft.pk, actor=organizer)
     later = datetime(2031, 1, 1, tzinfo=UTC)
     with pytest.raises(ValidationError):
         publish_festival(draft.pk, actor=organizer, at=later)
@@ -282,19 +290,15 @@ def test_republication_keeps_first_publication_and_rechecks_calendar(
     assert published.published_at == original.published_at
 
 
-def test_return_to_draft_frees_current_slot_and_repeat_publication_checks_conflict(
-    draft, organizer, now
-):
+def test_republication_is_independent_of_other_festivals(draft, organizer, now):
     publish_festival(draft.pk, actor=organizer)
-    unpublish_festival(draft.pk, actor=organizer)
+    return_to_draft(draft.pk, actor=organizer)
     other = Festival.objects.create(
         name="Другой", start_date=draft.start_date, end_date=draft.end_date
     )
     publish_festival(other.pk, actor=organizer)
-    with pytest.raises(ValidationError):
-        publish_festival(draft.pk, actor=organizer)
-    draft.refresh_from_db()
-    assert draft.status == "draft"
+    assert publish_festival(draft.pk, actor=organizer).status == "open"
+    assert Festival.objects.filter(status="open").count() == 2
 
 
 @pytest.mark.parametrize("state", ["open", "archived"])
@@ -315,6 +319,6 @@ def test_return_to_draft_checks_publication_and_archive_permissions(
             )
         )
     with pytest.raises(PermissionDenied):
-        unpublish_festival(draft.pk, actor=staff)
+        return_to_draft(draft.pk, actor=staff)
     draft.refresh_from_db()
     assert draft.status == state

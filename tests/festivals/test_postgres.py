@@ -4,15 +4,16 @@ from threading import Barrier, Event
 
 import pytest
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import IntegrityError, close_old_connections, connection, transaction
+from django.db import close_old_connections, connection, transaction
 
+from applications.models import Application
 from festivals.models import Festival
 from festivals.services import (
+    archive_festival,
+    delete_festival,
+    festival_action_preview,
     publish_festival,
-    restore_deleted_festival,
-    restore_festival,
     save_festival,
-    soft_delete_festival,
     sync_festival_states,
     unpublish_festival,
 )
@@ -48,109 +49,99 @@ def actor(django_user_model):
     return django_user_model.objects.create_superuser("pg-admin@example.invalid")
 
 
-def test_concurrent_deletion_and_state_sync(django_user_model):
-    user = actor(django_user_model)
-    festival = draft("Удаление и синхронизация")
-    publish_festival(festival.pk, actor=user, at=NOW)
-    assert race(
-        [
-            lambda: soft_delete_festival(festival.pk, actor=user, at=NOW),
-            lambda: sync_festival_states(at=datetime(2031, 1, 1, tzinfo=timezone.utc)),
-        ]
-    ) == ["ok", "ok"]
-    festival.refresh_from_db()
-    assert festival.deleted_at is not None
-    assert not Festival.objects.not_deleted().filter(pk=festival.pk).exists()
-
-
-def test_concurrent_deletion_and_new_publication(django_user_model):
-    user = actor(django_user_model)
-    old, new = draft("Удаляемый"), draft("Новый")
-    publish_festival(old.pk, actor=user, at=NOW)
-    results = race(
-        [
-            lambda: soft_delete_festival(old.pk, actor=user, at=NOW),
-            lambda: publish_festival(new.pk, actor=user, at=NOW),
-        ]
-    )
-    assert results[0] == "ok" and results[1] in ("ok", "rejected")
-    new.refresh_from_db()
-    if new.status == "draft":
-        publish_festival(new.pk, actor=user, at=NOW)
-    assert (
-        Festival.objects.not_deleted().filter(status__in=["open", "running"]).count()
-        == 1
-    )
-
-
-def test_concurrent_restoration_applies_exactly_one_destination(django_user_model):
-    user = actor(django_user_model)
-    festival = draft("Два восстановления")
-    soft_delete_festival(festival.pk, actor=user, at=NOW)
-    assert sorted(
-        race(
-            [
-                lambda: restore_deleted_festival(
-                    festival.pk, actor=user, target_status="draft", at=NOW
-                ),
-                lambda: restore_deleted_festival(
-                    festival.pk, actor=user, target_status="archived", at=NOW
-                ),
-            ]
-        )
-    ) == ["ok", "rejected"]
-    festival.refresh_from_db()
-    assert festival.deleted_at is None and festival.status in ("draft", "archived")
-
-
 def draft(name):
     return Festival.objects.create(
         name=name, start_date=date(2030, 1, 28), end_date=date(2030, 1, 31)
     )
 
 
-def test_concurrent_publication(django_user_model):
+def confirmation(festival, user, action, at=NOW):
+    return festival_action_preview(festival.pk, actor=user, action=action, at=at)[
+        "confirmation"
+    ]
+
+
+def test_concurrent_deletion_and_state_sync(django_user_model):
+    user = actor(django_user_model)
+    festival = draft("Удаление и синхронизация")
+    publish_festival(festival.pk, actor=user, at=NOW)
+    token = confirmation(festival, user, "delete")
+    results = race(
+        [
+            lambda: delete_festival(
+                festival.pk, actor=user, confirmation=token, at=NOW
+            ),
+            lambda: sync_festival_states(at=datetime(2031, 1, 1, tzinfo=timezone.utc)),
+        ]
+    )
+    assert results[0] in ("ok", "rejected") and results[1] == "ok"
+    if results[0] == "rejected":
+        delete_festival(
+            festival.pk,
+            actor=user,
+            confirmation=confirmation(festival, user, "delete"),
+            at=NOW,
+        )
+    assert not Festival.objects.filter(pk=festival.pk).exists()
+
+
+def test_concurrent_publication_allows_both_festivals(django_user_model):
     user = actor(django_user_model)
     first, second = draft("Первый"), draft("Второй")
-    results = race(
+    assert race(
         [
             lambda: publish_festival(first.pk, actor=user, at=NOW),
             lambda: publish_festival(second.pk, actor=user, at=NOW),
         ]
-    )
-    assert sorted(results) == ["ok", "rejected"]
-    assert Festival.objects.filter(status__in=["open", "running"]).count() == 1
+    ) == ["ok", "ok"]
+    assert Festival.objects.filter(status="open").count() == 2
 
 
-def test_database_constraint_without_service(django_user_model):
+def test_database_allows_multiple_current_without_service(django_user_model):
     user = actor(django_user_model)
     first, second = draft("Первый"), draft("Второй")
     publish_festival(first.pk, actor=user, at=NOW)
-    with pytest.raises(IntegrityError), transaction.atomic():
-        Festival.objects.filter(pk=second.pk).update(status="open", published_at=NOW)
+    Festival.objects.filter(pk=second.pk).update(status="open", published_at=NOW)
+    assert Festival.objects.filter(status="open").count() == 2
 
 
-def test_concurrent_restore_and_publication(django_user_model):
+def test_competing_confirmed_transitions_reject_stale_snapshot(django_user_model):
     user = actor(django_user_model)
-    archived, pending = draft("Архив"), draft("Черновик")
+    festival = draft("Конкурентные переходы")
+    publish_festival(festival.pk, actor=user, at=NOW)
+    Application.objects.create(owner=user, festival=festival, status="active")
+    archive_token = confirmation(festival, user, "archive")
+    draft_token = confirmation(festival, user, "unpublish")
+    assert sorted(
+        race(
+            [
+                lambda: archive_festival(
+                    festival.pk, actor=user, confirmation=archive_token, at=NOW
+                ),
+                lambda: unpublish_festival(
+                    festival.pk, actor=user, confirmation=draft_token, at=NOW
+                ),
+            ]
+        )
+    ) == ["ok", "rejected"]
+    assert Application.objects.get().status == "draft"
+
+
+def test_archive_return_and_other_publication_are_independent(django_user_model):
+    user = actor(django_user_model)
+    archived, pending = draft("Архив"), draft("Новый")
     Festival.objects.filter(pk=archived.pk).update(status="archived", published_at=NOW)
-    results = race(
+    token = confirmation(archived, user, "unpublish")
+    assert race(
         [
-            lambda: restore_festival(
-                archived.pk,
-                actor=user,
-                at=NOW,
-                changes={
-                    "start_date": archived.start_date,
-                    "end_date": archived.end_date,
-                    "timezone": "UTC",
-                },
+            lambda: unpublish_festival(
+                archived.pk, actor=user, confirmation=token, at=NOW
             ),
             lambda: publish_festival(pending.pk, actor=user, at=NOW),
         ]
-    )
-    assert sorted(results) == ["ok", "rejected"]
-    assert Festival.objects.filter(status__in=["open", "running"]).count() == 1
+    ) == ["ok", "ok"]
+    assert Festival.objects.get(pk=archived.pk).status == "draft"
+    assert Festival.objects.get(pk=pending.pk).status == "open"
 
 
 @pytest.mark.parametrize("archive_reason", ["status", "calendar", "clock"])
@@ -207,18 +198,75 @@ def test_row_lock_rechecks_archive_before_update(
     assert Festival.objects.values().get(pk=festival.pk) == expected
 
 
+@pytest.mark.parametrize("change", ["clock", "delete"])
+def test_sync_rechecks_time_and_missing_row_after_wait(
+    django_user_model, monkeypatch, change
+):
+    user = actor(django_user_model)
+    festival = draft("Синхронизация ждёт")
+    publish_festival(festival.pk, actor=user, at=NOW)
+    record = Application.objects.create(owner=user, festival=festival, status="active")
+    checked_at = [NOW]
+    monkeypatch.setattr("festivals.services.timezone.now", lambda: checked_at[0])
+    waiting = Event()
+
+    def signal_lock(execute, sql, params, many, context):
+        if "FOR UPDATE" in sql:
+            waiting.set()
+        return execute(sql, params, many, context)
+
+    def synchronize():
+        close_old_connections()
+        try:
+            with connection.execute_wrapper(signal_lock):
+                return sync_festival_states()
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with transaction.atomic():
+            Festival.objects.select_for_update().get(pk=festival.pk)
+            pending = pool.submit(synchronize)
+            assert waiting.wait(timeout=10)
+            if change == "clock":
+                checked_at[0] = datetime(2030, 1, 31, 17, tzinfo=timezone.utc)
+            else:
+                delete_festival(
+                    festival.pk,
+                    actor=user,
+                    confirmation=confirmation(festival, user, "delete"),
+                )
+        assert pending.result(timeout=15) == (1 if change == "clock" else 0)
+    if change == "clock":
+        assert Festival.objects.get(pk=festival.pk).status == "archived"
+        record.refresh_from_db()
+        assert record.status == "draft"
+    else:
+        assert not Festival.objects.filter(pk=festival.pk).exists()
+
+
 def test_concurrent_return_to_draft_and_calendar_sync(django_user_model):
     user = actor(django_user_model)
     festival = draft("Возврат в черновик")
     original = publish_festival(festival.pk, actor=user, at=NOW)
     later = datetime(2031, 1, 1, tzinfo=timezone.utc)
+    token = confirmation(festival, user, "unpublish", at=later)
     results = race(
         [
-            lambda: unpublish_festival(festival.pk, actor=user, at=later),
+            lambda: unpublish_festival(
+                festival.pk, actor=user, confirmation=token, at=later
+            ),
             lambda: sync_festival_states(at=later),
         ]
     )
-    assert results == ["ok", "ok"]
+    assert results[0] in ("ok", "rejected") and results[1] == "ok"
+    if results[0] == "rejected":
+        unpublish_festival(
+            festival.pk,
+            actor=user,
+            confirmation=confirmation(festival, user, "unpublish", at=later),
+            at=later,
+        )
     festival.refresh_from_db()
     assert festival.status == "draft"
     assert festival.published_at == original.published_at

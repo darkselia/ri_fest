@@ -11,6 +11,7 @@ class ApplicationQuerySet(models.QuerySet):
 
 class Application(models.Model):
     class Status(models.TextChoices):
+        DRAFT = "draft", "Черновик"
         ACTIVE = "active", "Активна"
         WITHDRAWN = "withdrawn", "Отозвана"
 
@@ -32,7 +33,7 @@ class Application(models.Model):
         "Статус",
         max_length=9,
         choices=Status.choices,
-        default=Status.ACTIVE,
+        default=Status.DRAFT,
         editable=False,
     )
     created_at = models.DateTimeField("Создана", auto_now_add=True)
@@ -49,8 +50,12 @@ class Application(models.Model):
         ordering = ("-created_at", "-pk")
         constraints = [
             models.CheckConstraint(
-                condition=models.Q(status__in=["active", "withdrawn"]),
+                condition=models.Q(status__in=["draft", "active", "withdrawn"]),
                 name="application_valid_status",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(owner__isnull=False) | ~models.Q(status="draft"),
+                name="application_draft_has_owner",
             ),
             models.CheckConstraint(
                 condition=(

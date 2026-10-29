@@ -2,174 +2,180 @@ from datetime import datetime, timezone
 
 import pytest
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.urls import reverse
+from django.db.models.deletion import ProtectedError
 
 from applications.models import Application
-from festivals.models import Festival, FestivalQuerySet
+from festivals.models import Festival
 from festivals.services import (
+    FestivalActionConflict,
+    archive_festival,
+    delete_festival,
+    festival_action_preview,
     publish_festival,
-    restore_deleted_festival,
-    restore_festival,
-    save_festival,
-    soft_delete_festival,
-    sync_festival_states,
     unpublish_festival,
 )
 
 pytestmark = pytest.mark.django_db
 
 
+def token(festival, actor, action):
+    return festival_action_preview(festival.pk, actor=actor, action=action)[
+        "confirmation"
+    ]
+
+
 @pytest.mark.parametrize("state", ["draft", "open", "running", "archived"])
-@pytest.mark.parametrize("destination", ["draft", "archived"])
-def test_soft_delete_and_explicit_restore_preserve_data(
-    draft, organizer, now, django_user_model, state, destination
+@pytest.mark.parametrize("action", ["unpublish", "archive"])
+def test_confirmed_transition_returns_owned_applications_only(
+    draft, organizer, now, django_user_model, state, action
 ):
+    if action == "archive" and state == "draft":
+        with pytest.raises(ValidationError, match="Черновик нельзя"):
+            festival_action_preview(draft.pk, actor=organizer, action=action)
+        return
     Festival.objects.filter(pk=draft.pk).update(
         status=state, published_at=now if state != "draft" else None
     )
-    owner = django_user_model.objects.create_user("history-owner@example.invalid")
-    for status in ("active", "withdrawn"):
+    owner = django_user_model.objects.create_user("history@example.invalid")
+    records = [
         Application.objects.create(owner=owner, festival=draft, status=status)
+        for status in ("active", "withdrawn", "draft")
+    ]
+    anonymous = Application.objects.create(
+        festival=draft, status="active", anonymized_at=now
+    )
     before = list(Application.objects.order_by("pk").values())
-    deleted = soft_delete_festival(draft.pk, actor=organizer)
-    assert deleted.status == state and deleted.deleted_at == now
-    assert not Festival.objects.not_deleted().filter(pk=draft.pk).exists()
-    assert (
-        soft_delete_festival(
-            draft.pk, actor=organizer, at=datetime(2031, 1, 1, tzinfo=timezone.utc)
-        ).deleted_at
-        == now
-    )
-    assert sync_festival_states(at=datetime(2031, 1, 1, tzinfo=timezone.utc)) == 0
-    restored = restore_deleted_festival(
-        draft.pk, actor=organizer, target_status=destination
-    )
-    assert restored.deleted_at is None and restored.status == destination
-    assert sync_festival_states(at=datetime(2031, 1, 1, tzinfo=timezone.utc)) == 0
+    preview = festival_action_preview(draft.pk, actor=organizer, action=action)
+    assert preview["application_count"] == 2
+    assert preview["total_application_count"] == 4
     assert list(Application.objects.order_by("pk").values()) == before
-    if destination == "archived":
-        assert restored.published_at == now
-
-
-def test_restoration_does_not_conflict_with_another_current_festival(
-    draft, organizer, now
-):
-    publish_festival(draft.pk, actor=organizer)
-    soft_delete_festival(draft.pk, actor=organizer)
-    other = Festival.objects.create(
-        name="Другой фестиваль", start_date=draft.start_date, end_date=draft.end_date
-    )
-    publish_festival(other.pk, actor=organizer)
-    restored = restore_deleted_festival(
-        draft.pk, actor=organizer, target_status="archived"
-    )
-    assert restored.status == "archived"
-    assert (
-        Festival.objects.not_deleted().filter(status__in=["open", "running"]).count()
-        == 1
-    )
-
-
-@pytest.mark.parametrize("operation", ["save", "publish", "unpublish", "restore"])
-def test_deleted_festival_rejects_ordinary_commands(draft, organizer, operation):
-    soft_delete_festival(draft.pk, actor=organizer)
-    with pytest.raises(PermissionDenied):
-        if operation == "save":
-            save_festival(draft.pk, actor=organizer, changes={"name": "Недоступно"})
-        elif operation == "publish":
-            publish_festival(draft.pk, actor=organizer)
-        elif operation == "unpublish":
-            unpublish_festival(draft.pk, actor=organizer)
-        else:
-            restore_festival(
-                draft.pk,
-                actor=organizer,
-                changes={
-                    "start_date": draft.start_date,
-                    "end_date": draft.end_date,
-                    "timezone": draft.timezone,
-                },
-            )
-
-
-def test_incomplete_archive_and_invalid_destination_leave_festival_deleted(organizer):
-    festival = Festival.objects.create(name="Неполный черновик")
-    soft_delete_festival(festival.pk, actor=organizer)
-    for destination in ("open", "archived"):
-        with pytest.raises(ValidationError):
-            restore_deleted_festival(
-                festival.pk, actor=organizer, target_status=destination
-            )
-        festival.refresh_from_db()
-        assert festival.deleted_at is not None and festival.status == "draft"
-
-
-def test_admin_confirmation_filters_and_permissions(
-    client, draft, organizer, django_user_model
-):
-    delete_url = reverse("admin:festivals_festival_soft_delete", args=[draft.pk])
-    restore_url = reverse("admin:festivals_festival_restore_deleted", args=[draft.pk])
-    outsider = django_user_model.objects.create_user(
-        "outsider@example.invalid", is_staff=True
-    )
-    client.force_login(outsider)
-    for url in (delete_url, restore_url):
-        assert client.post(url, {"target_status": "draft"}).status_code == 403
-    client.force_login(organizer)
-    assert client.get(delete_url).status_code == 200
+    operation = unpublish_festival if action == "unpublish" else archive_festival
+    operation(draft.pk, actor=organizer, confirmation=preview["confirmation"])
+    for record in records:
+        record.refresh_from_db()
+        assert record.status == "draft"
+        original = next(item for item in before if item["id"] == record.pk)
+        assert record.created_at == original["created_at"]
+        assert record.owner_id == owner.pk
+    anonymous.refresh_from_db()
+    assert anonymous.status == "active" and anonymous.owner_id is None
     draft.refresh_from_db()
-    assert draft.deleted_at is None
-    assert client.post(delete_url).status_code == 302
-    change = client.get(reverse("admin:festivals_festival_change", args=[draft.pk]))
-    assert "Восстановить фестиваль" in change.text
-    assert "Вернуть в работу" not in change.text
-    assert "Вернуть в черновик" not in change.text
-    listing = reverse("admin:festivals_festival_changelist")
-    assert not client.get(listing).context["cl"].queryset.exists()
-    assert (
-        client.get(listing, {"deletion": "deleted"}).context["cl"].queryset.count() == 1
+    assert draft.status == ("draft" if action == "unpublish" else "archived")
+    after = list(Application.objects.order_by("pk").values())
+    if state != draft.status:
+        with pytest.raises(FestivalActionConflict):
+            operation(draft.pk, actor=organizer, confirmation=preview["confirmation"])
+    operation(draft.pk, actor=organizer, confirmation=token(draft, organizer, action))
+    assert list(Application.objects.order_by("pk").values()) == after
+
+
+def test_permanent_delete_preserves_users_and_other_festivals(
+    draft, organizer, now, django_user_model
+):
+    owner = django_user_model.objects.create_user("owner@example.invalid")
+    other = Festival.objects.create(name="Другой фестиваль")
+    own = Application.objects.create(owner=owner, festival=draft)
+    preserved = Application.objects.create(owner=owner, festival=other)
+    with pytest.raises(ProtectedError):
+        draft.delete()
+    preview = festival_action_preview(draft.pk, actor=organizer, action="delete")
+    assert preview["application_count"] == 0
+    assert preview["total_application_count"] == 1
+    original_pk = draft.pk
+    delete_festival(original_pk, actor=organizer, confirmation=preview["confirmation"])
+    assert not Festival.objects.filter(pk=original_pk).exists()
+    assert not Application.objects.filter(pk=own.pk).exists()
+    assert Application.objects.filter(pk=preserved.pk, owner=owner).exists()
+    assert django_user_model.objects.filter(pk=owner.pk).exists()
+
+
+@pytest.mark.parametrize("change", ["new", "replace", "status", "festival"])
+def test_stale_confirmation_rejects_changed_composition(
+    draft, organizer, now, django_user_model, change
+):
+    owner = django_user_model.objects.create_user("changing@example.invalid")
+    application = Application.objects.create(
+        owner=owner, festival=draft, status="active"
     )
-    assert client.get(listing, {"deletion": "all"}).context["cl"].queryset.count() == 1
-    assert client.get(restore_url).context["form"]["target_status"].value() == "draft"
-    assert client.post(restore_url, {"target_status": "archived"}).status_code == 302
-    draft.refresh_from_db()
-    assert draft.status == "archived" and draft.deleted_at is None
-
-
-def test_festival_deletion_requires_csrf(draft, organizer):
-    from django.test import Client
-
-    client = Client(enforce_csrf_checks=True)
-    client.force_login(organizer)
-    for action in ("soft_delete", "restore_deleted"):
-        assert (
-            client.post(
-                reverse(f"admin:festivals_festival_{action}", args=[draft.pk])
-            ).status_code
-            == 403
+    preview = festival_action_preview(draft.pk, actor=organizer, action="unpublish")
+    if change == "new":
+        Application.objects.create(owner=owner, festival=draft, status="active")
+    elif change == "replace":
+        application.delete()
+        Application.objects.create(owner=owner, festival=draft, status="active")
+    elif change == "status":
+        application.status = "withdrawn"
+        application.save()
+    else:
+        Festival.objects.filter(pk=draft.pk).update(name="Изменено")
+    before = list(Application.objects.order_by("pk").values())
+    with pytest.raises(FestivalActionConflict):
+        unpublish_festival(
+            draft.pk, actor=organizer, confirmation=preview["confirmation"]
         )
+    assert list(Application.objects.order_by("pk").values()) == before
 
 
-def test_sync_rechecks_deletion_after_selecting_ids(draft, organizer, now, monkeypatch):
-    publish_festival(draft.pk, actor=organizer)
-    original = FestivalQuerySet.select_for_update
-
-    def deleted_after_selection(queryset, *args, **kwargs):
-        Festival.objects.filter(pk=draft.pk).update(deleted_at=now)
-        return original(queryset, *args, **kwargs)
-
-    monkeypatch.setattr(FestivalQuerySet, "select_for_update", deleted_after_selection)
-    assert sync_festival_states(at=datetime(2031, 1, 1, tzinfo=timezone.utc)) == 0
-    draft.refresh_from_db()
-    assert draft.deleted_at == now and draft.status == "open"
-
-
-def test_cached_permissions_cannot_authorize_deletion_after_revocation(
-    draft, organizer
+@pytest.mark.parametrize("action", ["archive", "unpublish", "delete"])
+def test_actions_require_fresh_permission_and_valid_confirmation(
+    draft, organizer, now, django_user_model, action
 ):
-    assert organizer.has_perm("festivals.delete_festival")
+    publish_festival(draft.pk, actor=organizer)
+    preview = token(draft, organizer, action)
+    operation = {
+        "archive": archive_festival,
+        "unpublish": unpublish_festival,
+        "delete": delete_festival,
+    }[action]
+    for invalid in (None, preview + "tampered"):
+        with pytest.raises(FestivalActionConflict):
+            operation(draft.pk, actor=organizer, confirmation=invalid)
+    other = django_user_model.objects.create_superuser("other-admin@example.invalid")
+    with pytest.raises(FestivalActionConflict):
+        operation(draft.pk, actor=other, confirmation=preview)
     organizer.groups.clear()
     with pytest.raises(PermissionDenied):
-        soft_delete_festival(draft.pk, actor=organizer)
-    draft.refresh_from_db()
-    assert draft.deleted_at is None
+        operation(draft.pk, actor=organizer, confirmation=preview)
+    assert Festival.objects.filter(pk=draft.pk, status="open").exists()
+
+
+@pytest.mark.parametrize("action", ["archive", "delete"])
+def test_transition_rollback_restores_applications(
+    draft, organizer, now, django_user_model, monkeypatch, action
+):
+    publish_festival(draft.pk, actor=organizer)
+    owner = django_user_model.objects.create_user("rollback@example.invalid")
+    Application.objects.create(owner=owner, festival=draft, status="active")
+    before = list(Application.objects.values())
+    preview = token(draft, organizer, action)
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("synthetic failure")
+
+    monkeypatch.setattr(Festival, "save" if action == "archive" else "delete", fail)
+    operation = archive_festival if action == "archive" else delete_festival
+    with pytest.raises(RuntimeError, match="synthetic"):
+        operation(draft.pk, actor=organizer, confirmation=preview)
+    assert list(Application.objects.values()) == before
+    assert Festival.objects.get(pk=draft.pk).status == "open"
+
+
+def test_confirmation_is_bound_to_action_and_target(draft, organizer, now):
+    other = Festival.objects.create(name="Другая запись")
+    preview = token(draft, organizer, "unpublish")
+    with pytest.raises(FestivalActionConflict):
+        delete_festival(draft.pk, actor=organizer, confirmation=preview)
+    with pytest.raises(FestivalActionConflict):
+        unpublish_festival(other.pk, actor=organizer, confirmation=preview)
+
+
+def test_archive_clock_change_invalidates_confirmation(draft, organizer, now):
+    publish_festival(draft.pk, actor=organizer)
+    preview = token(draft, organizer, "unpublish")
+    with pytest.raises(FestivalActionConflict):
+        unpublish_festival(
+            draft.pk,
+            actor=organizer,
+            confirmation=preview,
+            at=datetime(2031, 1, 1, tzinfo=timezone.utc),
+        )
