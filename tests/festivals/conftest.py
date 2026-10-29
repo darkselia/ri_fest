@@ -3,6 +3,7 @@ from datetime import date, datetime, timezone
 import pytest
 from django.contrib.auth.models import Group
 
+from applications.models import FormField
 from festivals.models import Festival
 
 NOW = datetime(2030, 1, 1, tzinfo=timezone.utc)
@@ -25,8 +26,10 @@ def organizer(django_user_model):
 
 @pytest.fixture
 def draft():
-    return Festival.objects.create(
+    festival = Festival.objects.create(
         name="Синтетический фестиваль",
         start_date=date(2030, 1, 28),
         end_date=date(2030, 1, 31),
     )
+    FormField.objects.create(festival=festival, label="Имя", field_type="text")
+    return festival

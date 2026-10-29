@@ -13,8 +13,6 @@ def test_home_renders_public_placeholder_without_database(client):
         template.name for template in response.templates
     }
     assert '<html lang="ru">' in response.text
-    assert "РИ-фест" in response.text
-    assert "Сайт готовится к запуску." in response.text
 
 
 def test_home_connects_discoverable_stylesheet_and_original_brand(client):

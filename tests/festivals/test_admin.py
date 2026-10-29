@@ -7,6 +7,7 @@ from django.contrib.admin.templatetags.admin_list import result_headers
 from django.contrib.auth.models import Group, Permission
 from django.urls import reverse
 
+from applications.models import FormField
 from festivals.models import Festival
 from festivals.services import (
     festival_action_preview,
@@ -291,9 +292,13 @@ def test_archive_csrf_and_permission(client, organizer, draft, now, django_user_
     assert client.get(url).status_code == 403
 
 
-def test_group_has_only_festival_permissions():
+def test_group_has_expected_festival_permissions():
     group = Group.objects.get(name="Организаторы")
-    assert set(group.permissions.values_list("codename", flat=True)) == {
+    assert set(
+        group.permissions.filter(content_type__app_label="festivals").values_list(
+            "codename", flat=True
+        )
+    ) == {
         "add_festival",
         "view_festival",
         "change_festival",
@@ -443,6 +448,7 @@ def test_publish_business_error_keeps_draft(client, organizer, draft, now, confl
         other = Festival.objects.create(
             name="Другой", start_date=draft.start_date, end_date=draft.end_date
         )
+        FormField.objects.create(festival=other, label="Имя", field_type="text")
         publish_festival(other.pk, actor=organizer)
     client.force_login(organizer)
     response = client.post(
@@ -509,9 +515,9 @@ def test_publish_csrf_and_permission(
     assert Festival.objects.count() == 1
 
 
-@pytest.mark.parametrize("day,expected", [(1, "open"), (29, "running")])
-def test_create_and_publish_in_one_post(
-    client, organizer, now, monkeypatch, day, expected
+@pytest.mark.parametrize("day", [1, 29])
+def test_first_save_requires_question_setup_before_publication(
+    client, organizer, now, monkeypatch, day
 ):
     at = datetime(2030, 1, day, tzinfo=timezone.utc)
     monkeypatch.setattr("festivals.services.timezone.now", lambda: at)
@@ -529,19 +535,19 @@ def test_create_and_publish_in_one_post(
     )
     assert response.status_code == 302
     festival = Festival.objects.get()
-    assert festival.status == expected
+    assert festival.status == "draft"
     assert festival.theme == "Сохранённая тема"
     assert festival.start_date == date(2030, 1, 28)
     assert festival.end_date == date(2030, 1, 31)
     assert festival.timezone == "Asia/Krasnoyarsk"
-    assert festival.published_at == at
+    assert festival.published_at is None
     assert response.url == reverse(
         "admin:festivals_festival_change", args=[festival.pk]
     )
-    assert "Сохранить изменения" in client.get(response.url).content.decode()
+    assert "Сохранить черновик" in client.get(response.url).content.decode()
 
 
-@pytest.mark.parametrize("reason", ["missing_dates", "past"])
+@pytest.mark.parametrize("reason", ["missing_dates", "past", "missing_schema"])
 def test_failed_first_publication_saves_one_draft(client, organizer, now, reason):
     data = {
         "name": "Черновик после ошибки публикации",
@@ -572,6 +578,7 @@ def test_failed_first_publication_saves_one_draft(client, organizer, now, reason
     count = Festival.objects.count()
 
     # Retry from the redirected card, rather than creating another festival.
+    FormField.objects.create(festival=festival, label="Имя", field_type="text")
     data.update(start_date="2030-01-28", end_date="2030-01-31")
     response = client.post(change_url, data)
     assert response.status_code == 302
@@ -715,7 +722,7 @@ def test_action_confirmation_refreshes_after_new_application(
     url = reverse(f"admin:festivals_festival_{action}", args=[draft.pk])
     preview = client.get(url)
     assert preview.context["application_count"] == 0
-    assert "Количество анкет" in preview.text
+    assert "Количество активных анкет пользователей" in preview.text
     owner = django_user_model.objects.create_user("preview-owner@example.invalid")
     record = Application.objects.create(owner=owner, festival=draft, status="active")
     response = client.post(url, {"confirmation": preview.context["confirmation"]})

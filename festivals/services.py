@@ -11,7 +11,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.utils import timezone
 
-from applications.models import Application
+from applications.models import Application, FormField
 
 from .models import Festival
 
@@ -70,14 +70,63 @@ def validate_calendar(festival):
         raise ValidationError(errors)
 
 
+def publication_errors(festival, *, at=None, schema=None):
+    from applications.schema import readiness
+    from applications.services import schema_errors
+
+    errors = []
+    try:
+        validate_calendar(festival)
+    except ValidationError as error:
+        errors.extend(error.messages)
+    else:
+        if calendar_status(festival, moment(at)) == Festival.Status.ARCHIVED:
+            errors.append("Завершившийся черновик нельзя опубликовать.")
+    return [
+        *errors,
+        *(schema_errors(festival) if schema is None else readiness(schema)),
+    ]
+
+
 def _candidate(festival, changes):
-    if set(changes) - set(EDITABLE_FIELDS):
+    if set(changes) - {*EDITABLE_FIELDS, "_schema", "_schema_revision"}:
         raise ValidationError("Переданы недоступные для редактирования поля.")
     candidate = copy(festival)
     for field, value in changes.items():
-        setattr(candidate, field, value)
+        if field in EDITABLE_FIELDS:
+            setattr(candidate, field, value)
     candidate.full_clean()
     return candidate
+
+
+def _schema_update(festival, changes, actor):
+    if "_schema" not in changes:
+        return None
+    from applications.schema import (
+        check_schema_permissions,
+        export_schema,
+        prepare_schema,
+        readiness,
+        schema_revision,
+    )
+    from applications.services import require_schema_permission
+
+    require_schema_permission(actor, "view")
+    if changes.get("_schema_revision") != schema_revision(festival):
+        raise FestivalActionConflict(
+            "Шаблон изменился. Обновите страницу перед сохранением; введённые данные сохранены в форме."
+        )
+    prepared, rows = prepare_schema(festival, changes["_schema"])
+    check_schema_permissions(festival, prepared, actor)
+    if festival.status != Festival.Status.DRAFT:
+        if readiness(export_schema(festival)) and rows != export_schema(festival):
+            raise PermissionDenied(
+                "Перед настройкой формы верните фестиваль в черновик с подтверждением."
+            )
+        errors = readiness(rows)
+        if errors:
+            raise ValidationError(errors)
+    return prepared
 
 
 def _applications(festival):
@@ -140,6 +189,9 @@ def _fingerprint(festival, applications, at):
             for item in applications
         ],
     ]
+    from applications.schema import schema_revision
+
+    data.append(schema_revision(festival))
     encoded = json.dumps(data, cls=DjangoJSONEncoder, ensure_ascii=False)
     return hashlib.sha256(encoded.encode()).hexdigest()
 
@@ -162,6 +214,7 @@ def festival_action_preview(festival_id, *, actor, action, changes=None, at=None
         _check_action_permission(festival, actor, action, now)
         if action == "save":
             candidate = _candidate(festival, changes)
+            _schema_update(festival, changes, actor)
             validate_calendar(candidate)
             if calendar_status(candidate, now) != Festival.Status.ARCHIVED:
                 raise ValidationError("Эти изменения не архивируют фестиваль.")
@@ -229,6 +282,7 @@ def save_festival(festival_id, *, actor, changes, at=None, confirmation=None):
         require_permission(actor, "change" if festival_id else "add")
         assert_festival_mutable(festival, at=now)
         candidate = _candidate(festival, changes)
+        prepared_schema = _schema_update(festival, changes, actor)
         if festival.status != Festival.Status.DRAFT:
             validate_calendar(candidate)
             candidate.status = calendar_status(candidate, now)
@@ -238,11 +292,20 @@ def save_festival(festival_id, *, actor, changes, at=None, confirmation=None):
                     confirmation, festival, applications, actor, "save", changes, now
                 )
                 _return_to_drafts(applications, now)
+        if prepared_schema is not None:
+            from applications.schema import write_schema
+
+            if festival.pk is None:
+                candidate.save()
+                festival.pk = candidate.pk
+            write_schema(festival, prepared_schema, actor)
         candidate.save()
         return candidate
 
 
 def publish_festival(festival_id, *, actor, at=None):
+    from applications.services import assert_form_ready
+
     require_permission(actor, "publish")
     with transaction.atomic():
         festival = Festival.objects.select_for_update().get(pk=festival_id)
@@ -254,6 +317,7 @@ def publish_festival(festival_id, *, actor, at=None):
         status = calendar_status(festival, now)
         if status == Festival.Status.ARCHIVED:
             raise ValidationError("Завершившийся черновик нельзя опубликовать.")
+        assert_form_ready(festival)
         festival.status = status
         festival.published_at = festival.published_at or now
         festival.save(update_fields=["status", "published_at"])
@@ -273,6 +337,7 @@ def _confirmed_action(festival_id, *, actor, action, confirmation, at):
             Application.objects.filter(
                 pk__in=[item.pk for item in applications]
             ).delete()
+            FormField.objects.filter(festival=festival).delete()
             festival.delete()
         else:
             _return_to_drafts(applications, now)

@@ -6,6 +6,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.management import call_command
 from django.db import IntegrityError, transaction
 
+from applications.models import FormField
 from festivals.models import Festival
 from festivals.services import (
     festival_action_preview,
@@ -96,6 +97,7 @@ def test_multiple_current_festivals_are_allowed(draft, organizer, now):
     other = Festival.objects.create(
         name="Другой", start_date=draft.start_date, end_date=draft.end_date
     )
+    FormField.objects.create(festival=other, label="Имя", field_type="text")
     assert publish_festival(other.pk, actor=organizer).status == "open"
     third = Festival.objects.create(
         name="Третий",
@@ -296,6 +298,7 @@ def test_republication_is_independent_of_other_festivals(draft, organizer, now):
     other = Festival.objects.create(
         name="Другой", start_date=draft.start_date, end_date=draft.end_date
     )
+    FormField.objects.create(festival=other, label="Имя", field_type="text")
     publish_festival(other.pk, actor=organizer)
     assert publish_festival(draft.pk, actor=organizer).status == "open"
     assert Festival.objects.filter(status="open").count() == 2

@@ -1,27 +1,44 @@
+import json
 from copy import copy
 from zoneinfo import ZoneInfo
 
 from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import Http404
+from django.db import transaction
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.template.loader import render_to_string
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
 
+from applications.forms import TemplatePreviewForm
+from applications.models import FormField
+from applications.schema import (
+    calculate_rows,
+    copied_schema,
+    export_schema,
+    prepare_schema,
+    readiness,
+    schema_revision,
+)
+from applications.services import require_schema_permission, schema_errors
+
 from .models import Festival
 from .services import (
     EDITABLE_FIELDS,
     FestivalActionConflict,
+    _schema_update,
     archive_festival,
     calendar_status,
     confirmation_changes,
     delete_festival,
     festival_action_preview,
     get_effective_status,
+    publication_errors,
     publish_festival,
     save_festival,
     unpublish_festival,
@@ -47,6 +64,8 @@ def timezone_choices(current):
 
 
 class FestivalForm(forms.ModelForm):
+    schema = forms.JSONField(required=False, widget=forms.HiddenInput)
+    schema_revision = forms.CharField(required=False, widget=forms.HiddenInput)
     timezone = forms.ChoiceField(
         label="Часовой пояс",
         help_text="Выберите часовой пояс. По умолчанию — Красноярск (UTC+07:00).",
@@ -60,12 +79,43 @@ class FestivalForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["timezone"].choices = timezone_choices(self.instance.timezone)
         self.initial.setdefault("timezone", self.instance.timezone)
+        self.initial.setdefault("schema", export_schema(self.instance))
+        self.initial.setdefault("schema_revision", schema_revision(self.instance))
+
+    def clean(self):
+        data = super().clean()
+        if self.instance.status != Festival.Status.DRAFT:
+            for name in ("start_date", "end_date"):
+                if name in data and data[name] is None:
+                    self.add_error(name, "Заполните дату опубликованного фестиваля.")
+        if data.get("schema") is not None and hasattr(self, "schema_actor"):
+            try:
+                _schema_update(
+                    self.instance, self.festival_changes(), self.schema_actor
+                )
+            except ValidationError as error:
+                self.add_error("schema", ValidationError(error.messages))
+        return data
+
+    def festival_changes(self):
+        changes = {
+            name: self.cleaned_data[name]
+            for name in EDITABLE_FIELDS
+            if name in self.cleaned_data
+        }
+        if self.cleaned_data.get("schema") is not None:
+            changes.update(
+                _schema=self.cleaned_data["schema"],
+                _schema_revision=self.cleaned_data.get("schema_revision", ""),
+            )
+        return changes
 
 
 @admin.register(Festival)
 class FestivalAdmin(admin.ModelAdmin):
     class Media:
-        css = {"all": ("css/festival_admin.css",)}
+        css = {"all": ("css/festival_admin.css", "css/schema_editor.css")}
+        js = ("js/schema_editor.js",)
 
     form = FestivalForm
     change_form_template = "admin/festivals/change_form.html"
@@ -85,11 +135,19 @@ class FestivalAdmin(admin.ModelAdmin):
     fields = (*EDITABLE_FIELDS, *readonly_fields)
     actions = None
 
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.schema_actor = request.user
+        return form
+
     def has_delete_permission(self, request, obj=None):
         return False
 
     def has_change_permission(self, request, obj=None):
-        if obj and get_effective_status(obj) == Festival.Status.ARCHIVED:
+        persisted = (
+            Festival.objects.filter(pk=obj.pk).first() if obj and obj.pk else None
+        )
+        if persisted and get_effective_status(persisted) == Festival.Status.ARCHIVED:
             return False
         return super().has_change_permission(request, obj)
 
@@ -105,7 +163,7 @@ class FestivalAdmin(admin.ModelAdmin):
         saved = save_festival(
             obj.pk if change else None,
             actor=request.user,
-            changes={field: form.cleaned_data[field] for field in EDITABLE_FIELDS},
+            changes=form.festival_changes(),
         )
         obj.pk = saved.pk
         obj.status = saved.status
@@ -114,12 +172,30 @@ class FestivalAdmin(admin.ModelAdmin):
 
     @method_decorator(csrf_protect)
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        if request.method == "POST":
+            with transaction.atomic():
+                if object_id is not None:
+                    get_object_or_404(
+                        Festival.objects.select_for_update(), pk=object_id
+                    )
+                return self.festival_changeform_view(
+                    request, object_id, form_url, extra_context
+                )
+        return self.festival_changeform_view(
+            request, object_id, form_url, extra_context
+        )
+
+    def festival_changeform_view(
+        self, request, object_id=None, form_url="", extra_context=None
+    ):
         if request.method == "POST" and object_id is not None:
             festival = get_object_or_404(Festival, pk=object_id)
             if "_confirm_festival_save" in request.POST:
                 return self.pending_save_view(request, festival)
             if self.has_change_permission(request, festival):
-                form = self.form(request.POST, request.FILES, instance=copy(festival))
+                form = self.get_form(request, festival)(
+                    request.POST, request.FILES, instance=copy(festival)
+                )
                 if form.is_valid() and festival.status != Festival.Status.DRAFT:
                     now = timezone.now()
                     if calendar_status(form.instance, now) == Festival.Status.ARCHIVED:
@@ -127,10 +203,7 @@ class FestivalAdmin(admin.ModelAdmin):
                             request,
                             festival.pk,
                             "save",
-                            changes={
-                                field: form.cleaned_data[field]
-                                for field in EDITABLE_FIELDS
-                            },
+                            changes=form.festival_changes(),
                         )
         return super().changeform_view(request, object_id, form_url, extra_context)
 
@@ -176,7 +249,10 @@ class FestivalAdmin(admin.ModelAdmin):
     def render_change_form(
         self, request, context, add=False, change=False, form_url="", obj=None
     ):
-        status = get_effective_status(obj) if obj else None
+        persisted = (
+            Festival.objects.filter(pk=obj.pk).first() if obj and obj.pk else None
+        )
+        status = get_effective_status(persisted) if persisted else None
         context["festival_is_draft"] = add or status == Festival.Status.DRAFT
         context["can_publish_festival"] = (
             context["festival_is_draft"]
@@ -204,6 +280,50 @@ class FestivalAdmin(admin.ModelAdmin):
         context["can_delete_festival"] = obj is not None and request.user.has_perm(
             "festivals.delete_festival"
         )
+        current_form = context["adminform"].form
+        pending_schema = getattr(current_form, "cleaned_data", {}).get("schema")
+        normalized_schema = None
+        if pending_schema is not None:
+            try:
+                _, normalized_schema = prepare_schema(
+                    current_form.instance, pending_schema
+                )
+            except ValidationError:
+                pass
+        context["publication_errors"] = publication_errors(
+            current_form.instance, schema=normalized_schema
+        )
+        context["can_view_schema"] = all(
+            request.user.has_perm(f"applications.view_{model}")
+            for model in ("formfield", "formoption", "serviceoption")
+        )
+        context["schema_editable"] = (
+            context["can_view_schema"]
+            and status != Festival.Status.ARCHIVED
+            and (
+                self.has_change_permission(request, obj)
+                if obj
+                else self.has_add_permission(request)
+            )
+        )
+        context["schema_types"] = list(FormField.Type.choices)
+        context["schema_sources"] = (
+            Festival.objects.exclude(pk=obj.pk if obj else None)
+            if request.user.has_perm("festivals.view_festival")
+            else []
+        )
+        context["schema_input"] = context["adminform"].form["schema"]
+        context["schema_revision_input"] = context["adminform"].form["schema_revision"]
+        context["schema_preview_url"] = reverse("admin:festivals_schema_preview")
+        context["schema_source_url"] = reverse(
+            "admin:festivals_schema_source", args=[0]
+        )
+        context["schema_requires_unpublish"] = status in (
+            Festival.Status.OPEN,
+            Festival.Status.RUNNING,
+        ) and bool(schema_errors(persisted))
+        if context["schema_requires_unpublish"]:
+            context["schema_editable"] = False
         return super().render_change_form(request, context, add, change, form_url, obj)
 
     def response_add(self, request, obj, post_url_continue=None):
@@ -232,6 +352,16 @@ class FestivalAdmin(admin.ModelAdmin):
     def get_urls(self):
         return [
             path(
+                "template-source/<int:source_id>/",
+                self.admin_site.admin_view(self.schema_source_view),
+                name="festivals_schema_source",
+            ),
+            path(
+                "template-preview/",
+                self.admin_site.admin_view(self.schema_preview_view),
+                name="festivals_schema_preview",
+            ),
+            path(
                 "<int:object_id>/unpublish/",
                 self.admin_site.admin_view(self.unpublish_view),
                 name="festivals_festival_unpublish",
@@ -247,6 +377,69 @@ class FestivalAdmin(admin.ModelAdmin):
                 name="festivals_festival_delete_permanently",
             ),
         ] + super().get_urls()
+
+    def schema_source_view(self, request, source_id):
+        if request.method != "GET":
+            return JsonResponse({"error": "Используйте GET."}, status=405)
+        for model in ("formfield", "formoption", "serviceoption"):
+            require_schema_permission(request.user, "view", model)
+        if not request.user.has_perm("festivals.view_festival"):
+            raise PermissionDenied
+        with transaction.atomic():
+            source = get_object_or_404(
+                Festival.objects.select_for_update(), pk=source_id
+            )
+            return JsonResponse({"schema": copied_schema(source)})
+
+    @method_decorator(csrf_protect)
+    def schema_preview_view(self, request):
+        if request.method != "POST":
+            return JsonResponse({"error": "Используйте POST."}, status=405)
+        for model in ("formfield", "formoption", "serviceoption"):
+            require_schema_permission(request.user, "view", model)
+        try:
+            data = json.loads(request.body)
+            if not isinstance(data, dict):
+                raise ValueError
+            if data.get("festival_id"):
+                festival = get_object_or_404(Festival, pk=data["festival_id"])
+                if not self.has_view_permission(request, festival):
+                    raise PermissionDenied
+            else:
+                if not self.has_add_permission(request):
+                    raise PermissionDenied
+                festival = Festival()
+            _, rows = prepare_schema(festival, data.get("schema"))
+            form = TemplatePreviewForm(rows, data=data.get("answers"))
+            totals = None
+            if form.is_bound and form.is_valid():
+                totals = calculate_rows(
+                    rows, form.service_selections(), require_complete=True
+                )
+                for entry in form.entries:
+                    entry["subtotal"] = totals["fields"].get(entry["key"])
+            return JsonResponse(
+                {
+                    "html": render_to_string(
+                        "admin/festivals/schema_preview.html",
+                        {
+                            "preview_form": form,
+                            "readiness_errors": readiness(rows),
+                            "totals": totals,
+                        },
+                        request=request,
+                    )
+                }
+            )
+        except (ValidationError, ValueError, TypeError, AttributeError) as error:
+            return JsonResponse(
+                {
+                    "error": " ".join(error.messages)
+                    if isinstance(error, ValidationError)
+                    else "Некорректные данные предпросмотра."
+                },
+                status=400,
+            )
 
     def confirmation_response(
         self, request, object_id, action, *, changes=None, error=None
@@ -274,7 +467,7 @@ class FestivalAdmin(admin.ModelAdmin):
             "unpublish": "Вернуть фестиваль в черновик",
             "archive": "Архивировать фестиваль",
             "save": "Сохранить и архивировать фестиваль",
-            "delete": "Удалить фестиваль навсегда",
+            "delete": "Удалить фестиваль",
         }[action]
         if action == "delete":
             description = (
@@ -301,6 +494,7 @@ class FestivalAdmin(admin.ModelAdmin):
                 "title": title,
                 "description": description,
                 "confirm_label": title,
+                "confirm_variant": action,
                 "danger": action == "delete",
                 "opts": self.model._meta,
                 "original": preview["festival"],

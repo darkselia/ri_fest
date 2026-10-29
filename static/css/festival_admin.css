@@ -1,11 +1,11 @@
 :root {
   --color-transparent: transparent;
-  --color-restore: light-dark(#176b47, #70d5a2);
-  --color-restore-hover: light-dark(#115338, #9ae4be);
-  --color-on-restore: light-dark(#fff, #102f22);
-  --color-draft: light-dark(#f3cf75, #e8be62);
-  --color-draft-hover: light-dark(#e8bc55, #f5d48e);
-  --color-on-draft: #402e08;
+  --color-restore: light-dark(#205c9c, #8ab4f8);
+  --color-restore-hover: light-dark(#174a80, #a8c7fa);
+  --color-on-restore: light-dark(#fff, #142e49);
+  --color-draft: light-dark(#5f6368, #bdc1c6);
+  --color-draft-hover: light-dark(#494c50, #d3d6da);
+  --color-on-draft: light-dark(#fff, #202124);
   --color-danger: light-dark(#a42b31, #f2a2a7);
   --color-danger-hover: light-dark(#822027, #ffc4c8);
   --color-on-danger: light-dark(#fff, #401016);
@@ -38,21 +38,29 @@
   overflow-wrap: anywhere;
 }
 
-.app-festivals.model-festival .object-tools a.festival-tool--restore {
+.app-festivals.model-festival .object-tools a.festival-tool--restore,
+:is(.festival-actions, .festival-save-actions) .festival-action-button.festival-action-button--archive {
+  border-color: var(--color-restore);
   background: var(--color-restore);
   color: var(--color-on-restore);
 }
 
-.app-festivals.model-festival .object-tools a.festival-tool--restore:hover {
+.app-festivals.model-festival .object-tools a.festival-tool--restore:hover,
+:is(.festival-actions, .festival-save-actions) .festival-action-button.festival-action-button--archive:hover {
+  border-color: var(--color-restore-hover);
   background: var(--color-restore-hover);
 }
 
-.app-festivals.model-festival .object-tools a.festival-tool--draft {
+.app-festivals.model-festival .object-tools a.festival-tool--draft,
+:is(.festival-actions, .festival-save-actions) .festival-action-button.festival-action-button--draft {
+  border-color: var(--color-draft);
   background: var(--color-draft);
   color: var(--color-on-draft);
 }
 
-.app-festivals.model-festival .object-tools a.festival-tool--draft:hover {
+.app-festivals.model-festival .object-tools a.festival-tool--draft:hover,
+:is(.festival-actions, .festival-save-actions) .festival-action-button.festival-action-button--draft:hover {
+  border-color: var(--color-draft-hover);
   background: var(--color-draft-hover);
 }
 

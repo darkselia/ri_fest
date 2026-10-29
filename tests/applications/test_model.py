@@ -5,7 +5,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 
-from applications.models import Application
+from applications.models import Application, FormField
 from festivals.models import Festival
 from festivals.services import publish_festival, sync_festival_states
 
@@ -86,6 +86,9 @@ def test_festival_archival_preserves_applications_statuses_and_relations(
         status=Application.Status.WITHDRAWN,
     )
     actor = django_user_model.objects.create_superuser("organizer@example.invalid")
+    FormField.objects.create(
+        festival=application.festival, label="Имя", field_type="text"
+    )
     publish_festival(
         application.festival_id,
         actor=actor,

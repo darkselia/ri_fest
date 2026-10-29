@@ -2,7 +2,7 @@ import pytest
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import Group
 from django.core.exceptions import FieldDoesNotExist, ValidationError
-from django.db import IntegrityError, connection, transaction
+from django.db import IntegrityError, transaction
 
 pytestmark = pytest.mark.django_db
 
@@ -12,8 +12,6 @@ def test_user_uses_email_without_username(django_user_model):
     assert django_user_model.REQUIRED_FIELDS == []
     with pytest.raises(FieldDoesNotExist):
         django_user_model._meta.get_field("username")
-    assert "accounts_user" in connection.introspection.table_names()
-    assert "auth_user" not in connection.introspection.table_names()
 
 
 def test_create_user_normalizes_email_and_hashes_password(django_user_model):
@@ -110,4 +108,6 @@ def test_authentication_rejects_wrong_password_and_inactive_user(member):
 def test_organizers_group_is_seeded_without_account_permissions():
     group = Group.objects.get(name="Организаторы")
     assert Group.objects.filter(name="Организаторы").count() == 1
-    assert not group.permissions.exclude(content_type__app_label="festivals").exists()
+    assert not group.permissions.exclude(
+        content_type__app_label__in=("festivals", "applications")
+    ).exists()

@@ -1,0 +1,24 @@
+<div class="schema-preview-content">
+  <h2>Предпросмотр анкеты</h2>
+  <p>Данные предпросмотра не сохраняются. Стоимость указана без организационного взноса.</p>
+  {% if readiness_errors %}<div class="schema-errors"><p>Шаблон пока не готов к публикации:</p><ul>{% for error in readiness_errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+  {{ preview_form.non_field_errors }}
+  {% for entry in preview_form.entries %}
+    {% if entry.kind == 'info' %}
+      <section class="schema-info"><h3>{{ entry.row.label }}</h3><div>{{ entry.row.help_text|urlize|linebreaksbr }}</div></section>
+    {% else %}
+      <fieldset class="schema-preview-field" {% if entry.kind == 'service' %}data-service-group="{{ entry.key }}"{% endif %}>
+        <legend>{{ entry.row.label }}{% if entry.row.is_required %} <span>— обязательно</span>{% elif entry.row.is_recommended %} <span>— рекомендуется заполнить</span>{% endif %}</legend>
+        {{ entry.field.errors }}
+        {{ entry.field }}
+        {% if entry.row.help_text %}<div class="help">{{ entry.row.help_text|urlize|linebreaksbr }}</div>{% endif %}
+        {% if entry.kind == 'service' %}<p class="schema-subtotal">Подытог: <output data-group-total>{{ entry.subtotal|default:'0,00' }} ₽</output></p>{% endif %}
+      </fieldset>
+    {% endif %}
+  {% endfor %}
+  <div class="schema-totals">
+    <p><strong>Всего услуг: <output data-total-services>{{ totals.total|default:'0,00' }} ₽</output></strong></p>
+  </div>
+  {% if totals %}<p role="status" data-server-result>Проверено сервером: всего услуг {{ totals.total }} ₽.</p>{% elif preview_form.is_bound %}<p class="schema-errors">Исправьте ошибки заполнения.</p>{% endif %}
+  <button type="button" data-validate-preview>Проверить заполнение на сервере</button>
+</div>

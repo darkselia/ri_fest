@@ -28,7 +28,7 @@
       {% if pending_save %}<input type="hidden" name="_confirm_festival_save" value="1">{% endif %}
       {% if form %}{{ form.as_p }}{% endif %}
       <div class="festival-actions__buttons">
-        {% if confirm_label %}<button type="submit" class="festival-action-button {% if danger %}festival-action-button--danger{% else %}festival-action-button--primary{% endif %}">{{ confirm_label }}</button>{% endif %}
+        {% if confirm_label %}<button type="submit" class="festival-action-button {% if danger %}festival-action-button--danger{% elif confirm_variant == 'unpublish' %}festival-action-button--draft{% elif confirm_variant == 'archive' %}festival-action-button--archive{% else %}festival-action-button--primary{% endif %}">{{ confirm_label }}</button>{% endif %}
         <a class="festival-action-button" href="{{ cancel_url }}">Отмена</a>
       </div>
     </form>

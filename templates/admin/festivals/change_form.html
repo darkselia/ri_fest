@@ -1,13 +1,65 @@
 {% extends "admin/change_form.html" %}
+{% block form_top %}
+  {{ block.super }}
+  <section class="festival-actions" aria-labelledby="festival-readiness-title">
+    <h2 id="festival-readiness-title">Подготовка к публикации</h2>
+    {% if publication_errors %}
+      <p>Фестиваль пока не готов к публикации:</p>
+      <ul>{% for reason in publication_errors %}<li>{{ reason }}</li>{% endfor %}</ul>
+    {% else %}
+      <p>Даты заполнены, форма анкеты готова.</p>
+    {% endif %}
+    {% if can_view_schema %}<p><a href="#schema-editor" data-open-schema>Перейти к шаблону анкеты</a></p>{% endif %}
+    {% if schema_requires_unpublish %}
+      <p>Для перехода на редактор вопросов верните фестиваль в черновик с подтверждением, настройте форму и опубликуйте его заново. Анкеты и дата первой публикации сохранятся.</p>
+    {% endif %}
+  </section>
+{% endblock %}
+{% block after_field_sets %}
+  {{ block.super }}
+  {% if can_view_schema %}
+    <details id="schema-editor" class="schema-editor" data-editable="{{ schema_editable|yesno:'true,false' }}" data-festival="{{ original.pk|default:'0' }}" data-preview-url="{{ schema_preview_url }}" data-source-url="{{ schema_source_url }}" {% if schema_input.errors %}open{% endif %}>
+      <summary>Шаблон анкеты <span data-schema-count></span></summary>
+      {{ schema_input }}{{ schema_revision_input }}
+      {{ schema_types|json_script:"schema-types" }}
+      <div class="schema-errors" role="alert">{{ schema_input.errors }}</div>
+      <p class="schema-intro">Соберите анкету из вопросов, текстовых блоков и услуг. Изменения сохранятся вместе с фестивалем.</p>
+      <noscript>Для редактирования шаблона включите JavaScript. Данные сохраняются и проверяются сервером.</noscript>
+      {% if schema_editable %}
+          <details class="schema-copy">
+          <summary>Скопировать из другого фестиваля</summary>
+          <p>Вопросы и услуги добавятся после текущих. Цены и даты можно будет изменить.</p>
+          <div class="schema-copy__controls">
+            <label class="schema-copy__label">Фестиваль-источник
+              <select data-copy-source><option value="">— Выберите фестиваль —</option>{% for source in schema_sources %}<option value="{{ source.pk }}">{{ source.name }} — {{ source.get_status_display }}</option>{% endfor %}</select>
+            </label>
+            <button type="button" data-copy-template>Добавить шаблон</button>
+          </div>
+        </details>
+        <div class="schema-add"><button type="button" class="schema-button--primary" data-add-field><span aria-hidden="true">＋</span> Добавить вопрос или блок</button></div>
+
+      {% elif schema_requires_unpublish %}
+        <p class="schema-readonly">Редактирование станет доступно после возврата фестиваля в черновик.</p>
+      {% else %}
+        <p class="schema-readonly">Шаблон доступен только для просмотра.</p>
+      {% endif %}
+      <p data-schema-message role="status" aria-live="polite"></p>
+      <div data-schema-fields></div>
+      <div class="schema-preview-actions"><button type="button" data-show-preview>Предпросмотр анкеты</button><span>Проверьте форму без сохранения ответов.</span></div>
+      <section data-schema-preview aria-label="Предпросмотр анкеты" aria-live="polite"></section>
+    </details>
+  {% endif %}
+{% endblock %}
 {% block object-tools-items %}
   {{ block.super }}
   {% if can_archive_festival %}
-    <li><a class="festival-tool--restore" href="{% url 'admin:festivals_festival_archive' original.pk %}">Архивировать фестиваль</a></li>
+    <li><a class="festival-tool--restore" href="{% url 'admin:festivals_festival_archive' original.pk %}">В
+        архив</a></li>
   {% endif %}
   {% if can_unpublish_festival %}
-    <li><a class="festival-tool--draft" href="{% url 'admin:festivals_festival_unpublish' original.pk %}">Вернуть в черновик</a></li>
+    <li><a class="festival-tool--draft" href="{% url 'admin:festivals_festival_unpublish' original.pk %}">В черновик</a></li>
   {% endif %}
   {% if can_delete_festival %}
-    <li><a class="festival-tool--delete" href="{% url 'admin:festivals_festival_delete_permanently' original.pk %}">Удалить навсегда</a></li>
+    <li><a class="festival-tool--delete" href="{% url 'admin:festivals_festival_delete_permanently' original.pk %}">Удалить</a></li>
   {% endif %}
 {% endblock %}
