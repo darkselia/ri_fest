@@ -15,7 +15,7 @@ from django.utils.crypto import constant_time_compare
 
 from applications.models import Application
 from festivals.models import Festival
-from festivals.services import get_effective_status
+from festivals.services import get_effective_status, synchronize_locked_festival
 
 from .models import User
 
@@ -61,6 +61,10 @@ def delete_account(user_id, *, actor, password):
             raise PermissionDenied
         if not current_actor.check_password(password):
             raise ValidationError({"current_password": "Текущий пароль неверен."})
+        now = timezone.now()
+        for festival in festivals.values():
+            if get_effective_status(festival, at=now) == Festival.Status.ARCHIVED:
+                synchronize_locked_festival(festival, at=now)
         applications = list(
             Application.objects.select_for_update().filter(owner=target).order_by("pk")
         )
@@ -70,18 +74,20 @@ def delete_account(user_id, *, actor, password):
             raise AccountDeletionConflict(
                 "Анкеты изменились. Повторите удаление аккаунта."
             )
-        now = timezone.now()
-        for application in applications:
-            if (
-                get_effective_status(festivals[application.festival_id], at=now)
-                != Festival.Status.ARCHIVED
-            ):
-                application.status = Application.Status.WITHDRAWN
+        draft_ids = [
+            item.pk for item in applications if item.status == Application.Status.DRAFT
+        ]
+        Application.objects.filter(pk__in=draft_ids).delete()
+        history = [
+            item for item in applications if item.status != Application.Status.DRAFT
+        ]
+        for application in history:
+            application.status = Application.Status.WITHDRAWN
             application.owner_id = None
             application.anonymized_at = now
             application.updated_at = now
         Application.objects.bulk_update(
-            applications, ["owner", "status", "anonymized_at", "updated_at"]
+            history, ["owner", "status", "anonymized_at", "updated_at"]
         )
         LogEntry.objects.filter(
             content_type=ContentType.objects.get_for_model(User), object_id=str(user_id)

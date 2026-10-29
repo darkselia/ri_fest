@@ -40,7 +40,13 @@ def history(member):
             end_date=date(2035, 1, 3),
             published_at=timezone.now() if status != "draft" else None,
         )
-        records.append(Application.objects.create(owner=member, festival=festival))
+        records.append(
+            Application.objects.create(
+                owner=member,
+                festival=festival,
+                status="draft" if status == "draft" else "active",
+            )
+        )
     return records
 
 
@@ -77,12 +83,12 @@ def test_self_deletion_anonymizes_history_revokes_current_and_invalidates_access
         reverse("accounts:login")
     )
     assert client.post(link).status_code == 400
-    for item in history:
-        item.refresh_from_db()
-        assert item.owner_id is None and item.anonymized_at is not None
-        assert item.status == (
-            "active" if item.festival.status == "archived" else "withdrawn"
-        )
+    assert not Application.objects.filter(
+        pk__in=[history[0].pk, history[2].pk]
+    ).exists()
+    history[1].refresh_from_db()
+    assert history[1].owner_id is None and history[1].anonymized_at is not None
+    assert history[1].status == "withdrawn"
     log = LogEntry.objects.get(content_type=content_type, object_id=str(original_id))
     assert email not in log.object_repr + log.change_message
     replacement = User.objects.create_user(email, PASSWORD)
@@ -140,7 +146,7 @@ def test_admin_deletion_uses_same_service_and_admin_password(
         "admin:accounts_user_changelist"
     )
     assert not User.objects.filter(pk=target_id).exists()
-    assert Application.objects.filter(owner__isnull=True).count() == len(history)
+    assert Application.objects.filter(owner__isnull=True).count() == 1
 
 
 def test_deletion_rollback_restores_account_applications_and_admin_history(
@@ -209,8 +215,7 @@ def test_calendar_archive_is_respected_before_hourly_sync(member, history):
         start_date=date(2020, 1, 1), end_date=date(2020, 1, 3)
     )
     delete_account(member.pk, actor=member, password=PASSWORD)
-    current.refresh_from_db()
-    assert current.status == "active" and current.anonymized_at is not None
+    assert not Application.objects.filter(pk=current.pk).exists()
 
 
 def test_new_parent_relation_during_deletion_causes_atomic_conflict(

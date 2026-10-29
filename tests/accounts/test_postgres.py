@@ -20,7 +20,11 @@ from accounts.models import User
 from accounts.services import delete_account
 from applications.models import Application
 from festivals.models import Festival
-from festivals.services import soft_delete_festival
+from festivals.services import (
+    FestivalActionConflict,
+    delete_festival,
+    festival_action_preview,
+)
 
 pytestmark = [
     pytest.mark.django_db(transaction=True),
@@ -30,7 +34,7 @@ pytestmark = [
 ]
 
 
-def test_concurrent_account_and_festival_deletion_preserve_history():
+def test_concurrent_account_and_festival_deletion_is_atomic():
     user = User.objects.create_user(
         "parallel-owner@example.invalid", "Synthetic-owner-42!"
     )
@@ -44,20 +48,34 @@ def test_concurrent_account_and_festival_deletion_preserve_history():
         try:
             barrier.wait(timeout=10)
             operation()
+        except FestivalActionConflict:
+            return "stale"
         finally:
             close_old_connections()
 
     operations = [
         lambda: delete_account(user.pk, actor=user, password="Synthetic-owner-42!"),
-        lambda: soft_delete_festival(festival.pk, actor=admin),
+        lambda: delete_festival(
+            festival.pk,
+            actor=admin,
+            confirmation=festival_action_preview(
+                festival.pk, actor=admin, action="delete"
+            )["confirmation"],
+        ),
     ]
     with ThreadPoolExecutor(max_workers=2) as pool:
         list(pool.map(run, operations))
     assert not User.objects.filter(pk=user.pk).exists()
-    application.refresh_from_db()
-    festival.refresh_from_db()
-    assert application.owner_id is None and application.anonymized_at is not None
-    assert application.status == "withdrawn" and festival.deleted_at is not None
+    if Festival.objects.filter(pk=festival.pk).exists():
+        delete_festival(
+            festival.pk,
+            actor=admin,
+            confirmation=festival_action_preview(
+                festival.pk, actor=admin, action="delete"
+            )["confirmation"],
+        )
+    assert not Festival.objects.filter(pk=festival.pk).exists()
+    assert not Application.objects.filter(pk=application.pk).exists()
 
 
 @pytest.mark.parametrize("required", [False, True])
