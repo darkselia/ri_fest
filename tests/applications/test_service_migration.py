@@ -6,7 +6,7 @@ from django.db.migrations.executor import MigrationExecutor
 
 
 @pytest.mark.django_db(transaction=True)
-def test_unification_preserves_fields_options_and_application_selections():
+def test_unification_and_simplification_preserve_records_and_selections():
     executor = MigrationExecutor(connection)
     latest = executor.loader.graph.leaf_nodes()
     previous = [target for target in latest if target[0] != "applications"] + [
@@ -26,15 +26,24 @@ def test_unification_preserves_fields_options_and_application_selections():
         application = Application.objects.create(festival=festival, owner=owner)
         fields = [
             Field.objects.create(
-                festival=festival, field_type=kind, label=label, order=index
+                festival=festival,
+                field_type=kind,
+                label=label,
+                order=index,
+                is_recommended=True,
             )
             for index, (kind, label) in enumerate(
                 [("stay", "Проживание"), ("meal", "Питание")]
             )
         ]
         options = [
-            Option.objects.create(field=field, label="Вариант", price=Decimal("250.25"))
-            for field in fields
+            Option.objects.create(
+                field=field,
+                label="Вариант",
+                price=Decimal("250.25") if index == 0 else Decimal("0"),
+                is_opt_out=index == 1,
+            )
+            for index, field in enumerate(fields)
         ]
         selections = [
             Selection.objects.create(application=application, option=option)
@@ -57,9 +66,14 @@ def test_unification_preserves_fields_options_and_application_selections():
                 keys[index],
                 index,
             )
-            assert NewOption.objects.get(
-                pk=options[index].pk, field_id=field.pk
-            ).price == Decimal("250.25")
+            assert (
+                NewOption.objects.get(pk=options[index].pk, field_id=field.pk).price
+                == options[index].price
+            )
+            assert not hasattr(current, "is_recommended")
+            assert not hasattr(
+                NewOption.objects.get(pk=options[index].pk), "is_opt_out"
+            )
             assert (
                 NewSelection.objects.get(
                     pk=selections[index].pk, application_id=application.pk

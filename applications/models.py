@@ -27,7 +27,6 @@ class FormField(models.Model):
     label = models.CharField("Название", max_length=255)
     help_text = models.TextField("Подсказка", blank=True)
     is_required = models.BooleanField("Обязательный", default=False)
-    is_recommended = models.BooleanField("Рекомендуется заполнить", default=False)
     order = models.PositiveIntegerField("Порядок", default=0)
     is_active = models.BooleanField("Активный", default=True)
 
@@ -55,10 +54,6 @@ class FormField(models.Model):
                     ]
                 ),
                 name="form_field_valid_type",
-            ),
-            models.CheckConstraint(
-                condition=~models.Q(is_required=True, is_recommended=True),
-                name="form_field_requirement",
             ),
         ]
 
@@ -96,7 +91,6 @@ class ServiceOption(models.Model):
     label = models.CharField("Подпись", max_length=255)
     service_date = models.DateField("Дата", null=True, blank=True)
     price = models.DecimalField("Цена", max_digits=12, decimal_places=2, default=0)
-    is_opt_out = models.BooleanField("Отказ от услуг этого поля", default=False)
     is_active = models.BooleanField("Активный", default=True)
     order = models.PositiveIntegerField("Порядок", default=0)
 
@@ -107,15 +101,6 @@ class ServiceOption(models.Model):
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(price__gte=0), name="service_price_nonnegative"
-            ),
-            models.CheckConstraint(
-                condition=models.Q(is_opt_out=False) | models.Q(price=0),
-                name="service_opt_out_free",
-            ),
-            models.UniqueConstraint(
-                fields=("field",),
-                condition=models.Q(is_opt_out=True),
-                name="service_one_opt_out",
             ),
         ]
 

@@ -5,6 +5,8 @@ from pathlib import Path
 
 import environ
 from django.core.exceptions import ImproperlyConfigured
+from django.templatetags.static import static
+from django.urls import reverse_lazy
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -22,6 +24,7 @@ DEBUG = env("DJANGO_DEBUG")
 ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 
 INSTALLED_APPS = [
+    "unfold",
     "accounts.apps.AccountsConfig",
     "festivals.apps.FestivalsConfig",
     "applications.apps.ApplicationsConfig",
@@ -32,6 +35,56 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 ]
+
+UNFOLD = {
+    "SITE_TITLE": "РИ-фест",
+    "SITE_HEADER": "РИ-фест",
+    "SITE_FAVICONS": [
+        {"rel": "icon", "href": "/static/img/favicon.svg", "type": "image/svg+xml"}
+    ],
+    "STYLES": [
+        lambda request: static("css/theme.css"),
+        lambda request: static("css/admin_theme.css"),
+    ],
+    "SIDEBAR": {
+        "navigation": [
+            {
+                "title": "Мероприятия",
+                "items": [
+                    {
+                        "title": "Фестивали",
+                        "icon": "festival",
+                        "link": reverse_lazy("admin:festivals_festival_changelist"),
+                        "permission": lambda request: any(
+                            request.user.has_perm(f"festivals.{action}_festival")
+                            for action in ("view", "add", "change", "delete")
+                        ),
+                    }
+                ],
+            },
+            {
+                "title": "Аккаунты",
+                "items": [
+                    {
+                        "title": "Пользователи",
+                        "icon": "person",
+                        "link": reverse_lazy("admin:accounts_user_changelist"),
+                        "permission": lambda request: request.user.is_superuser,
+                    },
+                    {
+                        "title": "Группы",
+                        "icon": "group",
+                        "link": reverse_lazy("admin:auth_group_changelist"),
+                        "permission": lambda request: any(
+                            request.user.has_perm(f"auth.{action}_group")
+                            for action in ("view", "add", "change", "delete")
+                        ),
+                    },
+                ],
+            },
+        ],
+    },
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -129,6 +182,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "ru"
+LOCALE_PATHS = [Path("/opt/ri-fest/locale")]
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True

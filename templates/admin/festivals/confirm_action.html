@@ -1,20 +1,13 @@
 {% extends "admin/base_site.html" %}
-{% load static %}
-{% block extrastyle %}
-  {{ block.super }}
-  <link rel="stylesheet" href="{% static 'css/festival_admin.css' %}">
-{% endblock %}
+{% load unfold %}
 {% block content %}
-  <section class="festival-actions" aria-labelledby="festival-confirm-title">
-    <h2 id="festival-confirm-title">{{ original }}</h2>
-    <p>{{ description }}</p>
-    {% if error_message %}<p role="alert">{{ error_message }}</p>{% endif %}
-    {% if application_count != None %}<p>Количество активных анкет пользователей: <strong
-    >{{ application_count }}</strong></p
-    >{% endif %}
+  {% component "unfold/components/card.html" with title=original %}
+    <p class="mb-4 leading-relaxed">{{ description }}</p>
+    {% if error_message %}<p role="alert" class="mb-4 text-red-600 dark:text-red-500">{{ error_message }}</p>{% endif %}
+    {% if application_count != None %}<p class="mb-4">Количество активных анкет пользователей: <strong>{{ application_count }}</strong></p>{% endif %}
     {% if pending_changes %}
-      <p>Изменения будут применены только после подтверждения.</p>
-      <dl>
+      <p class="mb-4">Изменения будут применены только после подтверждения.</p>
+      <dl class="mb-4 grid gap-2">
         <dt>Название</dt><dd>{{ pending_changes.name }}</dd>
         <dt>Тема</dt><dd>{{ pending_changes.theme|default:"—" }}</dd>
         <dt>Дата начала</dt><dd>{{ pending_changes.start_date }}</dd>
@@ -26,11 +19,17 @@
       {% csrf_token %}
       {% if confirmation %}<input type="hidden" name="confirmation" value="{{ confirmation }}">{% endif %}
       {% if pending_save %}<input type="hidden" name="_confirm_festival_save" value="1">{% endif %}
-      {% if form %}{{ form.as_p }}{% endif %}
-      <div class="festival-actions__buttons">
-        {% if confirm_label %}<button type="submit" class="festival-action-button {% if danger %}festival-action-button--danger{% elif confirm_variant == 'unpublish' %}festival-action-button--draft{% elif confirm_variant == 'archive' %}festival-action-button--archive{% else %}festival-action-button--primary{% endif %}">{{ confirm_label }}</button>{% endif %}
-        <a class="festival-action-button" href="{{ cancel_url }}">Отмена</a>
+      {% if form %}
+        {{ form.non_field_errors }}
+        {% for field in form %}{% include "unfold/helpers/field.html" with field=field %}{% endfor %}
+      {% endif %}
+      <div class="flex flex-wrap gap-3 mt-4">
+        {% if confirm_label %}
+          {% if danger %}{% component "unfold/components/button.html" with submit=1 variant="danger" %}{{ confirm_label }}{% endcomponent %}
+          {% else %}{% component "unfold/components/button.html" with submit=1 %}{{ confirm_label }}{% endcomponent %}{% endif %}
+        {% endif %}
+        {% component "unfold/components/button.html" with href=cancel_url variant="default" %}Отмена{% endcomponent %}
       </div>
     </form>
-  </section>
+  {% endcomponent %}
 {% endblock %}

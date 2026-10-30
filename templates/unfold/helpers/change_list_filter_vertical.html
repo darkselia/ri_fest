@@ -1,0 +1,10 @@
+{% load admin_list unfold_list %}
+{% with vertical_filters=cl|unfold_vertical_filters %}
+  {% if cl.has_filters and vertical_filters %}
+    <aside id="changelist-filter" class="admin-filter-panel" aria-label="Фильтры" x-show="filterOpen">
+      <div class="flex flex-col gap-4">
+        {% for spec in vertical_filters %}{% unfold_admin_list_filter cl spec %}{% endfor %}
+      </div>
+    </aside>
+  {% endif %}
+{% endwith %}

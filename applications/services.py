@@ -15,7 +15,6 @@ FIELD_ATTRIBUTES = (
     "label",
     "help_text",
     "is_required",
-    "is_recommended",
     "order",
     "is_active",
 )

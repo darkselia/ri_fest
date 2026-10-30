@@ -70,8 +70,10 @@ def test_admin_publish_search_filter_and_no_delete(client, organizer, draft, now
     assert 'name="_publish"' in response.content.decode()
     html = response.content.decode()
     assert "Управление фестивалем" not in html
-    assert html.index('class="form-row field-name"') < html.index('name="_save"')
+    assert html.index('name="name"') < html.index('name="_save"')
     assert html.index('name="_save"') < html.index('name="_publish"')
+    assert 'form="festival_form" name="_save"' in html
+    assert 'form="festival_form" name="_publish"' in html
     response = client.post(
         change_url,
         {
@@ -165,23 +167,18 @@ def test_return_links_are_in_history_toolbar_without_duplicates(
     response = client.get(reverse("admin:festivals_festival_change", args=[draft.pk]))
     assert response.status_code == 200
     html = response.content.decode()
-    tools = re.search(r'<ul class="object-tools">(.*?)</ul>', html, re.S)
-    assert tools is not None
     history = reverse("admin:festivals_festival_history", args=[draft.pk])
-    assert f'href="{history}"' in tools[1]
+    assert html.count(f'href="{history}"') == 1
 
-    for action, visible, css_class in [
+    for action, visible in [
         (
             "archive",
             role != "viewer" and state in {"open", "running"},
-            "festival-tool--restore",
         ),
-        ("unpublish", role != "viewer" and state != "draft", "festival-tool--draft"),
+        ("unpublish", role != "viewer" and state != "draft"),
     ]:
         url = reverse(f"admin:festivals_festival_{action}", args=[draft.pk])
         assert html.count(f'href="{url}"') == int(visible)
-        assert (f'href="{url}"' in tools[1]) == visible
-        assert (css_class in tools[1]) == visible
     can_publish = state == "draft" and role != "viewer"
     assert "Управление фестивалем" not in html
     assert ('name="_publish"' in html) == can_publish
@@ -324,7 +321,7 @@ def test_removed_bulk_publication_does_nothing(client, organizer, draft, now):
     assert not Festival.objects.exclude(status="draft").exists()
 
 
-def test_list_has_no_actions_and_sorts_only_by_start_date(
+def test_list_has_no_actions_and_sorts_by_requested_columns(
     client, organizer, draft, now
 ):
     client.force_login(organizer)
@@ -335,7 +332,10 @@ def test_list_has_no_actions_and_sorts_only_by_start_date(
     response = client.get(list_url)
     headers = list(result_headers(response.context["cl"]))
     assert [str(header["text"]) for header in headers if header["sortable"]] == [
-        "Дата начала"
+        "Название",
+        "Статус",
+        "Дата начала",
+        "Дата окончания",
     ]
     assert [obj.pk for obj in response.context["cl"].queryset] == [draft.pk, later.pk]
     assert "Действия" not in [str(header["text"]) for header in headers]

@@ -62,7 +62,6 @@ def element(kind="text", label="Имя", **changes):
         "label": label,
         "help_text": "",
         "is_required": False,
-        "is_recommended": False,
         "is_active": True,
         "options": [],
         "services": [],
@@ -76,7 +75,6 @@ def service(label, price, **changes):
         "label": label,
         "price": price,
         "is_active": True,
-        "is_opt_out": False,
         "service_date": None,
         **changes,
     }
@@ -123,7 +121,7 @@ def test_whole_festival_creation_with_services_and_same_page_preview(client, act
     row = element(
         "service",
         "Проживание",
-        services=[service("Ночь", "2070.00"), service("Отказ", "0", is_opt_out=True)],
+        services=[service("Ночь", "2070.00"), service("Бесплатно", "0")],
     )
     data = {
         "name": "Новый",
@@ -175,13 +173,13 @@ def test_errors_keep_entire_unsaved_template_and_metadata_atomic(
     assert festival.name == "Образец" and not festival.form_fields.exists()
 
 
-def test_repeated_price_fields_copy_and_independent_opt_out(festival, actor):
+def test_repeated_price_fields_copy_and_free_services(festival, actor):
     rows = [
         element(
             "service",
             "Проживание",
             is_required=True,
-            services=[service("Ночь", "2070"), service("Отказ", "0", is_opt_out=True)],
+            services=[service("Ночь", "2070"), service("Бесплатно", "0")],
         ),
         element(
             "service",
@@ -191,7 +189,6 @@ def test_repeated_price_fields_copy_and_independent_opt_out(festival, actor):
         element(
             "service",
             "Питание",
-            is_recommended=True,
             services=[service("Завтрак", "250"), service("Ужин", "400")],
         ),
     ]
@@ -214,8 +211,9 @@ def test_repeated_price_fields_copy_and_independent_opt_out(festival, actor):
         festival, {str(fields[0].pk): [a[1].pk], str(fields[1].pk): [b[0].pk]}
     )
     assert result["total"] == Decimal("2070")
-    with pytest.raises(ValidationError):
-        calculate_services(festival, {str(fields[0].pk): [a[0].pk, a[1].pk]})
+    assert calculate_services(festival, {str(fields[0].pk): [a[0].pk, a[1].pk]})[
+        "total"
+    ] == Decimal("2070")
     with pytest.raises(ValidationError):
         calculate_services(festival, {})
     other = Festival.objects.create(name="Копия")
@@ -398,9 +396,7 @@ def test_copy_archived_source_does_not_write_and_preview_validates_values(
         [
             element("info", "Текст", help_text="<script>alert(1)</script>"),
             element("number", "Возраст", is_required=True),
-            element(
-                "service", "Еда", is_recommended=True, services=[service("Обед", "450")]
-            ),
+            element("service", "Еда", services=[service("Обед", "450")]),
         ],
     )
     Festival.objects.filter(pk=festival.pk).update(status="archived", published_at=NOW)
@@ -434,8 +430,10 @@ def test_selection_protection_and_database_constraints(festival, actor):
         save_rows(festival, actor, [])
     with pytest.raises(IntegrityError), transaction.atomic():
         ServiceOption.objects.filter(pk=option.pk).update(price=-1)
-    with pytest.raises(IntegrityError), transaction.atomic():
-        ServiceOption.objects.filter(pk=option.pk).update(is_opt_out=True)
+    ServiceOption.objects.filter(pk=option.pk).update(price=0)
+    assert (
+        ApplicationServiceSelection.objects.get(application=app).option_id == option.pk
+    )
     other = Festival.objects.create(name="Другой")
     app.festival = other
     app.save()
@@ -462,15 +460,14 @@ def test_invalid_price_configuration_is_rejected_before_writes(
     assert not festival.form_fields.exists()
 
 
-def test_preview_required_recommended_and_server_subtotal(client, festival, actor):
+def test_preview_required_optional_and_server_subtotal(client, festival, actor):
     client.force_login(actor)
     rows = [
         element("text", "ФИО", is_required=True),
         element(
             "service",
             "Еда",
-            is_recommended=True,
-            services=[service("Обед", "450"), service("Отказ", "0", is_opt_out=True)],
+            services=[service("Обед", "450"), service("Бесплатно", "0")],
         ),
     ]
     url = reverse("admin:festivals_schema_preview")
@@ -481,7 +478,7 @@ def test_preview_required_recommended_and_server_subtotal(client, festival, acto
     )
     assert response.status_code == 200
     assert "Проверено сервером" in response.json()["html"]
-    assert "рекомендуется заполнить" in response.json()["html"]
+    assert "рекомендуется заполнить" not in response.json()["html"]
     response = client.post(
         url,
         json.dumps(
@@ -509,8 +506,8 @@ def test_preview_required_recommended_and_server_subtotal(client, festival, acto
         ),
         content_type="application/json",
     )
-    assert response.status_code == 400
-    assert "отказ нельзя совмещать" in response.json()["error"]
+    assert response.status_code == 200
+    assert "всего услуг 450" in response.json()["html"]
 
 
 def test_copy_and_preview_permissions_csrf_and_cleared_service_date(
@@ -575,3 +572,124 @@ def test_invalid_published_dates_keep_editable_unsaved_template(
     assert response.context["schema_editable"]
     assert "Введённое название" in response.context["adminform"].form["schema"].value()
     assert festival.form_fields.get().label == "Имя"
+
+
+def test_publication_readiness_uses_unsaved_values_without_writing(
+    client, festival, actor
+):
+    client.force_login(actor)
+    url = reverse("admin:festivals_publication_readiness")
+    payload = {**post_data(festival, [element()]), "festival_id": festival.pk}
+    payload["schema"] = [element()]
+    payload["name"] = "Несохранённое имя"
+    response = client.post(
+        url, json.dumps(payload, default=str), content_type="application/json"
+    )
+    assert response.status_code == 200 and response.json() == {
+        "ready": True,
+        "errors": [],
+    }
+    festival.refresh_from_db()
+    assert festival.name == "Образец" and not festival.form_fields.exists()
+    payload["end_date"] = ""
+    response = client.post(
+        url, json.dumps(payload, default=str), content_type="application/json"
+    )
+    assert not response.json()["ready"] and response.json()["errors"]
+    payload["end_date"] = "2030-01-31"
+    payload["schema"] = [element("info", "Информация")]
+    assert not client.post(
+        url, json.dumps(payload, default=str), content_type="application/json"
+    ).json()["ready"]
+    payload["schema"] = [element("service", services=[service("Бесплатно", "0")])]
+    assert client.post(
+        url, json.dumps(payload, default=str), content_type="application/json"
+    ).json()["ready"]
+
+
+def test_readiness_permissions_csrf_and_invalid_payload(client, actor):
+    from django.test import Client
+
+    url = reverse("admin:festivals_publication_readiness")
+    client.force_login(actor)
+    assert client.get(url).status_code == 405
+    assert client.post(url, "[]", content_type="application/json").status_code == 400
+    secure = Client(enforce_csrf_checks=True)
+    secure.force_login(actor)
+    assert secure.post(url, "{}", content_type="application/json").status_code == 403
+    group = actor.groups.get()
+    group.permissions.remove(Permission.objects.get(codename="publish_festival"))
+    assert client.post(url, "{}", content_type="application/json").status_code == 403
+
+
+def test_readiness_preserves_schema_when_it_is_not_submitted(client, festival, actor):
+    save_rows(festival, actor, [element()])
+    client.force_login(actor)
+    response = client.post(
+        reverse("admin:festivals_publication_readiness"),
+        json.dumps({**metadata(festival), "festival_id": festival.pk}, default=str),
+        content_type="application/json",
+    )
+    assert response.json() == {"ready": True, "errors": []}
+    assert festival.form_fields.count() == 1
+
+
+def test_draft_requires_only_name_and_labels_dates_for_publication(client, actor):
+    client.force_login(actor)
+    url = reverse("admin:festivals_festival_add")
+    response = client.get(url)
+    assert response.context["adminform"].form.fields["name"].required
+    assert not response.context["adminform"].form.fields["start_date"].required
+    assert 'type="date"' in response.text
+    assert "Обязательно для публикации" in response.text
+    response = client.post(
+        url, {"name": "Только название", "timezone": "Asia/Krasnoyarsk", "_save": "1"}
+    )
+    assert response.status_code == 302
+    festival = Festival.objects.get()
+    assert (
+        festival.start_date is None
+        and festival.end_date is None
+        and festival.status == "draft"
+    )
+
+
+@pytest.mark.parametrize(
+    "number, word",
+    [
+        (0, "фестивалей"),
+        (1, "фестиваль"),
+        (2, "фестиваля"),
+        (5, "фестивалей"),
+        (11, "фестивалей"),
+        (14, "фестивалей"),
+        (21, "фестиваль"),
+        (22, "фестиваля"),
+        (111, "фестивалей"),
+    ],
+)
+def test_festival_counter_declension(number, word):
+    from types import SimpleNamespace
+
+    from django.template.loader import render_to_string
+    from django.utils.html import strip_tags
+
+    html = render_to_string(
+        "unfold/helpers/pagination_default.html",
+        {"cl": SimpleNamespace(result_count=number, opts=Festival._meta)},
+    )
+    assert " ".join(strip_tags(html).split()) == f"{number} {word}"
+
+
+def test_incomplete_draft_schema_can_be_saved_but_not_published(festival, actor):
+    from festivals.services import publish_festival
+
+    save_rows(
+        festival,
+        actor,
+        [element(label=""), element("service", "Услуги", services=[service("", "0")])],
+    )
+    assert festival.form_fields.count() == 2
+    assert festival.form_fields.first().label == ""
+    with pytest.raises(ValidationError):
+        publish_festival(festival.pk, actor=actor)

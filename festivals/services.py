@@ -65,7 +65,9 @@ def validate_calendar(festival):
     errors = {}
     for field in ("start_date", "end_date"):
         if getattr(festival, field) is None:
-            errors[field] = "Заполните дату для публикации фестиваля."
+            errors[field] = (
+                f"{festival._meta.get_field(field).verbose_name}: заполните дату для публикации фестиваля."
+            )
     if errors:
         raise ValidationError(errors)
 

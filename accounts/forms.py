@@ -1,14 +1,13 @@
 from django import forms
 from django.contrib.auth.forms import (
-    AdminUserCreationForm,
     AuthenticationForm,
     BaseUserCreationForm,
     PasswordChangeForm,
     PasswordResetForm,
     SetPasswordForm,
-    UserChangeForm,
 )
 from django.template.loader import render_to_string
+from unfold.forms import UserChangeForm, UserCreationForm
 
 from .models import User
 from .services import send_account_email
@@ -141,8 +140,14 @@ class AccountDeletionForm(forms.Form):
         return password
 
 
-class AccountCreationForm(AdminUserCreationForm):
-    class Meta(AdminUserCreationForm.Meta):
+class AccountCreationForm(UserCreationForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields[
+            "usable_password"
+        ].help_text = "Разрешите вход по паролю или создайте аккаунт без пароля."
+
+    class Meta(UserCreationForm.Meta):
         model = User
         fields = ("email",)
         field_classes = {}

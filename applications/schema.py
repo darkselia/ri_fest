@@ -6,6 +6,8 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 
+from festivals.models import Festival
+
 from .models import FormField, FormOption, ServiceOption
 
 PRICE_TYPES = ("service",)
@@ -14,12 +16,11 @@ FIELD_NAMES = (
     "label",
     "help_text",
     "is_required",
-    "is_recommended",
     "is_active",
     "order",
 )
 OPTION_NAMES = ("label", "is_active", "order")
-SERVICE_NAMES = (*OPTION_NAMES, "price", "service_date", "is_opt_out")
+SERVICE_NAMES = (*OPTION_NAMES, "price", "service_date")
 
 
 def dump_option(option, names):
@@ -65,11 +66,7 @@ def readiness(rows):
         title = row["label"]
         if not title.strip() or row["field_type"] not in FormField.Type.values:
             errors.append(f"Вопрос «{title}»: проверьте название и тип.")
-        if row["is_required"] and row["is_recommended"]:
-            errors.append(f"Вопрос «{title}»: выберите один режим заполнения.")
-        if row["field_type"] == "info" and (
-            row["is_required"] or row["is_recommended"]
-        ):
+        if row["field_type"] == "info" and row["is_required"]:
             errors.append(f"Информационный блок «{title}» не требует заполнения.")
         if row["field_type"] in ("single", "multi"):
             options = [o for o in row["options"] if o["is_active"]]
@@ -80,9 +77,7 @@ def readiness(rows):
             if any(not o["label"].strip() for o in options):
                 errors.append(f"Вопрос «{title}»: заполните подписи вариантов.")
         elif row["field_type"] in PRICE_TYPES:
-            options = [
-                o for o in row["services"] if o["is_active"] and not o["is_opt_out"]
-            ]
+            options = [o for o in row["services"] if o["is_active"]]
             if not options:
                 errors.append(f"Поле «{title}»: добавьте хотя бы одну активную услугу.")
             if any(not o["label"].strip() for o in row["services"] if o["is_active"]):
@@ -137,19 +132,17 @@ def prepare_schema(festival, rows):
             field.label = (
                 field.label.strip() if isinstance(field.label, str) else field.label
             )
-            if field.field_type == "info" and (
-                field.is_required or field.is_recommended
-            ):
+            if field.field_type == "info" and field.is_required:
                 raise ValidationError("Информационный блок не требует заполнения.")
             field.full_clean(
-                exclude=["festival"], validate_unique=False, validate_constraints=False
+                exclude=["festival", "label"]
+                if festival.status == Festival.Status.DRAFT and field.label == ""
+                else ["festival"],
+                validate_unique=False,
+                validate_constraints=False,
             )
-            if field.is_required and field.is_recommended:
-                raise ValidationError("Выберите один режим заполнения.")
             options = _prepare_options(field, row.get("options", []), False)
             services = _prepare_options(field, row.get("services", []), True)
-            if sum(o.is_opt_out for o in services) > 1:
-                raise ValidationError("В поле допускается один вариант отказа.")
             prepared.append((field, options, services))
             normalized.append(
                 {
@@ -206,12 +199,14 @@ def _prepare_options(field, rows, priced):
             option.label.strip() if isinstance(option.label, str) else option.label
         )
         option.full_clean(
-            exclude=["field"], validate_unique=False, validate_constraints=False
+            exclude=["field", "label"]
+            if field.festival.status == Festival.Status.DRAFT and option.label == ""
+            else ["field"],
+            validate_unique=False,
+            validate_constraints=False,
         )
-        if priced and (option.price < 0 or (option.is_opt_out and option.price != 0)):
-            raise ValidationError(
-                "Цена не может быть отрицательной; цена отказа должна быть 0 ₽."
-            )
+        if priced and option.price < 0:
+            raise ValidationError("Цена не может быть отрицательной.")
         result.append(option)
     if priced:
         removed = existing.keys() - {o.pk for o in result if o.pk}
@@ -274,9 +269,6 @@ def write_schema(festival, prepared, actor):
         for variants, relation in ((options, "options"), (services, "service_options")):
             manager = getattr(field, relation)
             manager.exclude(pk__in=[o.pk for o in variants if o.pk]).delete()
-            if relation == "service_options":
-                # Permit an atomic move of the opt-out flag between existing rows.
-                manager.filter(is_opt_out=True).update(is_opt_out=False)
             for option in variants:
                 option.field = field
                 option.save()
@@ -330,10 +322,6 @@ def calculate_rows(rows, selections, *, require_complete=False):
                 f"Поле «{row['label']}»: выбран чужой или недоступный вариант."
             )
         picked = [available[v] for v in selected]
-        if any(o["is_opt_out"] for o in picked) and len(picked) > 1:
-            raise ValidationError(
-                f"Поле «{row['label']}»: отказ нельзя совмещать с услугами."
-            )
         if require_complete and row["is_required"] and not picked:
             raise ValidationError(f"Поле «{row['label']}» обязательно для заполнения.")
         value = sum((Decimal(o["price"]) for o in picked), Decimal("0.00"))

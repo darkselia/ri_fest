@@ -1,6 +1,49 @@
 (() => {
   "use strict";
   const init = () => {
+    const publish = document.querySelector("[data-publish]");
+    const publication = document.querySelector("[data-publication-url]");
+    const festivalForm = document.getElementById("festival_form");
+    let checkVersion = 0;
+    let timer;
+    const reasons = document.getElementById("publish-reasons");
+    const checkPublication = async () => {
+      const current = ++checkVersion;
+      if (!publish || !publication) return;
+      publish.disabled = true;
+      reasons.textContent = "Проверяем готовность публикации…";
+      const payload = Object.fromEntries(new FormData(festivalForm));
+      payload.festival_id = Number(publication.dataset.festivalId) || null;
+      try {
+        payload.schema = JSON.parse(payload.schema || "null");
+        const response = await fetch(publication.dataset.publicationUrl, {
+          method: "POST", credentials: "same-origin",
+          headers: {"Content-Type": "application/json", "X-CSRFToken": payload.csrfmiddlewaretoken},
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok || response.redirected) throw new Error();
+        const data = await response.json();
+        if (current !== checkVersion) return;
+        publish.disabled = !data.ready;
+        reasons.textContent = data.errors.join("; ");
+      } catch {
+        if (current === checkVersion) reasons.textContent = "Не удалось проверить готовность. Сохраните черновик и обновите страницу.";
+      }
+    };
+    const scheduleCheck = () => {
+      if (!publish) return;
+      ++checkVersion;
+      publish.disabled = true;
+      reasons.textContent = "Проверяем готовность публикации…";
+      clearTimeout(timer);
+      timer = setTimeout(checkPublication, 350);
+    };
+    festivalForm?.addEventListener("input", event => {
+      if (!event.target.closest("[data-schema-preview]")) scheduleCheck();
+    });
+    festivalForm?.addEventListener("change", event => {
+      if (!event.target.closest("[data-schema-preview]")) scheduleCheck();
+    });
     const root = document.getElementById("schema-editor");
     if (!root) return;
     const input = root.querySelector('[name="schema"]');
@@ -24,27 +67,32 @@
       input.value = JSON.stringify(rows);
       root.querySelector("[data-schema-count]").textContent = `(${rows.length})`;
       version += 1;
+      scheduleCheck();
       if (preview.childElementCount) {
         preview.replaceChildren(node("p", "Шаблон изменён. Обновите предпросмотр."));
       }
     };
     const button = (label, action, disabled = false) => {
-      const el = node("button", label);
+      const el = root.querySelector("[data-editor-button]").content.firstElementChild.cloneNode(true);
+      el.querySelector("[data-button-label]").textContent = label;
       el.type = "button";
       el.disabled = !editable || disabled;
       el.addEventListener("click", action);
       return el;
     };
     const control = (parent, object, name, title, type = "text", values = null) => {
-      const label = node("label", type === "checkbox" ? undefined : title, type === "checkbox" ? "schema-check" : "schema-control");
-      let el;
+      const label = node("label", type === "checkbox" ? undefined : title, type === "checkbox" ? "schema-check" : "schema-control text-subtle");
+      const widget = root.querySelector(`[data-editor-control="${values ? "select" : type}"]`).content.cloneNode(true);
+      const el = widget.querySelector("input, select, textarea");
+      el.removeAttribute("name");
+      el.removeAttribute("id");
+      el.required = false;
       if (values) {
-        el = node("select");
+        el.replaceChildren();
         values.forEach(([value, caption]) => { const o = node("option", caption); o.value = value; el.append(o); });
       } else {
-        el = node(type === "textarea" ? "textarea" : "input");
         if (type !== "textarea") el.type = type;
-        else el.rows = 2;
+        else el.rows = 1;
         if (type === "number") { el.min = "0"; el.step = "0.01"; }
       }
       el.disabled = !editable;
@@ -54,14 +102,10 @@
         object[name] = type === "checkbox" ? el.checked : el.value;
         sync();
       });
-      label.append(el);
+      label.append(widget);
       if (type === "checkbox") label.append(node("span", title));
       parent.append(label);
       return el;
-    };
-    const move = (list, index, delta) => {
-      [list[index], list[index + delta]] = [list[index + delta], list[index]];
-      sync(); render();
     };
     const independent = (row) => {
       const copy = structuredClone(row);
@@ -69,73 +113,124 @@
       [...(copy.options || []), ...(copy.services || [])].forEach(o => { o.id = null; });
       return copy;
     };
+    const ids = new WeakMap();
+    let serial = 0;
+    const identity = object => {
+      if (!ids.has(object)) ids.set(object, `editor-${++serial}`);
+      return ids.get(object);
+    };
+    const iconButton = (label, icon, action) => {
+      const el = button("", action);
+      el.replaceChildren(node("span", icon, "material-symbols-outlined"));
+      el.classList.add("schema-editor-icon");
+      el.setAttribute("aria-label", label);
+      el.title = label;
+      return el;
+    };
+    const reorder = (list, id, position) => {
+      const from = list.findIndex(item => identity(item) === id);
+      if (from < 0 || from === position) return;
+      list.splice(position, 0, list.splice(from, 1)[0]);
+      sync();
+      requestAnimationFrame(render);
+    };
+    window.riSchemaSort = (id, position) => { if (editable) reorder(rows, id, position); };
+    window.riSchemaOptionSort = (owner, id, position) => {
+      const row = rows.find(item => identity(item) === owner);
+      if (editable && row) reorder(row.field_type === "service" ? row.services : row.options, id, position);
+    };
+    const handle = (list, object) => {
+      const el = iconButton("Переместить: перетащите или нажмите Alt + ↑ / ↓", "drag_indicator", () => {});
+      el.classList.add("schema-drag");
+      el.setAttribute("data-drag-handle", "");
+      el.addEventListener("keydown", event => {
+        if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+        event.preventDefault();
+        const from = list.indexOf(object);
+        const to = from + (event.key === "ArrowUp" ? -1 : 1);
+        if (to < 0 || to >= list.length) return;
+        list.splice(to, 0, list.splice(from, 1)[0]);
+        sync(); render();
+        container.querySelector(`[data-editor-id="${identity(object)}"] [data-drag-handle]`)?.focus();
+        message.textContent = `Новая позиция: ${to + 1}.`;
+      });
+      return el;
+    };
     const render = () => {
       container.replaceChildren();
       rows.forEach((row, i) => {
         row.options ||= [];
         row.services ||= [];
-        const card = node("section", undefined, "schema-card");
-        card.setAttribute("aria-label", `Элемент ${i + 1}`);
-        const head = node("div", undefined, "schema-field-head");
-        head.append(node("span", `${i + 1}`, "schema-index"));
+        const rowId = identity(row);
+        const card = node("section", undefined, "schema-card admin-panel admin-panel--muted");
+        if (row.field_type === "info") card.classList.add("schema-card--info");
+        card.setAttribute("aria-label", `Вопрос ${i + 1}`);
+        card.dataset.number = String(i + 1);
+        card.setAttribute("x-sort:item", JSON.stringify(rowId));
+        card.dataset.editorId = rowId;
+        const head = node("div", undefined, "schema-card-head");
+        if (editable) head.append(handle(rows, row));
         control(head, row, "label", "Название");
         const kind = control(head, row, "field_type", "Тип", "text", types);
         kind.addEventListener("change", () => {
-          if (row.field_type === "info") { row.is_required = false; row.is_recommended = false; }
+          if (row.field_type === "info") row.is_required = false;
           sync(); render();
         });
         card.append(head);
         control(card, row, "help_text", row.field_type === "info" ? "Текст и ссылки" : "Пояснение", "textarea");
-        const settings = node("div", undefined, "schema-settings");
-        if (row.field_type !== "info") {
-          const mode = {value: row.is_required ? "required" : row.is_recommended ? "recommended" : "optional"};
-          const select = control(settings, mode, "value", "Заполнение", "text", [["optional", "Необязательное"], ["recommended", "Рекомендуется заполнить"], ["required", "Обязательное"]]);
-          select.addEventListener("change", () => { row.is_required = mode.value === "required"; row.is_recommended = mode.value === "recommended"; sync(); });
-        }
-        control(settings, row, "is_active", "Активный элемент", "checkbox");
-        card.append(settings);
+        const settings = node("div", undefined, "schema-flags");
+        if (row.field_type !== "info") control(settings, row, "is_required", "Обязательно", "checkbox");
+        if (!row.is_active) settings.append(node("span", "Скрыт от участников", "schema-hidden-note"));
         const priced = row.field_type === "service";
         if (priced || ["single", "multi"].includes(row.field_type)) {
           const list = priced ? row.services : row.options;
           const variants = node("div", undefined, "schema-options");
-          variants.append(node("h3", priced ? "Варианты услуг" : "Варианты ответа"));
+          variants.append(node("h3", priced ? "Варианты услуг" : "Варианты ответа", "font-semibold"));
+          const sortable = node("div");
+          if (editable) {
+            sortable.setAttribute("x-sort", `window.riSchemaOptionSort('${rowId}', $item, $position)`);
+            sortable.setAttribute("x-sort:config", "{handle: '[data-drag-handle]', animation: 150}");
+          }
           list.forEach((option, j) => {
             const line = node("div", undefined, "schema-option");
+            line.setAttribute("x-sort:item", JSON.stringify(identity(option)));
+            line.dataset.editorId = identity(option);
+            if (editable) line.append(handle(list, option));
             control(line, option, "label", "Подпись");
             if (priced) {
               control(line, option, "service_date", "Дата", "date");
-              const price = control(line, option, "price", "Цена, ₽", "number");
-              price.disabled ||= Boolean(option.is_opt_out);
-              const refuse = control(line, option, "is_opt_out", "Отказ от услуг этого поля", "checkbox");
-              refuse.addEventListener("change", () => { if (option.is_opt_out) option.price = "0.00"; sync(); render(); });
+              control(line, option, "price", "Цена, ₽", "number");
             }
-            control(line, option, "is_active", "Активный вариант", "checkbox");
-            const tools = node("div", undefined, "schema-item-actions");
-            const remove = button("Удалить вариант", () => { list.splice(j, 1); sync(); render(); });
-            remove.classList.add("schema-button--delete");
-            tools.append(button("Вверх", () => move(list, j, -1), j === 0), button("Вниз", () => move(list, j, 1), j === list.length - 1), remove);
-            line.append(tools);
-            variants.append(line);
+            if (!option.is_active) line.append(node("span", "Скрыт", "schema-hidden-note"));
+            if (editable) {
+              line.append(iconButton(option.is_active ? "Скрыть вариант" : "Показать вариант", option.is_active ? "visibility_off" : "visibility", () => { option.is_active = !option.is_active; sync(); render(); }));
+              line.append(iconButton("Удалить вариант", "delete", () => { list.splice(j, 1); sync(); render(); }));
+            }
+            sortable.append(line);
           });
+          variants.append(sortable);
           if (editable) variants.append(button("Добавить вариант", () => {
-            list.push(priced ? {id: null, label: "", service_date: null, price: "0.00", is_opt_out: false, is_active: true} : {id: null, label: "", is_active: true});
+            list.push(priced ? {id: null, label: "", service_date: null, price: "0.00", is_active: true} : {id: null, label: "", is_active: true});
             sync(); render();
           }));
           card.append(variants);
         }
         if (editable) {
-          const tools = node("div", undefined, "schema-card-actions");
-          const remove = button("Удалить", () => { rows.splice(i, 1); sync(); render(); });
-          remove.classList.add("schema-button--delete");
-          tools.append(button("Вверх", () => move(rows, i, -1), i === 0), button("Вниз", () => move(rows, i, 1), i === rows.length - 1), button("Дублировать", () => { rows.splice(i + 1, 0, independent(row)); sync(); render(); }), remove);
-          card.append(tools);
+          const tools = node("div", undefined, "schema-card-tools");
+          tools.append(
+            iconButton(row.is_active ? "Скрыть вопрос" : "Показать вопрос", row.is_active ? "visibility" : "visibility_off", () => { row.is_active = !row.is_active; sync(); render(); }),
+            iconButton("Дублировать вопрос", "content_copy", () => { rows.splice(i + 1, 0, independent(row)); sync(); render(); }),
+            iconButton("Удалить вопрос", "delete", () => { rows.splice(i, 1); sync(); render(); })
+          );
+          settings.append(tools);
         }
+        card.append(settings);
         container.append(card);
       });
       root.querySelector("[data-schema-count]").textContent = `(${rows.length})`;
     };
     root.querySelector("[data-add-field]")?.addEventListener("click", () => {
-      rows.push({id: null, field_type: "text", label: "", help_text: "", is_required: false, is_recommended: false, is_active: true, options: [], services: []});
+      rows.push({id: null, field_type: "text", label: "", help_text: "", is_required: false, is_active: true, options: [], services: []});
       sync(); render();
       container.lastElementChild.querySelector("input")?.focus();
     });
@@ -159,11 +254,6 @@
       let total = 0n;
       preview.querySelectorAll("[data-service-group]").forEach(group => {
         const boxes = [...group.querySelectorAll("input[type=checkbox]")];
-        if (changed && group.contains(changed) && changed.checked) {
-          boxes.forEach(box => {
-            if (box !== changed && (changed.dataset.optOut === "true" || box.dataset.optOut === "true")) box.checked = false;
-          });
-        }
         const value = boxes.filter(box => box.checked).reduce((sum, box) => sum + BigInt(box.dataset.kopecks), 0n);
         group.querySelector("[data-group-total]").textContent = money(value);
         total += value;
@@ -195,7 +285,22 @@
         totals();
       } catch (error) { message.textContent = error.message; }
     };
-    root.querySelector("[data-show-preview]").addEventListener("click", () => showPreview());
+    const previewButton = root.querySelector("[data-show-preview]");
+    previewButton.setAttribute("aria-controls", "schema-preview");
+    previewButton.setAttribute("aria-expanded", "false");
+    previewButton.addEventListener("click", () => {
+      if (!preview.hidden) {
+        preview.hidden = true;
+        previewVersion += 1;
+        previewButton.setAttribute("aria-expanded", "false");
+        previewButton.textContent = "Предпросмотр анкеты";
+      } else {
+        preview.hidden = false;
+        previewButton.setAttribute("aria-expanded", "true");
+        previewButton.textContent = "Скрыть предпросмотр";
+        showPreview();
+      }
+    });
     preview.addEventListener("click", event => { if (event.target.closest("[data-validate-preview]")) showPreview(true); });
     preview.addEventListener("change", event => totals(event.target));
     preview.addEventListener("input", () => { previewVersion += 1; preview.querySelector("[data-server-result]")?.remove(); });

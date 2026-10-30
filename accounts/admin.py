@@ -1,24 +1,39 @@
 from django.contrib import admin
 from django.contrib.auth import logout
+from django.contrib.auth.admin import GroupAdmin as DjangoGroupAdmin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.contrib.auth.models import Group
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.decorators import method_decorator
 from django.views.decorators.debug import sensitive_post_parameters
+from unfold.admin import ModelAdmin
+from unfold.forms import AdminPasswordChangeForm
+from unfold.widgets import UnfoldAdminPasswordWidget
 
 from .forms import AccountChangeForm, AccountCreationForm, AccountDeletionForm
 from .models import User
 from .rate_limits import rate_limit_response
 from .services import AccountDeletionConflict, delete_account
 
+admin.site.unregister(Group)
+
+
+@admin.register(Group)
+class GroupAdmin(DjangoGroupAdmin, ModelAdmin):
+    pass
+
 
 @admin.register(User)
-class UserAdmin(DjangoUserAdmin):
+class UserAdmin(DjangoUserAdmin, ModelAdmin):
+    search_help_text = "Поиск по email, имени и фамилии"
+    list_filter_sheet = False
     change_form_template = "admin/accounts/change_form.html"
     add_form = AccountCreationForm
     form = AccountChangeForm
+    change_password_form = AdminPasswordChangeForm
     ordering = ("email",)
     list_display = ("email", "first_name", "last_name", "is_staff", "is_active")
     search_fields = ("email", "first_name", "last_name")
@@ -119,6 +134,7 @@ class UserAdmin(DjangoUserAdmin):
         form = AccountDeletionForm(
             request.POST if request.method == "POST" else None, user=request.user
         )
+        form.fields["current_password"].widget = UnfoldAdminPasswordWidget()
         status = 200
         if request.method == "POST":
             limited = rate_limit_response(request, "login", email=request.user.email)

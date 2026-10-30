@@ -1,0 +1,8 @@
+{% load unfold_list %}
+{% if pagination_required %}
+    {% for i in page_range %}
+        <div class="pr-4">{% paginator_number cl i %}</div>{% endfor %}
+{% endif %}
+<div class="py-4">
+    Количество: {{ cl.result_count }}
+</div>

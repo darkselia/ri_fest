@@ -1,9 +1,37 @@
 from django import forms
+from unfold.widgets import (
+    UnfoldAdminCheckboxSelectMultipleWidget,
+    UnfoldAdminDecimalFieldWidget,
+    UnfoldAdminSelectWidget,
+    UnfoldAdminTextareaWidget,
+    UnfoldAdminTextInputWidget,
+    UnfoldBooleanWidget,
+)
 
 from .schema import PRICE_TYPES
 
 
-class PriceCheckboxes(forms.CheckboxSelectMultiple):
+class NativeDateInput(UnfoldAdminTextInputWidget):
+    input_type = "date"
+
+    def __init__(self, attrs=None):
+        super().__init__(attrs)
+        self.format = "%Y-%m-%d"
+
+    def format_value(self, value):
+        return value.isoformat() if hasattr(value, "isoformat") else value
+
+
+class SchemaEditorWidgets(forms.Form):
+    text = forms.CharField(widget=UnfoldAdminTextInputWidget)
+    textarea = forms.CharField(widget=UnfoldAdminTextareaWidget(attrs={"rows": 2}))
+    select = forms.CharField(widget=UnfoldAdminSelectWidget)
+    number = forms.DecimalField(widget=UnfoldAdminDecimalFieldWidget)
+    date = forms.DateField(widget=NativeDateInput)
+    checkbox = forms.BooleanField(widget=UnfoldBooleanWidget)
+
+
+class PriceCheckboxes(UnfoldAdminCheckboxSelectMultipleWidget):
     def __init__(self, prices, *args, **kwargs):
         self.prices = prices
         super().__init__(*args, **kwargs)
@@ -14,9 +42,8 @@ class PriceCheckboxes(forms.CheckboxSelectMultiple):
         option = super().create_option(
             name, value, label, selected, index, subindex, attrs
         )
-        price, opt_out = self.prices[str(value)]
+        price = self.prices[str(value)]
         option["attrs"]["data-kopecks"] = str(price)
-        option["attrs"]["data-opt-out"] = "true" if opt_out else "false"
         return option
 
 
@@ -57,10 +84,7 @@ class TemplatePreviewForm(forms.Form):
                         choices.append(
                             (key, f"{option['label']}{date} ({option['price']} ₽)")
                         )
-                        prices[key] = (
-                            int(Decimal(option["price"]) * 100),
-                            option["is_opt_out"],
-                        )
+                        prices[key] = int(Decimal(option["price"]) * 100)
                     field = forms.MultipleChoiceField(
                         choices=choices, widget=PriceCheckboxes(prices), **settings
                     )
@@ -77,16 +101,14 @@ class TemplatePreviewForm(forms.Form):
                         if kind == "single"
                         else forms.MultipleChoiceField(
                             choices=choices,
-                            widget=forms.CheckboxSelectMultiple,
+                            widget=UnfoldAdminCheckboxSelectMultipleWidget,
                             **settings,
                         )
                     )
                 elif kind == "number":
                     field = forms.DecimalField(**settings)
                 elif kind == "date":
-                    field = forms.DateField(
-                        widget=forms.DateInput(attrs={"type": "date"}), **settings
-                    )
+                    field = forms.DateField(widget=NativeDateInput, **settings)
                 elif kind == "boolean":
                     field = forms.BooleanField(**settings)
                 else:
@@ -96,6 +118,17 @@ class TemplatePreviewForm(forms.Form):
                         else forms.TextInput,
                         **settings,
                     )
+                if kind in ("text", "textarea", "number", "boolean", "single"):
+                    widget = {
+                        "text": UnfoldAdminTextInputWidget,
+                        "textarea": UnfoldAdminTextareaWidget,
+                        "number": UnfoldAdminDecimalFieldWidget,
+                        "boolean": UnfoldBooleanWidget,
+                        "single": UnfoldAdminSelectWidget,
+                    }[kind]
+                    field.widget = widget()
+                    if kind == "single":
+                        field.widget.choices = field.choices
                 self.fields[name] = field
                 entry["field"] = self[name]
             self.entries.append(entry)

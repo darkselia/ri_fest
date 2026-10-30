@@ -14,8 +14,10 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
+from unfold.admin import ModelAdmin
+from unfold.widgets import UnfoldAdminSelectWidget
 
-from applications.forms import TemplatePreviewForm
+from applications.forms import NativeDateInput, SchemaEditorWidgets, TemplatePreviewForm
 from applications.models import FormField
 from applications.schema import (
     calculate_rows,
@@ -69,11 +71,13 @@ class FestivalForm(forms.ModelForm):
     timezone = forms.ChoiceField(
         label="Часовой пояс",
         help_text="Выберите часовой пояс. По умолчанию — Красноярск (UTC+07:00).",
+        widget=UnfoldAdminSelectWidget,
     )
 
     class Meta:
         model = Festival
         fields = EDITABLE_FIELDS
+        widgets = {"start_date": NativeDateInput, "end_date": NativeDateInput}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -81,6 +85,10 @@ class FestivalForm(forms.ModelForm):
         self.initial.setdefault("timezone", self.instance.timezone)
         self.initial.setdefault("schema", export_schema(self.instance))
         self.initial.setdefault("schema_revision", schema_revision(self.instance))
+        for name in ("start_date", "end_date"):
+            if name in self.fields:
+                self.fields[name].label += " *"
+                self.fields[name].help_text = "Обязательно для публикации."
 
     def clean(self):
         data = super().clean()
@@ -112,9 +120,9 @@ class FestivalForm(forms.ModelForm):
 
 
 @admin.register(Festival)
-class FestivalAdmin(admin.ModelAdmin):
+class FestivalAdmin(ModelAdmin):
     class Media:
-        css = {"all": ("css/festival_admin.css", "css/schema_editor.css")}
+        css = {"all": ("css/schema_editor.css",)}
         js = ("js/schema_editor.js",)
 
     form = FestivalForm
@@ -125,12 +133,13 @@ class FestivalAdmin(admin.ModelAdmin):
         "start_date",
         "end_date",
         "timezone",
-        "published_at",
     )
     search_fields = ("name", "theme")
     list_filter = ("status",)
     ordering = ("start_date",)
-    sortable_by = ("start_date",)
+    sortable_by = ("name", "start_date", "end_date", "status")
+    list_filter_sheet = False
+    search_help_text = "Поиск по названию и теме"
     readonly_fields = ("status", "published_at")
     fields = (*EDITABLE_FIELDS, *readonly_fields)
     actions = None
@@ -293,6 +302,19 @@ class FestivalAdmin(admin.ModelAdmin):
         context["publication_errors"] = publication_errors(
             current_form.instance, schema=normalized_schema
         )
+        if current_form.is_bound:
+            context["publication_errors"].extend(
+                f"{current_form.fields[name].label if name in current_form.fields else 'Форма'}: {message}"
+                for name, messages in current_form.errors.items()
+                for message in messages
+            )
+        context["publish_attrs"] = (
+            {"disabled": True} if context["publication_errors"] else {}
+        )
+        context["publication_readiness_url"] = reverse(
+            "admin:festivals_publication_readiness"
+        )
+        context["schema_widgets"] = SchemaEditorWidgets()
         context["can_view_schema"] = all(
             request.user.has_perm(f"applications.view_{model}")
             for model in ("formfield", "formoption", "serviceoption")
@@ -352,6 +374,11 @@ class FestivalAdmin(admin.ModelAdmin):
     def get_urls(self):
         return [
             path(
+                "publication-readiness/",
+                self.admin_site.admin_view(self.publication_readiness_view),
+                name="festivals_publication_readiness",
+            ),
+            path(
                 "template-source/<int:source_id>/",
                 self.admin_site.admin_view(self.schema_source_view),
                 name="festivals_schema_source",
@@ -377,6 +404,54 @@ class FestivalAdmin(admin.ModelAdmin):
                 name="festivals_festival_delete_permanently",
             ),
         ] + super().get_urls()
+
+    @method_decorator(csrf_protect)
+    def publication_readiness_view(self, request):
+        if request.method != "POST":
+            return JsonResponse({"error": "Используйте POST."}, status=405)
+        if not self.has_publish_permission(request):
+            raise PermissionDenied
+        try:
+            data = json.loads(request.body)
+            if not isinstance(data, dict):
+                raise ValueError
+            festival_id = data.get("festival_id")
+            if festival_id is not None and (
+                type(festival_id) is not int or festival_id <= 0
+            ):
+                raise ValueError
+        except (ValueError, TypeError):
+            return JsonResponse({"error": "Некорректные данные формы."}, status=400)
+        festival = (
+            get_object_or_404(Festival, pk=festival_id) if festival_id else Festival()
+        )
+        allowed = (
+            self.has_change_permission(request, festival)
+            if festival_id
+            else self.has_add_permission(request)
+        )
+        if not allowed:
+            raise PermissionDenied
+        if festival.status != Festival.Status.DRAFT:
+            return JsonResponse(
+                {"ready": False, "errors": ["Фестиваль уже опубликован."]}
+            )
+        form = self.get_form(request, festival if festival_id else None)(
+            data, instance=copy(festival)
+        )
+        if not form.is_valid():
+            errors = [
+                f"{form.fields[name].label if name in form.fields else 'Форма'}: {message}"
+                for name, messages in form.errors.items()
+                for message in messages
+            ]
+        else:
+            pending = form.cleaned_data.get("schema")
+            _, rows = prepare_schema(
+                festival, export_schema(festival) if pending is None else pending
+            )
+            errors = publication_errors(form.instance, schema=rows)
+        return JsonResponse({"ready": not errors, "errors": errors})
 
     def schema_source_view(self, request, source_id):
         if request.method != "GET":
@@ -483,7 +558,7 @@ class FestivalAdmin(admin.ModelAdmin):
             )
         else:
             description = (
-                "Внимание: Отправленные анкеты пользователей перенесутся в раздел «Архив»."
+                "Отправленные анкеты станут черновиками пользователей и будут доступны им в разделе «Архив». "
                 "Для редактирования фестиваля необходимо будет вернуть его в черновик."
             )
         return TemplateResponse(

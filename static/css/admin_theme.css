@@ -1,0 +1,84 @@
+/* Переведённые подписи шире исходных английских: каждой нужен свой ряд. */
+div:has(> a[x-on\:click^="switchTheme"]) {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+}
+div:has(> a[x-on\:click^="switchTheme"]) > a {
+    margin: 0;
+    min-width: 0;
+    justify-content: flex-start;
+}
+div:has(> a[x-on\:click^="switchTheme"]) > a > span:last-child {
+    display: block;
+}
+
+html.dark .text-subtle { color: var(--admin-subtle-text); }
+
+#main { background-color: var(--admin-page-bg); }
+.admin-panel, fieldset.module {
+    background-color: var(--admin-panel-bg);
+    border: 1px solid var(--admin-panel-border);
+    border-radius: 8px;
+}
+.admin-panel--muted { background-color: var(--admin-panel-muted); }
+.admin-border { border: 1px solid var(--admin-panel-border); }
+
+.publish-control {
+    position: relative;
+}
+
+.publish-control > button:disabled {
+    pointer-events: none;
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.publish-control [role=tooltip] {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: 50;
+    width: min(340px, 80vw);
+    padding: 12px;
+    border-radius: 6px;
+    background: var(--admin-tooltip-bg);
+    color: var(--admin-tooltip-fg);
+    white-space: normal;
+}
+
+.publish-control:is(:hover, :focus-within) [role=tooltip]:not(:empty) {
+    display: block;
+}
+
+.publish-control:focus-visible {
+    outline: 2px solid var(--admin-focus);
+    outline-offset: 3px;
+}
+
+.admin-filter-panel {
+    flex: 0 0 220px;
+    position: sticky;
+    top: 16px;
+    align-self: flex-start;
+}
+
+@media (min-width: 1024px) {
+    .admin-filter-panel {
+        display: block !important;
+    }
+}
+
+@media (max-width: 1023px) {
+    #changelist > .result-list-wrapper {
+        flex-direction: column;
+    }
+
+    .admin-filter-panel {
+        position: static;
+        flex-basis: auto;
+        width: 100%;
+        order: -1;
+    }
+}

@@ -1,0 +1,6 @@
+{% load unfold_list %}
+{% if cl.has_filters and cl|unfold_vertical_filters %}
+  <button type="button" class="filter-open-button admin-border rounded-default px-3 py-2 lg:hidden" x-on:click="filterOpen = !filterOpen" x-bind:aria-expanded="filterOpen" aria-controls="changelist-filter">
+    Фильтры <span class="material-symbols-outlined">filter_list</span>
+  </button>
+{% endif %}

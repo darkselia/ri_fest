@@ -1,14 +1,10 @@
 {% extends "admin/change_form.html" %}
-{% load static %}
-
-{% block extrastyle %}
-    {{ block.super }}
-    <link rel="stylesheet" href="{% static 'css/festival_admin.css' %}">
-{% endblock %}
+{% block nav-global-side %}{% endblock %}
 
 {% block object-tools-items %}
     {{ block.super }}
     {% if can_delete_account %}
-        <li><a class="account-delete-tool" href="{% url 'admin:accounts_user_delete_account' original.pk %}">Удалить аккаунт</a></li>
+        {% url 'admin:accounts_user_delete_account' original.pk as delete_account_url %}
+        {% include "unfold/helpers/tab_action.html" with title="Удалить аккаунт" link=delete_account_url icon="delete" %}
     {% endif %}
 {% endblock %}

@@ -369,7 +369,7 @@ def test_admin_preparation_links_and_question_with_inline_options(
     response = client.get(
         reverse("admin:festivals_festival_change", args=[festival.pk])
     )
-    assert "Шаблон анкеты" in response.text and 'href="#schema-editor"' in response.text
+    assert "Шаблон анкеты" in response.text and 'id="schema-editor"' in response.text
     row = {
         "field_type": "single",
         "label": "Выбор",
