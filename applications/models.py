@@ -176,6 +176,33 @@ class Application(models.Model):
         return f"Анкета №{self.pk}" if self.pk else "Новая анкета"
 
 
+class ApplicationAnswer(models.Model):
+    application = models.ForeignKey(
+        Application, on_delete=models.CASCADE, related_name="answers"
+    )
+    field = models.ForeignKey(
+        FormField, on_delete=models.PROTECT, related_name="answers"
+    )
+    value = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("application", "field"), name="application_answer_unique"
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+
+        if self.application_id and self.field_id:
+            if self.application.festival_id != self.field.festival_id:
+                raise ValidationError("Вопрос относится к другому фестивалю.")
+            if self.field.field_type in (FormField.Type.INFO, FormField.Type.SERVICE):
+                raise ValidationError("Этот элемент не хранит обычный ответ.")
+
+
 class ApplicationServiceSelection(models.Model):
     application = models.ForeignKey(
         Application, on_delete=models.CASCADE, related_name="service_selections"

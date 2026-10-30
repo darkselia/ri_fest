@@ -3,7 +3,7 @@
 {% block account_content %}
 <div class="account-form-column">
     <h2>Удаление аккаунта</h2>
-    <p class="account-description">Аккаунт будет удалён без возможности восстановления. Текущие анкеты будут отозваны. Обезличенная история участия и оплаты сохранится.</p>
+    <p class="account-description">Аккаунт будет удалён без возможности восстановления. Все черновики будут удалены навсегда. Отправленные анкеты будут отозваны и обезличены. Для подтверждения введите текущий пароль.</p>
     <form method="post" class="account-form">
         {% csrf_token %}
         {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}

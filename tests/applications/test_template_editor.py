@@ -655,20 +655,10 @@ def test_draft_requires_only_name_and_labels_dates_for_publication(client, actor
 
 
 @pytest.mark.parametrize(
-    "number, word",
-    [
-        (0, "фестивалей"),
-        (1, "фестиваль"),
-        (2, "фестиваля"),
-        (5, "фестивалей"),
-        (11, "фестивалей"),
-        (14, "фестивалей"),
-        (21, "фестиваль"),
-        (22, "фестиваля"),
-        (111, "фестивалей"),
-    ],
+    "number",
+    [0, 1, 2, 5, 11, 14, 21, 22, 111],
 )
-def test_festival_counter_declension(number, word):
+def test_festival_counter_shows_total(number):
     from types import SimpleNamespace
 
     from django.template.loader import render_to_string
@@ -678,7 +668,7 @@ def test_festival_counter_declension(number, word):
         "unfold/helpers/pagination_default.html",
         {"cl": SimpleNamespace(result_count=number, opts=Festival._meta)},
     )
-    assert " ".join(strip_tags(html).split()) == f"{number} {word}"
+    assert " ".join(strip_tags(html).split()) == f"Количество: {number}"
 
 
 def test_incomplete_draft_schema_can_be_saved_but_not_published(festival, actor):

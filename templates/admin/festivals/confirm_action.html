@@ -4,7 +4,9 @@
   {% component "unfold/components/card.html" with title=original %}
     <p class="mb-4 leading-relaxed">{{ description }}</p>
     {% if error_message %}<p role="alert" class="mb-4 text-red-600 dark:text-red-500">{{ error_message }}</p>{% endif %}
-    {% if application_count != None %}<p class="mb-4">Количество активных анкет пользователей: <strong>{{ application_count }}</strong></p>{% endif %}
+    {% if application_count != None %}
+      <p class="mb-4">{% if confirm_variant == 'delete' %}Количество анкет, которые будут удалены:{% else %}Количество отправленных анкет, которые станут черновиками:{% endif %} <strong>{{ application_count }}</strong></p>
+    {% endif %}
     {% if pending_changes %}
       <p class="mb-4">Изменения будут применены только после подтверждения.</p>
       <dl class="mb-4 grid gap-2">

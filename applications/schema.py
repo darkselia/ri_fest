@@ -120,6 +120,14 @@ def prepare_schema(festival, rows):
             if (
                 pk
                 and field.field_type != row.get("field_type")
+                and field.answers.exists()
+            ):
+                raise ValidationError(
+                    "Тип вопроса с ответами менять нельзя. Используйте скрытие."
+                )
+            if (
+                pk
+                and field.field_type != row.get("field_type")
                 and field.service_options.filter(selections__isnull=False).exists()
             ):
                 raise ValidationError(
@@ -216,6 +224,14 @@ def _prepare_options(field, rows, priced):
             raise ValidationError(
                 "Выбранную услугу нельзя удалить. Используйте скрытие."
             )
+    elif existing:
+        from .services import used_option_ids
+
+        removed = existing.keys() - {o.pk for o in result if o.pk}
+        if {str(pk) for pk in removed} & used_option_ids(field):
+            raise ValidationError(
+                "Выбранный вариант нельзя удалить. Используйте скрытие."
+            )
     return result
 
 
@@ -226,6 +242,10 @@ def check_schema_permissions(festival, prepared, actor):
     kept = {f.pk for f, _, _ in prepared if f.pk}
     for field in old.values():
         if field.pk not in kept:
+            if field.answers.exists():
+                raise ValidationError(
+                    "Вопрос с ответами нельзя удалить. Используйте скрытие."
+                )
             require_schema_permission(actor, "delete")
             if field.options.exists():
                 require_schema_permission(actor, "delete", "formoption")
@@ -287,6 +307,20 @@ def calculate_services(festival, selections, *, require_complete=True):
     """Selections are {field ID: [service option IDs]}; browser prices are never read."""
     rows = export_schema(festival)
     return calculate_rows(rows, selections, require_complete=require_complete)
+
+
+def calculate_existing_services(application):
+    """Include saved selections even when their field or option is hidden."""
+    total = Decimal("0.00")
+    subtotals = {}
+    for selection in application.service_selections.select_related("option__field"):
+        option = selection.option
+        if option.field.festival_id != application.festival_id:
+            raise ValidationError("Услуга относится к другому фестивалю.")
+        key = str(option.field_id)
+        subtotals[key] = subtotals.get(key, Decimal("0.00")) + option.price
+        total += option.price
+    return {"total": total, "fields": subtotals}
 
 
 def calculate_rows(rows, selections, *, require_complete=False):

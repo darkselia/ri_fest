@@ -28,7 +28,6 @@ from applications.schema import (
     schema_revision,
 )
 from applications.services import require_schema_permission, schema_errors
-
 from .models import Festival
 from .services import (
     EDITABLE_FIELDS,
@@ -195,7 +194,7 @@ class FestivalAdmin(ModelAdmin):
         )
 
     def festival_changeform_view(
-        self, request, object_id=None, form_url="", extra_context=None
+            self, request, object_id=None, form_url="", extra_context=None
     ):
         if request.method == "POST" and object_id is not None:
             festival = get_object_or_404(Festival, pk=object_id)
@@ -256,7 +255,7 @@ class FestivalAdmin(ModelAdmin):
         return redirect("admin:festivals_festival_change", saved.pk)
 
     def render_change_form(
-        self, request, context, add=False, change=False, form_url="", obj=None
+            self, request, context, add=False, change=False, form_url="", obj=None
     ):
         persisted = (
             Festival.objects.filter(pk=obj.pk).first() if obj and obj.pk else None
@@ -264,27 +263,27 @@ class FestivalAdmin(ModelAdmin):
         status = get_effective_status(persisted) if persisted else None
         context["festival_is_draft"] = add or status == Festival.Status.DRAFT
         context["can_publish_festival"] = (
-            context["festival_is_draft"]
-            and (
-                self.has_add_permission(request)
-                if add
-                else self.has_change_permission(request, obj)
-            )
-            and self.has_publish_permission(request)
+                context["festival_is_draft"]
+                and (
+                    self.has_add_permission(request)
+                    if add
+                    else self.has_change_permission(request, obj)
+                )
+                and self.has_publish_permission(request)
         )
         context["can_unpublish_festival"] = (
-            obj is not None
-            and status != Festival.Status.DRAFT
-            and self.has_publish_permission(request)
-            and (
-                status != Festival.Status.ARCHIVED
-                or self.has_restore_permission(request)
-            )
+                obj is not None
+                and status != Festival.Status.DRAFT
+                and self.has_publish_permission(request)
+                and (
+                        status != Festival.Status.ARCHIVED
+                        or self.has_restore_permission(request)
+                )
         )
         context["can_archive_festival"] = (
-            obj is not None
-            and status in (Festival.Status.OPEN, Festival.Status.RUNNING)
-            and self.has_change_permission(request, obj)
+                obj is not None
+                and status in (Festival.Status.OPEN, Festival.Status.RUNNING)
+                and self.has_change_permission(request, obj)
         )
         context["can_delete_festival"] = obj is not None and request.user.has_perm(
             "festivals.delete_festival"
@@ -320,13 +319,13 @@ class FestivalAdmin(ModelAdmin):
             for model in ("formfield", "formoption", "serviceoption")
         )
         context["schema_editable"] = (
-            context["can_view_schema"]
-            and status != Festival.Status.ARCHIVED
-            and (
-                self.has_change_permission(request, obj)
-                if obj
-                else self.has_add_permission(request)
-            )
+                context["can_view_schema"]
+                and status != Festival.Status.ARCHIVED
+                and (
+                    self.has_change_permission(request, obj)
+                    if obj
+                    else self.has_add_permission(request)
+                )
         )
         context["schema_types"] = list(FormField.Type.choices)
         context["schema_sources"] = (
@@ -417,7 +416,7 @@ class FestivalAdmin(ModelAdmin):
                 raise ValueError
             festival_id = data.get("festival_id")
             if festival_id is not None and (
-                type(festival_id) is not int or festival_id <= 0
+                    type(festival_id) is not int or festival_id <= 0
             ):
                 raise ValueError
         except (ValueError, TypeError):
@@ -517,7 +516,7 @@ class FestivalAdmin(ModelAdmin):
             )
 
     def confirmation_response(
-        self, request, object_id, action, *, changes=None, error=None
+            self, request, object_id, action, *, changes=None, error=None
     ):
         try:
             preview = festival_action_preview(
@@ -546,9 +545,7 @@ class FestivalAdmin(ModelAdmin):
         }[action]
         if action == "delete":
             description = (
-                "Будут навсегда удалены фестиваль и все его анкеты. "
-                "Связанные данные также удаляются. Восстановление невозможно. "
-                "Аккаунты пользователей и другие фестивали сохранятся."
+                "Будут навсегда удалены фестиваль и все его анкеты. Восстановление невозможно. "
             )
         elif action == "unpublish":
             description = (
@@ -558,7 +555,7 @@ class FestivalAdmin(ModelAdmin):
             )
         else:
             description = (
-                "Отправленные анкеты станут черновиками пользователей и будут доступны им в разделе «Архив». "
+                "Отправленные анкеты пользователей переместятся в раздел «Архив». "
                 "Для редактирования фестиваля необходимо будет вернуть его в черновик."
             )
         return TemplateResponse(

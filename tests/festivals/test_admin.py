@@ -722,7 +722,12 @@ def test_action_confirmation_refreshes_after_new_application(
     url = reverse(f"admin:festivals_festival_{action}", args=[draft.pk])
     preview = client.get(url)
     assert preview.context["application_count"] == 0
-    assert "Количество активных анкет пользователей" in preview.text
+    count_label = (
+        "Количество анкет, которые будут удалены:"
+        if action == "delete_permanently"
+        else "Количество отправленных анкет, которые станут черновиками:"
+    )
+    assert count_label in preview.text
     owner = django_user_model.objects.create_user("preview-owner@example.invalid")
     record = Application.objects.create(owner=owner, festival=draft, status="active")
     response = client.post(url, {"confirmation": preview.context["confirmation"]})

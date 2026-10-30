@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare
 
-from applications.models import Application
+from applications.models import Application, ApplicationAnswer
 from festivals.models import Festival
 from festivals.services import get_effective_status, synchronize_locked_festival
 
@@ -81,6 +81,9 @@ def delete_account(user_id, *, actor, password):
         history = [
             item for item in applications if item.status != Application.Status.DRAFT
         ]
+        ApplicationAnswer.objects.filter(
+            application_id__in=[item.pk for item in history]
+        ).delete()
         for application in history:
             application.status = Application.Status.WITHDRAWN
             application.owner_id = None

@@ -8,7 +8,7 @@ from django.db import transaction
 from festivals.models import Festival
 from festivals.services import assert_festival_mutable, get_effective_status, moment
 
-from .models import FormField, FormOption
+from .models import Application, ApplicationAnswer, FormField, FormOption
 
 FIELD_ATTRIBUTES = (
     "field_type",
@@ -20,6 +20,79 @@ FIELD_ATTRIBUTES = (
 )
 OPTION_ATTRIBUTES = ("label", "order", "is_active")
 CHOICE_TYPES = (FormField.Type.SINGLE, FormField.Type.MULTI)
+
+
+def used_option_ids(field):
+    used = set()
+    for value in field.answers.values_list("value", flat=True):
+        values = value if isinstance(value, list) else [value]
+        used.update(str(item) for item in values if item is not None)
+    return used
+
+
+def save_application_answers(application_id, *, actor, data, require_complete=False):
+    from datetime import date
+    from decimal import Decimal
+
+    from .forms import TemplatePreviewForm
+    from .schema import export_schema
+
+    festival_id = Application.objects.values_list("festival_id", flat=True).get(
+        pk=application_id
+    )
+    with transaction.atomic():
+        festival = Festival.objects.select_for_update().get(pk=festival_id)
+        current = (
+            get_user_model()
+            .objects.select_for_update()
+            .filter(pk=actor.pk, is_active=True)
+            .first()
+        )
+        application = Application.objects.select_for_update().get(
+            pk=application_id, festival=festival
+        )
+        if (
+            current is None
+            or application.owner_id != current.pk
+            or application.status != Application.Status.DRAFT
+        ):
+            raise PermissionDenied
+        if get_effective_status(festival) != Festival.Status.OPEN:
+            raise PermissionDenied("Приём анкет закрыт.")
+        assert_form_ready(festival)
+        answers = {
+            answer.field_id: answer.value for answer in application.answers.all()
+        }
+        rows = export_schema(festival)
+        form = TemplatePreviewForm(
+            rows,
+            data=data,
+            answers=answers,
+            require_complete=require_complete,
+            preview=False,
+        )
+        allowed = set(form.fields)
+        if set(data) - allowed - {"csrfmiddlewaretoken"}:
+            raise ValidationError("Переданы неизвестные поля анкеты.")
+        if not form.is_valid():
+            return form
+        for entry in form.entries:
+            if entry["kind"] in ("info", "service"):
+                continue
+            field_id = entry["row"]["id"]
+            value = form.cleaned_data[entry["field"].name]
+            if value is None or value == "" or value == []:
+                ApplicationAnswer.objects.filter(
+                    application=application, field_id=field_id
+                ).delete()
+                continue
+            if isinstance(value, (date, Decimal)):
+                value = str(value)
+            ApplicationAnswer.objects.update_or_create(
+                application=application, field_id=field_id, defaults={"value": value}
+            )
+        application.save(update_fields=["updated_at"])
+        return form
 
 
 def require_schema_permission(actor, action, model="formfield"):
@@ -101,6 +174,14 @@ def prepare_form_field(festival, *, field_id=None, changes, options=None):
         if field_id
         else FormField(festival=festival)
     )
+    if (
+        field.pk
+        and changes.get("field_type", field.field_type) != field.field_type
+        and field.answers.exists()
+    ):
+        raise ValidationError(
+            "Тип вопроса с ответами менять нельзя. Используйте скрытие."
+        )
     for name, value in changes.items():
         setattr(field, name, value)
     field.label = field.label.strip()
@@ -150,6 +231,10 @@ def save_form_field(
         existing = {item.pk: item for item in field.options.all()} if field.pk else {}
         remaining = {item.pk for item in variants if item.pk}
         removed = existing.keys() - remaining
+        if removed and {str(pk) for pk in removed} & used_option_ids(field):
+            raise ValidationError(
+                "Выбранный вариант нельзя удалить. Используйте скрытие."
+            )
         if removed:
             require_schema_permission(actor, "delete", "formoption")
         for option in variants:
@@ -170,6 +255,8 @@ def save_form_field(
 
 
 def validate_field_deletion(festival, field_id):
+    if FormField.objects.get(pk=field_id, festival=festival).answers.exists():
+        raise ValidationError("Вопрос с ответами нельзя удалить. Используйте скрытие.")
     if get_effective_status(festival) != Festival.Status.DRAFT:
         errors = schema_errors(festival, deleted_id=field_id)
         if errors:

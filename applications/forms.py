@@ -48,13 +48,21 @@ class PriceCheckboxes(UnfoldAdminCheckboxSelectMultipleWidget):
 
 
 class TemplatePreviewForm(forms.Form):
-    def __init__(self, rows, data=None):
-        super().__init__(data=data, prefix="preview", use_required_attribute=False)
+    def __init__(
+        self, rows, data=None, *, answers=None, require_complete=True, preview=True
+    ):
+        super().__init__(
+            data=data,
+            prefix="preview" if preview else None,
+            use_required_attribute=False,
+        )
         self.entries = []
+        self.stale = {}
+        answers = answers or {}
         for i, row in enumerate(rows):
             if not row["is_active"]:
                 continue
-            name = f"entry_{i}"
+            name = f"entry_{i}" if preview else f"field_{row['id']}"
             kind = row["field_type"]
             entry = {
                 "row": row,
@@ -65,7 +73,7 @@ class TemplatePreviewForm(forms.Form):
                 settings = {
                     "label": row["label"],
                     "help_text": row["help_text"],
-                    "required": row["is_required"],
+                    "required": row["is_required"] and require_complete,
                 }
                 if kind in PRICE_TYPES:
                     choices = []
@@ -94,6 +102,24 @@ class TemplatePreviewForm(forms.Form):
                         for j, o in enumerate(row["options"])
                         if o["is_active"]
                     ]
+                    existing = answers.get(row.get("id"))
+                    selected = (
+                        existing
+                        if isinstance(existing, list)
+                        else ([existing] if existing else [])
+                    )
+                    inactive = {
+                        str(o["id"]): o["label"]
+                        for o in row["options"]
+                        if not o["is_active"] and o.get("id")
+                    }
+                    old = [str(value) for value in selected if str(value) in inactive]
+                    if old:
+                        self.stale[name] = old
+                        choices.extend(
+                            (value, f"{inactive[value]} — больше недоступен")
+                            for value in old
+                        )
                     field = (
                         forms.ChoiceField(
                             choices=[("", "— Не выбрано —"), *choices], **settings
@@ -108,7 +134,12 @@ class TemplatePreviewForm(forms.Form):
                 elif kind == "number":
                     field = forms.DecimalField(**settings)
                 elif kind == "date":
-                    field = forms.DateField(widget=NativeDateInput, **settings)
+                    field = forms.DateField(
+                        widget=NativeDateInput
+                        if preview
+                        else forms.DateInput(attrs={"type": "date"}),
+                        **settings,
+                    )
                 elif kind == "boolean":
                     field = forms.BooleanField(**settings)
                 else:
@@ -118,7 +149,13 @@ class TemplatePreviewForm(forms.Form):
                         else forms.TextInput,
                         **settings,
                     )
-                if kind in ("text", "textarea", "number", "boolean", "single"):
+                if preview and kind in (
+                    "text",
+                    "textarea",
+                    "number",
+                    "boolean",
+                    "single",
+                ):
                     widget = {
                         "text": UnfoldAdminTextInputWidget,
                         "textarea": UnfoldAdminTextareaWidget,
@@ -130,8 +167,26 @@ class TemplatePreviewForm(forms.Form):
                     if kind == "single":
                         field.widget.choices = field.choices
                 self.fields[name] = field
+                if row.get("id") in answers:
+                    self.initial[name] = answers[row["id"]]
                 entry["field"] = self[name]
             self.entries.append(entry)
+
+        self.require_complete = require_complete
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.require_complete:
+            for name, old in self.stale.items():
+                value = cleaned.get(name)
+                selected = (
+                    value if isinstance(value, list) else ([value] if value else [])
+                )
+                if set(old) & set(selected):
+                    self.add_error(
+                        name, "Этот вариант больше недоступен. Выберите другой."
+                    )
+        return cleaned
 
     def service_selections(self):
         return {
