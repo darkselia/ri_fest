@@ -57,8 +57,6 @@ services:
   mailpit:
     image: axllent/mailpit:v1.31.6
     profiles: ["dev-mail", "test"]
-    ports:
-      - "127.0.0.1:8025:8025"
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 5s
@@ -76,8 +74,6 @@ services:
 
   web:
     <<: *app
-    ports:
-      - "127.0.0.1:8000:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully

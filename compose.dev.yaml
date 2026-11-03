@@ -10,11 +10,26 @@ x-dev: &dev
     RUFF_CACHE_DIR: /tmp/ruff-cache
 
 services:
+  db:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  mailpit:
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
   migrate:
     <<: *dev
 
   web:
     <<: *dev
+    ports:
+      - "8000:8000"
     command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
   worker:
