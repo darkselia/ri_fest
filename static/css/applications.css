@@ -1,0 +1,403 @@
+.application-preview {
+    background: var(--color-surface);
+    padding: 16px;
+    font: 15px/1.5 "Segoe UI", sans-serif;
+    -webkit-font-smoothing: auto;
+}
+
+.application-preview main {
+    width: 100%;
+    margin: 0 auto;
+}
+
+.application-preview h3 {
+    font-size: 16px;
+    margin: 0;
+}
+
+.application-preview p {
+    margin: 6px 0 16px;
+}
+
+.application-heading, .application-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.application-heading {
+    justify-content: space-between;
+    margin: 0 0 18px;
+}
+
+.application-heading h2 {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.application-heading > .button {
+    width: auto;
+}
+
+.application-heading > .button span {
+    font-size: 15px;
+}
+
+.application-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--color-muted);
+    margin-bottom: 16px;
+    text-decoration: none;
+}
+
+.application-back:hover {
+    color: var(--color-ink);
+}
+
+.application-filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.application-filters a {
+    padding: 6px 12px;
+    border-radius: 20px;
+    text-decoration: none;
+    color: var(--color-ink);
+    font-size: 15px;
+    font-weight: 400;
+}
+
+.application-filters a[aria-current=page] {
+    background: var(--color-paper);
+}
+
+.application-list {
+    display: grid;
+    gap: 0;
+}
+
+.application-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 34px;
+    align-items: center;
+    gap: 14px;
+    padding: 17px 0;
+    border-bottom: 1px solid var(--color-line);
+}
+
+.application-row h3 {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.application-title {
+    color: var(--color-ink);
+    text-decoration: none;
+}
+
+.application-title:hover {
+    text-decoration: underline;
+}
+
+.application-title small {
+    display: block;
+    color: var(--color-muted);
+    font-size: 13px;
+    font-weight: 400;
+    margin-top: 3px;
+}
+
+
+
+.application-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    border: 1px solid var(--color-line);
+    color: var(--color-danger);
+}
+
+.application-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.account-shell .application-list-help {
+    margin: 20px 0 0;
+    color: var(--color-muted);
+    font-size: 12px;
+}
+
+.application-card {
+    padding: 16px;
+    border: 1px solid var(--color-line);
+    border-radius: 10px;
+    background: var(--color-surface);
+    overflow-wrap: anywhere;
+}
+
+.application-card h3 {
+    margin: 0 0 12px;
+}
+
+.application-delete {
+    color: var(--color-danger);
+}
+
+.application-form {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    counter-reset: question;
+}
+
+.application-form .application-field {
+    min-width: 0;
+    counter-increment: question;
+    padding: 18px 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+}
+
+.application-field > label, .application-field > legend {
+    display: block;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.application-field > label::before, .application-field > legend::before {
+    content: counter(question) ". ";
+}
+
+.application-field > legend {
+    float: left;
+    width: 100%;
+    padding: 0;
+    margin-bottom: 10px;
+}
+
+.application-field > legend + * {
+    clear: both;
+}
+
+.application-form input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+.application-form textarea, .application-form select, .application-selector select {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--color-cabinet-input-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font: inherit;
+}
+
+.application-field > label:not(.application-boolean) + input,
+.application-field > label:not(.application-boolean) + textarea,
+.application-field > label:not(.application-boolean) + select {
+    margin-top: 3px;
+}
+
+.application-form textarea {
+    height: 78px;
+    min-height: 78px;
+    resize: vertical;
+}
+
+.application-form input[type=checkbox], .application-form input[type=radio] {
+    accent-color: var(--color-ink);
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.application-field > .application-boolean {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.application-field > .application-boolean input {
+    margin-left: 5px;
+}
+
+.application-field > div > div > label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 9px 0;
+}
+
+.application-field > div > div:has(input[data-opt-out]) {
+    border-top: 1px dashed var(--color-line);
+}
+
+.application-field label:has(input:disabled) {
+    color: var(--color-muted);
+}
+
+.application-form .help {
+    margin: 3px 0 10px;
+    color: var(--color-muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.application-form .errorlist {
+    color: var(--color-error);
+    font-size: 13px;
+}
+
+.application-form .schema-info {
+    margin: 18px 0 22px;
+    padding: 6px 18px;
+    border-left: 3px solid var(--color-accent);
+}
+
+.application-form .schema-info h3 {
+    font-size: 16px;
+    margin: 0;
+}
+
+.application-selector {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.application-selector label {
+    font-weight: 700;
+}
+
+.account-shell .application-subtotal, .application-preview .application-subtotal {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--color-paper);
+    margin: 14px 0 0;
+    font-size: 13px;
+}
+
+.application-subtotal output {
+    font-weight: 750;
+}
+
+.account-shell .application-total, .application-preview .application-total {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    border-top: 1px solid var(--color-line);
+    padding: 16px 0;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 400;
+}
+
+.application-total output, .application-total strong {
+    font-weight: 700;
+}
+
+
+
+.required-mark {
+    color: var(--color-danger);
+}
+
+.application-note {
+    border-left: 3px solid var(--color-accent);
+    padding: 12px 18px;
+    background: var(--color-paper);
+}
+
+.application-answers {
+    display: grid;
+    gap: 0;
+    margin: 16px 0;
+}
+
+.application-answers > div {
+    padding-block: 18px;
+    border-bottom: 1px solid var(--color-line);
+}
+
+.application-answers dt {
+    font-weight: 700;
+}
+
+.application-answers dd {
+    margin: 8px 0 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+@media (max-width: 650px) {
+    .application-row {
+        flex-wrap: wrap;
+        gap: 9px;
+    }
+
+    .application-row h3 {
+        min-width: min(160px, 100%);
+    }
+
+    .application-row .application-actions {
+        margin-left: auto;
+    }
+
+    .application-card {
+        padding: 12px;
+    }
+
+    .application-actions .button {
+        max-width: 100%;
+        white-space: normal;
+    }
+
+    .application-actions:not(.application-row .application-actions) {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    .application-actions > :is(.button, a) {
+        width: 100%;
+        text-align: center;
+    }
+
+    .application-actions > a:not(.button) {
+        padding: 8px 14px;
+    }
+}
+
+/* Линии разделяют только соседние вопросы, но не информационные вставки. */
+.application-switch-confirm { grid-column: 1 / -1; padding: 16px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.application-switch-confirm p { margin: 0 0 12px; }
+.application-switch-confirm button { margin: 0 8px 4px 0; }
+
+.application-field + .application-field {
+    border-top: 1px solid var(--color-line);
+}
+
+.application-form .application-field:has(+ .application-total) {
+    padding-bottom: 24px;
+}

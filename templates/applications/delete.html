@@ -1,0 +1,11 @@
+{% extends "applications/base.html" %}
+{% block account_content %}
+<h2>Удалить анкету {{ application.number }} для фестиваля «{{ festival.name }}»?</h2>
+<p>Черновик {{ application.number }} на фестиваль «{{ festival.name }}» будет удалён вместе с ответами и выбранными услугами. Восстановить эти данные после удаления не получится.</p>
+{% if error %}<p class="form-errors" role="alert">{{ error }}</p>{% endif %}
+<form method="post" class="application-actions">
+    {% csrf_token %}
+    <button type="submit" class="button button-danger">Удалить черновик</button>
+    <a class="button button-secondary" href="{% url 'accounts:home' %}">Отмена</a>
+</form>
+{% endblock %}

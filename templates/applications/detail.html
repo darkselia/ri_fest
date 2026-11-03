@@ -1,0 +1,19 @@
+{% extends "applications/base.html" %}
+{% block account_content %}
+<a class="application-back" href="{% url 'accounts:home' %}?tab={% if archived %}archive{% elif is_draft %}drafts
+{% else %}submitted{% endif %}">← Назад</a>
+<div class="application-heading"><h2>{{ festival.name }}</h2><span class="application-badge{% if application.status == 'withdrawn' %} application-badge--withdrawn{% elif archived %} application-badge--archive{% elif application.status == 'active' %} application-badge--active{% endif %}">{{ status_label }}</span></div>
+<p class="muted">Анкета {{ application.number }}</p>
+{% if closed_reason %}<p class="application-note">{{ closed_reason }}</p>{% endif %}
+<dl class="application-answers">
+{% for entry in entries %}<div><dt>{{ entry.label }}</dt><dd>{{ entry.value|linebreaksbr }}</dd></div>{% endfor %}
+</dl>
+{% if selections %}<section class="application-card"><h3>Выбранные услуги</h3><ul>
+{% for selection in selections %}<li>{{ selection.option.field.label }}: {{ selection.option.label }}{% if selection.option.service_date %} — {{ selection.option.service_date|date:"d.m.Y" }}{% endif %} — {{ selection.option.price }} ₽{% if not selection.option.is_active or not selection.option.field.is_active %} <span class="muted">(сохранённая скрытая услуга)</span>{% endif %}</li>{% endfor %}
+</ul><p class="application-total"><span>Сумма услуг</span><strong>{{ totals.total }} ₽</strong></p></section>{% endif %}
+<div class="application-actions">
+{% if can_edit %}<a class="button" href="{% url 'applications:edit' application.pk %}">Открыть для редактирования</a>{% endif %}
+{% if can_withdraw %}<a class="button button-secondary" href="{% url 'applications:withdraw' application.pk %}">Отозвать анкету</a>{% endif %}
+{% if is_draft %}<a class="application-delete" href="{% url 'applications:delete' application.pk %}">Удалить черновик</a>{% endif %}
+</div>
+{% endblock %}

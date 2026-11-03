@@ -8,7 +8,13 @@ from django.db import transaction
 from festivals.models import Festival
 from festivals.services import assert_festival_mutable, get_effective_status, moment
 
-from .models import Application, ApplicationAnswer, FormField, FormOption
+from .models import (
+    Application,
+    ApplicationAnswer,
+    ApplicationServiceSelection,
+    FormField,
+    FormOption,
+)
 
 FIELD_ATTRIBUTES = (
     "field_type",
@@ -30,16 +36,93 @@ def used_option_ids(field):
     return used
 
 
-def save_application_answers(application_id, *, actor, data, require_complete=False):
-    from datetime import date
-    from decimal import Decimal
+def response_count(field):
+    return len(
+        set(field.answers.values_list("application_id", flat=True))
+        | set(
+            ApplicationServiceSelection.objects.filter(option__field=field).values_list(
+                "application_id", flat=True
+            )
+        )
+    )
 
+
+def application_form(festival, application=None, *, data=None, require_complete=False):
     from .forms import TemplatePreviewForm
     from .schema import export_schema
 
-    festival_id = Application.objects.values_list("festival_id", flat=True).get(
-        pk=application_id
+    answers = {}
+    if application is not None and application.pk:
+        answers = {
+            answer.field_id: answer.value for answer in application.answers.all()
+        }
+        for selection in application.service_selections.select_related("option"):
+            answers.setdefault(selection.option.field_id, []).append(
+                str(selection.option_id)
+            )
+    return TemplatePreviewForm(
+        export_schema(festival),
+        data=data,
+        answers=answers,
+        require_complete=require_complete,
+        preview=False,
     )
+
+
+def save_application_answers(application_id, *, actor, data, require_complete=False):
+    try:
+        _, form = _save_application(
+            actor=actor,
+            application_id=application_id,
+            data=data,
+            require_complete=require_complete,
+        )
+    except Application.DoesNotExist:
+        raise PermissionDenied from None
+    return form
+
+
+def save_application(
+    *, actor, data, festival_id=None, application_id=None, submit=False, revision=None
+):
+    return _save_application(
+        actor=actor,
+        data=data,
+        festival_id=festival_id,
+        application_id=application_id,
+        require_complete=submit,
+        submit=submit,
+        revision=revision,
+        edit_active=True,
+    )
+
+
+def _save_application(
+    *,
+    actor,
+    data,
+    festival_id=None,
+    application_id=None,
+    require_complete=False,
+    submit=False,
+    revision=None,
+    edit_active=False,
+):
+    from datetime import date
+    from decimal import Decimal
+
+    from .schema import schema_revision
+
+    if application_id is not None:
+        if festival_id is not None:
+            raise ValidationError("Фестиваль сохранённой анкеты менять нельзя.")
+        festival_id = (
+            Application.objects.for_owner(actor)
+            .values_list("festival_id", flat=True)
+            .get(pk=application_id)
+        )
+    elif festival_id is None:
+        raise ValidationError("Выберите фестиваль.")
     with transaction.atomic():
         festival = Festival.objects.select_for_update().get(pk=festival_id)
         current = (
@@ -48,39 +131,63 @@ def save_application_answers(application_id, *, actor, data, require_complete=Fa
             .filter(pk=actor.pk, is_active=True)
             .first()
         )
-        application = Application.objects.select_for_update().get(
-            pk=application_id, festival=festival
+        application = (
+            Application.objects.select_for_update().get(
+                pk=application_id, festival=festival
+            )
+            if application_id
+            else Application(owner=current, festival=festival)
         )
         if (
             current is None
             or application.owner_id != current.pk
-            or application.status != Application.Status.DRAFT
+            or (
+                application.status != Application.Status.DRAFT
+                and not (
+                    edit_active
+                    and application.status == Application.Status.ACTIVE
+                    and not submit
+                )
+            )
         ):
             raise PermissionDenied
         if get_effective_status(festival) != Festival.Status.OPEN:
             raise PermissionDenied("Приём анкет закрыт.")
         assert_form_ready(festival)
-        answers = {
-            answer.field_id: answer.value for answer in application.answers.all()
-        }
-        rows = export_schema(festival)
-        form = TemplatePreviewForm(
-            rows,
-            data=data,
-            answers=answers,
-            require_complete=require_complete,
-            preview=False,
+        require_complete = (
+            require_complete or application.status == Application.Status.ACTIVE
         )
+        form = application_form(
+            festival, application, data=data, require_complete=require_complete
+        )
+        if revision is not None and revision != schema_revision(festival):
+            form.is_valid()
+            form.add_error(
+                None,
+                "Шаблон изменился. Проверьте актуальные вопросы и повторите сохранение.",
+            )
+            return application, form
         allowed = set(form.fields)
         if set(data) - allowed - {"csrfmiddlewaretoken"}:
             raise ValidationError("Переданы неизвестные поля анкеты.")
         if not form.is_valid():
-            return form
+            return application, form
+        application.save()
         for entry in form.entries:
-            if entry["kind"] in ("info", "service"):
+            if entry["kind"] == "info":
                 continue
             field_id = entry["row"]["id"]
             value = form.cleaned_data[entry["field"].name]
+            if entry["kind"] in ("service", "service1"):
+                value = form.service_selections()[entry["key"]]
+                application.service_selections.filter(
+                    option__field_id=field_id
+                ).exclude(option_id__in=value).delete()
+                for option_id in set(value):
+                    ApplicationServiceSelection.objects.get_or_create(
+                        application=application, option_id=option_id
+                    )
+                continue
             if value is None or value == "" or value == []:
                 ApplicationAnswer.objects.filter(
                     application=application, field_id=field_id
@@ -91,8 +198,80 @@ def save_application_answers(application_id, *, actor, data, require_complete=Fa
             ApplicationAnswer.objects.update_or_create(
                 application=application, field_id=field_id, defaults={"value": value}
             )
-        application.save(update_fields=["updated_at"])
-        return form
+        if submit:
+            application.status = Application.Status.ACTIVE
+        application.save(update_fields=["status", "updated_at"])
+        return application, form
+
+
+def delete_application(application_id, *, actor):
+    from festivals.services import synchronize_locked_festival
+
+    festival_id = (
+        Application.objects.for_owner(actor)
+        .values_list("festival_id", flat=True)
+        .get(pk=application_id)
+    )
+    with transaction.atomic():
+        festival = Festival.objects.select_for_update().get(pk=festival_id)
+        current = (
+            get_user_model()
+            .objects.select_for_update()
+            .filter(pk=actor.pk, is_active=True)
+            .first()
+        )
+        if current is None:
+            raise PermissionDenied
+        synchronize_locked_festival(festival, at=moment())
+        application = (
+            Application.objects.select_for_update()
+            .for_owner(current)
+            .get(pk=application_id)
+        )
+        if application.status != Application.Status.DRAFT:
+            raise PermissionDenied("Удалить можно только черновик.")
+        application.delete()
+        return get_effective_status(festival) == Festival.Status.ARCHIVED
+
+
+def withdraw_application(application_id, *, actor, expected_updated_at=None):
+    festival_id = (
+        Application.objects.for_owner(actor)
+        .values_list("festival_id", flat=True)
+        .get(pk=application_id)
+    )
+    with transaction.atomic():
+        festival = Festival.objects.select_for_update().get(pk=festival_id)
+        current = (
+            get_user_model()
+            .objects.select_for_update()
+            .filter(pk=actor.pk, is_active=True)
+            .first()
+        )
+        if current is None:
+            raise PermissionDenied
+        application = (
+            Application.objects.select_for_update()
+            .for_owner(current)
+            .get(pk=application_id)
+        )
+        if (
+            get_effective_status(festival) != Festival.Status.OPEN
+            or application.status != Application.Status.ACTIVE
+        ):
+            raise PermissionDenied(
+                "Отозвать можно только активную анкету при открытом приёме."
+            )
+        if (
+            expected_updated_at is not None
+            and application.updated_at.isoformat() != expected_updated_at
+        ):
+            raise ValidationError(
+                "Анкета изменилась. Проверьте сведения и подтвердите отзыв заново."
+            )
+        application.status = Application.Status.WITHDRAWN
+        application.save(update_fields=["status", "updated_at"])
+        return application
 
 
 def require_schema_permission(actor, action, model="formfield"):
@@ -177,10 +356,10 @@ def prepare_form_field(festival, *, field_id=None, changes, options=None):
     if (
         field.pk
         and changes.get("field_type", field.field_type) != field.field_type
-        and field.answers.exists()
+        and response_count(field)
     ):
         raise ValidationError(
-            "Тип вопроса с ответами менять нельзя. Используйте скрытие."
+            f"Тип вопроса менять нельзя: есть ответы или услуги в {response_count(field)} анкетах. Используйте скрытие или создайте новый вопрос."
         )
     for name, value in changes.items():
         setattr(field, name, value)
@@ -255,8 +434,11 @@ def save_form_field(
 
 
 def validate_field_deletion(festival, field_id):
-    if FormField.objects.get(pk=field_id, festival=festival).answers.exists():
-        raise ValidationError("Вопрос с ответами нельзя удалить. Используйте скрытие.")
+    count = response_count(FormField.objects.get(pk=field_id, festival=festival))
+    if count:
+        raise ValidationError(
+            f"Вопрос нельзя удалить: есть ответы или услуги в {count} анкетах. Используйте скрытие."
+        )
     if get_effective_status(festival) != Festival.Status.DRAFT:
         errors = schema_errors(festival, deleted_id=field_id)
         if errors:

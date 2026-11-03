@@ -4,13 +4,20 @@ import hashlib
 import json
 from decimal import Decimal
 
+from django.core import signing
 from django.core.exceptions import ValidationError
 
 from festivals.models import Festival
 
-from .models import FormField, FormOption, ServiceOption
+from .models import (
+    ApplicationAnswer,
+    ApplicationServiceSelection,
+    FormField,
+    FormOption,
+    ServiceOption,
+)
 
-PRICE_TYPES = ("service",)
+PRICE_TYPES = ("service", "service1")
 FIELD_NAMES = (
     "field_type",
     "label",
@@ -20,7 +27,146 @@ FIELD_NAMES = (
     "order",
 )
 OPTION_NAMES = ("label", "is_active", "order")
-SERVICE_NAMES = (*OPTION_NAMES, "price", "service_date")
+SERVICE_NAMES = (*OPTION_NAMES, "price", "service_date", "is_opt_out")
+
+
+class SchemaHidingConflict(ValidationError):
+    pass
+
+
+def hiding_state(festival):
+    affected = {}
+    option_affected = {}
+    if festival.pk:
+        answers = ApplicationAnswer.objects.filter(
+            field__festival=festival
+        ).values_list("field_id", "field__field_type", "application_id", "value")
+        for field_id, field_type, application_id, value in answers:
+            affected.setdefault(str(field_id), set()).add(application_id)
+            if field_type in ("single", "multi"):
+                for option_id in value if isinstance(value, list) else [value]:
+                    option_affected.setdefault(f"a:{option_id}", set()).add(
+                        application_id
+                    )
+        selections = ApplicationServiceSelection.objects.filter(
+            option__field__festival=festival
+        ).values_list("option__field_id", "option_id", "application_id")
+        for field_id, option_id, application_id in selections:
+            affected.setdefault(str(field_id), set()).add(application_id)
+            option_affected.setdefault(f"s:{option_id}", set()).add(application_id)
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {
+                "fields": {
+                    key: sorted(values) for key, values in sorted(affected.items())
+                },
+                "options": {
+                    key: sorted(values)
+                    for key, values in sorted(option_affected.items())
+                },
+            },
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+    payload = {
+        "festival": festival.pk,
+        "revision": schema_revision(festival),
+        "fingerprint": fingerprint,
+    }
+    return {
+        "token": signing.dumps(payload, salt="schema.hiding"),
+        "counts": {key: len(values) for key, values in affected.items()},
+        "option_counts": {key: len(values) for key, values in option_affected.items()},
+        "active_options": (
+            [
+                f"a:{pk}"
+                for pk in FormOption.objects.filter(
+                    field__festival=festival, is_active=True
+                ).values_list("pk", flat=True)
+            ]
+            + [
+                f"s:{pk}"
+                for pk in ServiceOption.objects.filter(
+                    field__festival=festival, is_active=True
+                ).values_list("pk", flat=True)
+            ]
+        )
+        if festival.pk
+        else [],
+        "active": list(
+            festival.form_fields.filter(is_active=True).values_list("pk", flat=True)
+        )
+        if festival.pk
+        else [],
+        "confirmed": [],
+    }
+
+
+def validate_hiding(festival, prepared, confirmation):
+    old = (
+        {field.pk: field for field in festival.form_fields.all()} if festival.pk else {}
+    )
+    state = hiding_state(festival)
+    labels = {str(pk): field.label for pk, field in old.items()}
+    acknowledged = (
+        confirmation.get("confirmed", []) if isinstance(confirmation, dict) else []
+    )
+    hidden = [
+        str(field.pk)
+        for field, _, _ in prepared
+        if field.pk in old
+        and old[field.pk].is_active
+        and not field.is_active
+        and (state["counts"].get(str(field.pk), 0) or str(field.pk) in acknowledged)
+    ]
+    for _, options, services in prepared:
+        for prefix, variants in (("a", options), ("s", services)):
+            labels.update(
+                {
+                    f"{prefix}:{option.pk}": option.label
+                    for option in variants
+                    if option.pk
+                }
+            )
+            hidden.extend(
+                f"{prefix}:{option.pk}"
+                for option in variants
+                if option.pk
+                and not option.is_active
+                and f"{prefix}:{option.pk}" in state["active_options"]
+                and (
+                    state["option_counts"].get(f"{prefix}:{option.pk}", 0)
+                    or f"{prefix}:{option.pk}" in acknowledged
+                )
+            )
+    if not hidden:
+        return
+    try:
+        supplied = signing.loads(
+            confirmation.get("token", ""), salt="schema.hiding", max_age=3600
+        )
+        expected = signing.loads(state["token"], salt="schema.hiding")
+        if supplied != expected or not set(hidden) <= set(
+            confirmation.get("confirmed", [])
+        ):
+            raise signing.BadSignature
+    except (signing.BadSignature, AttributeError, TypeError):
+        counts = "; ".join(
+            f"«{labels[key]}»: {state['counts'].get(key, state['option_counts'].get(key, 0))}"
+            for key in hidden
+        )
+        raise SchemaHidingConflict(
+            f"Подтвердите скрытие. Количество анкет с ответами или выбором: {counts}. Сохранённые данные останутся в анкетах."
+        ) from None
+
+
+def validate_service_selection(kind, options):
+    if kind == "service1" and len(options) > 1:
+        raise ValidationError("Выберите только один вариант услуги.")
+    if len(options) > 1 and any(option.get("is_opt_out", False) for option in options):
+        raise ValidationError(
+            "Отказ нельзя выбирать вместе с другими услугами этого вопроса."
+        )
 
 
 def dump_option(option, names):
@@ -38,6 +184,9 @@ def dump_option(option, names):
 def export_schema(festival):
     if not festival.pk:
         return []
+    fields = festival.form_fields.all()
+    if "form_fields" not in getattr(festival, "_prefetched_objects_cache", {}):
+        fields = fields.prefetch_related("options", "service_options")
     return [
         {
             "id": field.pk,
@@ -47,7 +196,7 @@ def export_schema(festival):
                 dump_option(o, SERVICE_NAMES) for o in field.service_options.all()
             ],
         }
-        for field in festival.form_fields.prefetch_related("options", "service_options")
+        for field in fields
     ]
 
 
@@ -123,15 +272,17 @@ def prepare_schema(festival, rows):
                 and field.answers.exists()
             ):
                 raise ValidationError(
-                    "Тип вопроса с ответами менять нельзя. Используйте скрытие."
+                    f"Тип вопроса с ответами менять нельзя: {field.answers.count()} анкет. Используйте скрытие или создайте новый вопрос."
                 )
             if (
                 pk
                 and field.field_type != row.get("field_type")
                 and field.service_options.filter(selections__isnull=False).exists()
             ):
+                from .services import response_count
+
                 raise ValidationError(
-                    "Тип поля с выбранными услугами менять нельзя. Используйте скрытие."
+                    f"Тип поля с выбранными услугами менять нельзя: {response_count(field)} анкет. Используйте скрытие или создайте новый вопрос."
                 )
             for name in FIELD_NAMES:
                 if name in row:
@@ -201,6 +352,9 @@ def _prepare_options(field, rows, priced):
             if name in row:
                 setattr(option, name, row[name])
         option.order = index
+        if priced and option.is_opt_out:
+            option.price = Decimal("0.00")
+            option.service_date = None
         if priced and option.service_date == "":
             option.service_date = None
         option.label = (
@@ -217,6 +371,24 @@ def _prepare_options(field, rows, priced):
             raise ValidationError("Цена не может быть отрицательной.")
         result.append(option)
     if priced:
+        if sum(option.is_opt_out for option in result) > 1:
+            raise ValidationError("В вопросе может быть только один вариант отказа.")
+        from django.db.models import Count
+
+        for option in result:
+            if option.pk and option.is_opt_out:
+                owners = option.selections.values_list("application_id", flat=True)
+                conflicts = (
+                    field.service_options.filter(selections__application_id__in=owners)
+                    .values("selections__application_id")
+                    .annotate(total=Count("pk"))
+                    .filter(total__gt=1)
+                    .count()
+                )
+                if conflicts:
+                    raise ValidationError(
+                        f"Отказ несовместим с выбором в {conflicts} анкетах. Сохранённые услуги не изменены."
+                    )
         removed = existing.keys() - {o.pk for o in result if o.pk}
         if ServiceOption.objects.filter(
             pk__in=removed, selections__isnull=False
@@ -232,6 +404,10 @@ def _prepare_options(field, rows, priced):
             raise ValidationError(
                 "Выбранный вариант нельзя удалить. Используйте скрытие."
             )
+    if priced:
+        result.sort(key=lambda option: option.is_opt_out)
+        for index, option in enumerate(result):
+            option.order = index
     return result
 
 
@@ -242,9 +418,12 @@ def check_schema_permissions(festival, prepared, actor):
     kept = {f.pk for f, _, _ in prepared if f.pk}
     for field in old.values():
         if field.pk not in kept:
-            if field.answers.exists():
+            from .services import response_count
+
+            count = response_count(field)
+            if count:
                 raise ValidationError(
-                    "Вопрос с ответами нельзя удалить. Используйте скрытие."
+                    f"Вопрос нельзя удалить: есть ответы или услуги в {count} анкетах. Используйте скрытие."
                 )
             require_schema_permission(actor, "delete")
             if field.options.exists():
@@ -286,6 +465,7 @@ def write_schema(festival, prepared, actor):
     for field, options, services in prepared:
         field.festival = festival
         field.save()
+        field.service_options.filter(is_opt_out=True).update(is_opt_out=False)
         for variants, relation in ((options, "options"), (services, "service_options")):
             manager = getattr(field, relation)
             manager.exclude(pk__in=[o.pk for o in variants if o.pk]).delete()
@@ -356,6 +536,7 @@ def calculate_rows(rows, selections, *, require_complete=False):
                 f"Поле «{row['label']}»: выбран чужой или недоступный вариант."
             )
         picked = [available[v] for v in selected]
+        validate_service_selection(row["field_type"], picked)
         if require_complete and row["is_required"] and not picked:
             raise ValidationError(f"Поле «{row['label']}» обязательно для заполнения.")
         value = sum((Decimal(o["price"]) for o in picked), Decimal("0.00"))

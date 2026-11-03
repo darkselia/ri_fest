@@ -1,0 +1,14 @@
+{% extends "applications/base.html" %}
+{% block account_content %}
+<a class="application-back" href="{% url 'applications:detail' application.pk %}">← Назад</a>
+<h2>Отозвать анкету {{ application.number }}?</h2>
+<p>{{ festival.name }}</p>
+<p>Участие по анкете {{ application.number }} на фестиваль «{{ festival.name }}» будет отменено. Анкета с ответами и выбранными услугами останется в архиве для просмотра.</p>
+{% if error %}<p class="form-errors" role="alert">{{ error }}</p>{% endif %}
+<form method="post" class="application-actions">
+{% csrf_token %}<input type="hidden" name="confirmation" value="{{ confirmation }}">
+<button type="submit" class="button">Отозвать анкету</button>
+<a class="button button-secondary" href="{% url 'applications:detail' application.pk %}">Отмена</a>
+</form>
+{% endblock %}
+

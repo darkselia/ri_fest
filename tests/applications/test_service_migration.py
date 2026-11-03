@@ -71,9 +71,7 @@ def test_unification_and_simplification_preserve_records_and_selections():
                 == options[index].price
             )
             assert not hasattr(current, "is_recommended")
-            assert not hasattr(
-                NewOption.objects.get(pk=options[index].pk), "is_opt_out"
-            )
+            assert not NewOption.objects.get(pk=options[index].pk).is_opt_out
             assert (
                 NewSelection.objects.get(
                     pk=selections[index].pk, application_id=application.pk

@@ -100,7 +100,9 @@ def test_festival_archival_preserves_applications_statuses_and_relations(
     assert application.festival.status == Festival.Status.ARCHIVED
     after = list(Application.objects.order_by("pk").values())
     for previous, current in zip(before, after, strict=True):
-        assert current["status"] == "draft"
+        assert current["status"] == (
+            "archived" if previous["status"] == "active" else previous["status"]
+        )
         for key in ("id", "owner_id", "festival_id", "created_at", "anonymized_at"):
             assert current[key] == previous[key]
 

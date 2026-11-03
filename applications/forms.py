@@ -1,3 +1,5 @@
+from datetime import date
+
 from django import forms
 from unfold.widgets import (
     UnfoldAdminCheckboxSelectMultipleWidget,
@@ -22,6 +24,30 @@ class NativeDateInput(UnfoldAdminTextInputWidget):
         return value.isoformat() if hasattr(value, "isoformat") else value
 
 
+def display_date(value):
+    if isinstance(value, str):
+        try:
+            value = date.fromisoformat(value)
+        except ValueError:
+            return value
+    return f"{value.day:02d}.{value.month:02d}.{value.year:04d}" if value else ""
+
+
+class PublicDateInput(forms.DateInput):
+    def __init__(self):
+        super().__init__(
+            format="%d.%m.%Y",
+            attrs={
+                "placeholder": "дд.мм.гггг",
+                "maxlength": 10,
+                "pattern": r"\d{2}\.\d{2}\.\d{4}",
+            },
+        )
+
+    def format_value(self, value):
+        return display_date(value)
+
+
 class SchemaEditorWidgets(forms.Form):
     text = forms.CharField(widget=UnfoldAdminTextInputWidget)
     textarea = forms.CharField(widget=UnfoldAdminTextareaWidget(attrs={"rows": 2}))
@@ -31,9 +57,10 @@ class SchemaEditorWidgets(forms.Form):
     checkbox = forms.BooleanField(widget=UnfoldBooleanWidget)
 
 
-class PriceCheckboxes(UnfoldAdminCheckboxSelectMultipleWidget):
-    def __init__(self, prices, *args, **kwargs):
+class PriceCheckboxesMixin:
+    def __init__(self, prices, *args, refusals=(), **kwargs):
         self.prices = prices
+        self.refusals = set(refusals)
         super().__init__(*args, **kwargs)
 
     def create_option(
@@ -44,12 +71,33 @@ class PriceCheckboxes(UnfoldAdminCheckboxSelectMultipleWidget):
         )
         price = self.prices[str(value)]
         option["attrs"]["data-kopecks"] = str(price)
+        if str(value) in self.refusals:
+            option["attrs"]["data-opt-out"] = "true"
         return option
+
+
+class PriceCheckboxes(PriceCheckboxesMixin, UnfoldAdminCheckboxSelectMultipleWidget):
+    pass
+
+
+class PublicPriceCheckboxes(PriceCheckboxesMixin, forms.CheckboxSelectMultiple):
+    pass
+
+
+class PublicPriceRadios(PriceCheckboxesMixin, forms.RadioSelect):
+    pass
 
 
 class TemplatePreviewForm(forms.Form):
     def __init__(
-        self, rows, data=None, *, answers=None, require_complete=True, preview=True
+        self,
+        rows,
+        data=None,
+        *,
+        answers=None,
+        require_complete=True,
+        preview=True,
+        public=False,
     ):
         super().__init__(
             data=data,
@@ -59,6 +107,7 @@ class TemplatePreviewForm(forms.Form):
         self.entries = []
         self.stale = {}
         answers = answers or {}
+        use_admin = preview and not public
         for i, row in enumerate(rows):
             if not row["is_active"]:
                 continue
@@ -78,23 +127,51 @@ class TemplatePreviewForm(forms.Form):
                 if kind in PRICE_TYPES:
                     choices = []
                     prices = {}
+                    refusals = []
                     from decimal import Decimal
 
                     for j, option in enumerate(row["services"]):
-                        if not option["is_active"]:
+                        saved = answers.get(row.get("id"), [])
+                        if (
+                            not option["is_active"]
+                            and str(option.get("id")) not in saved
+                        ):
                             continue
                         key = str(option["id"]) if option.get("id") else f"new_{j}"
                         date = (
-                            f" — {option['service_date']}"
+                            f" — {display_date(option['service_date'])}"
                             if option.get("service_date")
                             else ""
                         )
                         choices.append(
-                            (key, f"{option['label']}{date} ({option['price']} ₽)")
+                            (
+                                key,
+                                f"{option['label']}{date} ({option['price']} ₽)"
+                                + (
+                                    " — сохранённая скрытая услуга"
+                                    if not option["is_active"]
+                                    else ""
+                                ),
+                            )
                         )
                         prices[key] = int(Decimal(option["price"]) * 100)
-                    field = forms.MultipleChoiceField(
-                        choices=choices, widget=PriceCheckboxes(prices), **settings
+                        if option.get("is_opt_out"):
+                            refusals.append(key)
+                    single_service = kind == "service1"
+                    field_class = (
+                        forms.ChoiceField
+                        if single_service
+                        else forms.MultipleChoiceField
+                    )
+                    widget_class = (
+                        PublicPriceRadios
+                        if single_service
+                        else (PriceCheckboxes if use_admin else PublicPriceCheckboxes)
+                    )
+                    field = field_class(
+                        choices=choices,
+                        widget=widget_class(prices, refusals=refusals),
+                        **settings,
                     )
                 elif kind in ("single", "multi"):
                     choices = [
@@ -127,7 +204,9 @@ class TemplatePreviewForm(forms.Form):
                         if kind == "single"
                         else forms.MultipleChoiceField(
                             choices=choices,
-                            widget=UnfoldAdminCheckboxSelectMultipleWidget,
+                            widget=UnfoldAdminCheckboxSelectMultipleWidget
+                            if use_admin
+                            else forms.CheckboxSelectMultiple,
                             **settings,
                         )
                     )
@@ -135,9 +214,11 @@ class TemplatePreviewForm(forms.Form):
                     field = forms.DecimalField(**settings)
                 elif kind == "date":
                     field = forms.DateField(
-                        widget=NativeDateInput
-                        if preview
-                        else forms.DateInput(attrs={"type": "date"}),
+                        widget=NativeDateInput if use_admin else PublicDateInput(),
+                        input_formats=["%d.%m.%Y", "%Y-%m-%d"],
+                        error_messages={
+                            "invalid": "Укажите существующую дату в формате дд.мм.гггг."
+                        },
                         **settings,
                     )
                 elif kind == "boolean":
@@ -149,7 +230,7 @@ class TemplatePreviewForm(forms.Form):
                         else forms.TextInput,
                         **settings,
                     )
-                if preview and kind in (
+                if use_admin and kind in (
                     "text",
                     "textarea",
                     "number",
@@ -167,8 +248,12 @@ class TemplatePreviewForm(forms.Form):
                     if kind == "single":
                         field.widget.choices = field.choices
                 self.fields[name] = field
+                if row["is_required"]:
+                    field.widget.attrs["aria-required"] = "true"
                 if row.get("id") in answers:
                     self.initial[name] = answers[row["id"]]
+                    if kind == "service1":
+                        self.initial[name] = next(iter(answers[row["id"]]), "")
                 entry["field"] = self[name]
             self.entries.append(entry)
 
@@ -176,6 +261,31 @@ class TemplatePreviewForm(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
+        from .schema import validate_service_selection
+
+        for entry in self.entries:
+            if entry["kind"] not in PRICE_TYPES:
+                continue
+            name = entry["field"].name
+            if (
+                entry["kind"] == "service1"
+                and hasattr(self.data, "getlist")
+                and len(set(self.data.getlist(self.add_prefix(name)))) > 1
+            ):
+                self.add_error(name, "Выберите только один вариант услуги.")
+                continue
+            values = cleaned.get(name, [])
+            if isinstance(values, str):
+                values = [values] if values else []
+            picked = [
+                option
+                for index, option in enumerate(entry["row"]["services"])
+                if (str(option["id"]) if option.get("id") else f"new_{index}") in values
+            ]
+            try:
+                validate_service_selection(entry["kind"], picked)
+            except forms.ValidationError as error:
+                self.add_error(name, error)
         if self.require_complete:
             for name, old in self.stale.items():
                 value = cleaned.get(name)
@@ -190,7 +300,13 @@ class TemplatePreviewForm(forms.Form):
 
     def service_selections(self):
         return {
-            entry["key"]: self.cleaned_data.get(entry["field"].name, [])
+            entry["key"]: (
+                [self.cleaned_data[entry["field"].name]]
+                if self.cleaned_data.get(entry["field"].name)
+                else []
+            )
+            if entry["kind"] == "service1"
+            else self.cleaned_data.get(entry["field"].name, [])
             for entry in self.entries
             if entry["kind"] in PRICE_TYPES
         }

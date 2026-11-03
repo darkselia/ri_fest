@@ -1,7 +1,20 @@
 import uuid
 
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
+
+
+class ApplicationNumberSequence(models.Model):
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    festival = models.ForeignKey("festivals.Festival", on_delete=models.CASCADE)
+    next_number = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("owner", "festival"), name="application_number_sequence_unique"
+            )
+        ]
 
 
 class FormField(models.Model):
@@ -14,7 +27,8 @@ class FormField(models.Model):
         SINGLE = "single", "Один вариант"
         MULTI = "multi", "Несколько вариантов"
         INFO = "info", "Информационный блок"
-        SERVICE = "service", "Платные услуги"
+        SERVICE = "service", "Платные услуги — несколько вариантов"
+        SERVICE_SINGLE = "service1", "Платные услуги — один вариант"
 
     festival = models.ForeignKey(
         "festivals.Festival",
@@ -51,6 +65,7 @@ class FormField(models.Model):
                         "multi",
                         "info",
                         "service",
+                        "service1",
                     ]
                 ),
                 name="form_field_valid_type",
@@ -91,6 +106,7 @@ class ServiceOption(models.Model):
     label = models.CharField("Подпись", max_length=255)
     service_date = models.DateField("Дата", null=True, blank=True)
     price = models.DecimalField("Цена", max_digits=12, decimal_places=2, default=0)
+    is_opt_out = models.BooleanField("Отказ от услуги", default=False)
     is_active = models.BooleanField("Активный", default=True)
     order = models.PositiveIntegerField("Порядок", default=0)
 
@@ -101,6 +117,16 @@ class ServiceOption(models.Model):
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(price__gte=0), name="service_price_nonnegative"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(is_opt_out=False)
+                | models.Q(price=0, service_date__isnull=True),
+                name="service_refusal_free_undated",
+            ),
+            models.UniqueConstraint(
+                fields=("field",),
+                condition=models.Q(is_opt_out=True),
+                name="service_one_refusal",
             ),
         ]
 
@@ -120,6 +146,7 @@ class Application(models.Model):
         DRAFT = "draft", "Черновик"
         ACTIVE = "active", "Активна"
         WITHDRAWN = "withdrawn", "Отозвана"
+        ARCHIVED = "archived", "В архиве"
 
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -143,6 +170,9 @@ class Application(models.Model):
         editable=False,
     )
     created_at = models.DateTimeField("Создана", auto_now_add=True)
+    number = models.PositiveIntegerField(
+        "Номер анкеты владельца на фестиваль", null=True, editable=False
+    )
     updated_at = models.DateTimeField("Изменена", auto_now=True)
     anonymized_at = models.DateTimeField(
         "Обезличена", null=True, blank=True, editable=False
@@ -155,8 +185,18 @@ class Application(models.Model):
         verbose_name_plural = "анкеты"
         ordering = ("-created_at", "-pk")
         constraints = [
+            models.UniqueConstraint(
+                fields=("owner", "festival", "number"),
+                name="application_owner_festival_number_unique",
+            ),
             models.CheckConstraint(
-                condition=models.Q(status__in=["draft", "active", "withdrawn"]),
+                condition=models.Q(number__isnull=True) | models.Q(number__gt=0),
+                name="application_number_positive",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    status__in=["draft", "active", "withdrawn", "archived"]
+                ),
                 name="application_valid_status",
             ),
             models.CheckConstraint(
@@ -173,7 +213,30 @@ class Application(models.Model):
         ]
 
     def __str__(self):
-        return f"Анкета №{self.pk}" if self.pk else "Новая анкета"
+        return f"Анкета {self.number}" if self.number else "Новая анкета"
+
+    def save(self, *args, **kwargs):
+        if self.owner_id is None or self.number is not None:
+            return super().save(*args, **kwargs)
+        from django.contrib.auth import get_user_model
+
+        from festivals.models import Festival
+
+        with transaction.atomic():
+            Festival.objects.select_for_update().get(pk=self.festival_id)
+            get_user_model().objects.select_for_update().get(pk=self.owner_id)
+            sequence, _ = ApplicationNumberSequence.objects.get_or_create(
+                owner_id=self.owner_id, festival_id=self.festival_id
+            )
+            sequence = ApplicationNumberSequence.objects.select_for_update().get(
+                pk=sequence.pk
+            )
+            self.number = sequence.next_number
+            sequence.next_number += 1
+            sequence.save(update_fields=["next_number"])
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = {*kwargs["update_fields"], "number"}
+            return super().save(*args, **kwargs)
 
 
 class ApplicationAnswer(models.Model):
@@ -199,7 +262,11 @@ class ApplicationAnswer(models.Model):
         if self.application_id and self.field_id:
             if self.application.festival_id != self.field.festival_id:
                 raise ValidationError("Вопрос относится к другому фестивалю.")
-            if self.field.field_type in (FormField.Type.INFO, FormField.Type.SERVICE):
+            if self.field.field_type in (
+                FormField.Type.INFO,
+                FormField.Type.SERVICE,
+                FormField.Type.SERVICE_SINGLE,
+            ):
                 raise ValidationError("Этот элемент не хранит обычный ответ.")
 
 

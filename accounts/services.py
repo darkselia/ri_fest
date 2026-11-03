@@ -85,7 +85,8 @@ def delete_account(user_id, *, actor, password):
             application_id__in=[item.pk for item in history]
         ).delete()
         for application in history:
-            application.status = Application.Status.WITHDRAWN
+            if application.status == Application.Status.ACTIVE:
+                application.status = Application.Status.WITHDRAWN
             application.owner_id = None
             application.anonymized_at = now
             application.updated_at = now

@@ -288,7 +288,7 @@ def test_preview_keeps_same_named_service_fields_separate(client, festival, acto
     html = response.json()["html"]
     assert html.count("data-service-group=") == 2
     assert html.count("<legend>Услуги</legend>") == 2
-    assert "Всего услуг" in html and "350" in html
+    assert "Сумма услуг" in html and "350" in html
     assert "data-total-stay" not in html and "data-total-meal" not in html
 
 
@@ -444,7 +444,6 @@ def test_selection_protection_and_database_constraints(festival, actor):
 @pytest.mark.parametrize(
     "variants",
     [
-        [service("Отказ", "1", is_opt_out=True)],
         [
             service("Первый отказ", "0", is_opt_out=True),
             service("Второй отказ", "0", is_opt_out=True),

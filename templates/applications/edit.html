@@ -1,0 +1,50 @@
+{% extends "applications/base.html" %}
+{% load static %}
+{% block account_content %}
+<a class="application-back" href="{% url 'accounts:home' %}">← Назад</a>
+<div class="application-heading">
+    <h2>{% if application.pk %}{{ festival.name }}{% else %}Добавить анкету{% endif %}</h2>
+    {% if application.pk %}<span class="application-badge{% if application.status == 'active' %} application-badge--active{% endif %}">{{ application.get_status_display }}</span>{% endif %}
+</div>
+{% if application.pk %}<p class="muted">Анкета {{ application.number }}</p>{% endif %}
+{% if error %}<p role="alert" class="form-errors">{{ error }}</p>{% endif %}
+{% if not application.pk %}
+    {% if festivals %}
+    <form method="get" class="application-selector" data-auto-select>
+        <label for="festival">Фестиваль</label>
+        <select name="festival" id="festival" required>
+            <option value="">Выберите фестиваль</option>
+            {% for item in festivals %}<option value="{{ item.pk }}"{% if festival.pk == item.pk %} selected{% endif %}>{{ item.name }}</option>{% endfor %}
+        </select>
+        <noscript><button type="submit" class="button button-secondary">Открыть форму</button></noscript>
+    </form>
+    {% else %}<p>Сейчас нет фестивалей с открытым приёмом и подготовленной формой. Попробуйте зайти позже.</p>{% endif %}
+{% endif %}
+{% if form %}
+<p class="muted">{% if is_draft or not application.pk %}Сохраните черновик, чтобы продолжить заполнение позже. Для отправки заполните обязательные вопросы, отмеченные звёздочкой.{% else %}Анкета отправлена организаторам. Сохранённые изменения сразу появятся в ней; для отмены участия воспользуйтесь действием «Отозвать анкету».{% endif %}</p>
+<form method="post" class="application-form" data-application-form>
+    {% csrf_token %}
+    <input type="hidden" name="festival" value="{{ festival.pk }}">
+    <input type="hidden" name="schema_revision" value="{{ schema_revision }}">
+    <input type="hidden" name="form_snapshot" value="{{ form_snapshot }}">
+    {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    {% include "components/forms/application_fields.html" %}
+    {% if hidden_selections %}
+    <section class="application-card"><h3>Сохранённые услуги</h3><p>Эти поля скрыты организатором. Ваш выбор и его стоимость сохранены.</p>
+    <ul>{% for selection in hidden_selections %}<li>{{ selection.option.field.label }}: {{ selection.option.label }} — {{ selection.option.price }} ₽</li>{% endfor %}</ul></section>
+    {% endif %}
+    <p class="application-total"><span>Сумма услуг</span><output data-application-total data-fixed-kopecks="{{ hidden_kopecks }}" aria-live="polite">{{ service_total }} ₽</output></p>
+    <div class="application-actions">
+        {% if application.status == 'active' %}
+        <button type="submit" name="action" value="update" class="button">Сохранить изменения</button>
+        {% if can_withdraw %}<a class="button button-secondary" href="{% url 'applications:withdraw' application.pk %}">Отозвать анкету</a>{% endif %}
+        {% else %}
+        <button type="submit" name="action" value="submit" class="button">Отправить анкету</button>
+        <button type="submit" name="action" value="draft" class="button button-secondary">Сохранить черновик</button>
+        {% endif %}
+        <a href="{% url 'accounts:home' %}">Отмена</a>
+    </div>
+</form>
+{% endif %}
+<script src="{% static 'js/application_form.js' %}" defer></script>
+{% endblock %}

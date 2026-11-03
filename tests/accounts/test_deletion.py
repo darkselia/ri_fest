@@ -83,9 +83,9 @@ def test_self_deletion_anonymizes_history_revokes_current_and_invalidates_access
         reverse("accounts:login")
     )
     assert client.post(link).status_code == 400
-    assert not Application.objects.filter(
-        pk__in=[history[0].pk, history[2].pk]
-    ).exists()
+    assert not Application.objects.filter(pk=history[0].pk).exists()
+    history[2].refresh_from_db()
+    assert history[2].status == "archived" and history[2].owner_id is None
     history[1].refresh_from_db()
     assert history[1].owner_id is None and history[1].anonymized_at is not None
     assert history[1].status == "withdrawn"
@@ -146,7 +146,7 @@ def test_admin_deletion_uses_same_service_and_admin_password(
         "admin:accounts_user_changelist"
     )
     assert not User.objects.filter(pk=target_id).exists()
-    assert Application.objects.filter(owner__isnull=True).count() == 1
+    assert Application.objects.filter(owner__isnull=True).count() == 2
 
 
 def test_deletion_rollback_restores_account_applications_and_admin_history(
@@ -215,7 +215,8 @@ def test_calendar_archive_is_respected_before_hourly_sync(member, history):
         start_date=date(2020, 1, 1), end_date=date(2020, 1, 3)
     )
     delete_account(member.pk, actor=member, password=PASSWORD)
-    assert not Application.objects.filter(pk=current.pk).exists()
+    current.refresh_from_db()
+    assert current.status == "archived" and current.owner_id is None
 
 
 def test_new_parent_relation_during_deletion_causes_atomic_conflict(
