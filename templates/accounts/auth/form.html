@@ -1,4 +1,4 @@
-{% extends "accounts/auth_base.html" %}
+{% extends "layouts/auth.html" %}
 
 {% block auth_content %}
 <form method="post" class="account-form">
@@ -7,7 +7,7 @@
         <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
     {% endif %}
     {% for field in form %}
-        {% include "components/form_field.html" %}
+        {% include "components/forms/field.html" %}
     {% endfor %}
     <button type="submit" class="button button-wide">{{ submit_label }}</button>
 </form>

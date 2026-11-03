@@ -45,7 +45,7 @@ urlpatterns = [
     path(
         "accounts/activation/sent/",
         TemplateView.as_view(
-            template_name="accounts/status.html",
+            template_name="accounts/auth/status.html",
             extra_context={
                 "title": "Проверьте почту",
                 "description": "Если аккаунт ожидает подтверждения, на указанный адрес будет отправлено письмо.",
@@ -62,7 +62,7 @@ urlpatterns = [
     path(
         "accounts/password-reset/done/",
         PasswordResetDoneView.as_view(
-            template_name="accounts/status.html",
+            template_name="accounts/auth/status.html",
             extra_context={
                 "description": "Если адрес связан с активным аккаунтом, на него будет отправлена инструкция для смены пароля.",
             },
@@ -73,7 +73,7 @@ urlpatterns = [
         "accounts/reset/<uidb64>/<token>/",
         PasswordResetConfirmView.as_view(
             form_class=AccountSetPasswordForm,
-            template_name="accounts/password_reset_confirm.html",
+            template_name="accounts/auth/password_reset_confirm.html",
             success_url=reverse_lazy("accounts:password_reset_complete"),
         ),
         name="password_reset_confirm",
@@ -81,7 +81,7 @@ urlpatterns = [
     path(
         "accounts/reset/done/",
         PasswordResetCompleteView.as_view(
-            template_name="accounts/status.html",
+            template_name="accounts/auth/status.html",
             extra_context={"description": "Пароль изменён. Войдите с новым паролем."},
         ),
         name="password_reset_complete",

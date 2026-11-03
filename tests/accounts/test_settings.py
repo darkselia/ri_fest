@@ -75,7 +75,7 @@ def test_password_change_rejects_wrong_password_and_confirmation(client, member)
     ):
         response = client.post(url, {**data, **changes})
         assert response.status_code == 200
-        assert field in response.context["form"].errors
+        assert field in response.context["password_form"].errors
         assert f'value="{NEW_PASSWORD}"' not in response.text
     member.refresh_from_db()
     assert member.check_password(OLD_PASSWORD)
@@ -102,7 +102,7 @@ def test_password_change_keeps_current_session_and_ends_other_without_mail(
             "new_password2": NEW_PASSWORD,
         },
     )
-    assert response.url == reverse("accounts:password_change")
+    assert response.url == reverse("accounts:profile")
     member.refresh_from_db()
     assert member.check_password(NEW_PASSWORD)
     assert not member.check_password(OLD_PASSWORD)
@@ -126,18 +126,22 @@ def test_account_sections_share_shell_navigation_and_community_links(
     for route, tab in (
         ("home", "applications"),
         ("profile", "profile"),
-        ("password_change", "password"),
+        ("password_change", "profile"),
     ):
         response = client.get(reverse(f"accounts:{route}"))
         assert response.status_code == 200
         assert response.context["account_tab"] == tab
-        assert "accounts/cabinet_base.html" in {
+        assert "layouts/cabinet.html" in {
             template.name for template in response.templates
         }
-        assert response.text.count('aria-current="page"') == 1
+        section_navigation = response.text.split(
+            'aria-label="Разделы личного кабинета"', 1
+        )[1].split("</nav>", 1)[0]
+        assert section_navigation.count('aria-current="page"') == 1
+        active_route = "profile" if route == "password_change" else route
         assert (
-            f'href="{reverse(f"accounts:{route}")}" aria-current="page"'
-            in response.text
+            f'href="{reverse(f"accounts:{active_route}")}" aria-current="page"'
+            in section_navigation
         )
         assert ("Открыть админку" in response.text) == user.is_staff
         assert "Выйти" in response.text

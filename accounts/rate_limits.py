@@ -35,7 +35,7 @@ def rate_limit_response(request, action, *, email=None):
             if count > maximum:
                 response = TemplateResponse(
                     request,
-                    "accounts/status.html",
+                    "accounts/auth/status.html",
                     {
                         "title": "Слишком много попыток",
                         "description": "Подождите немного и повторите запрос.",
@@ -47,7 +47,7 @@ def rate_limit_response(request, action, *, email=None):
     except (RedisError, OSError):
         return TemplateResponse(
             request,
-            "accounts/status.html",
+            "accounts/auth/status.html",
             {
                 "title": "Сервис временно недоступен",
                 "description": "Не удалось обработать запрос. Повторите его позже.",

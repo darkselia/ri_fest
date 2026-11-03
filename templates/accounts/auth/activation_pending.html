@@ -1,4 +1,4 @@
-{% extends "accounts/auth_base.html" %}
+{% extends "layouts/auth.html" %}
 
 {% block auth_content %}
 <p class="muted">Аккаунт создан. {% if can_skip %}Для подтверждения email откройте письмо{% else %}Чтобы войти, подтвердите email: откройте письмо{% endif %} для <strong>{{ pending_email }}</strong> и перейдите по ссылке. Ссылка действует 24 часа.</p>

@@ -48,7 +48,7 @@ from .services import (
 
 class AccountLoginView(RateLimitedMixin, LoginView):
     rate_limit_action = "login"
-    template_name = "accounts/login.html"
+    template_name = "accounts/auth/login.html"
     authentication_form = EmailAuthenticationForm
     redirect_authenticated_user = True
 
@@ -66,7 +66,7 @@ class AccountLoginView(RateLimitedMixin, LoginView):
 class RegistrationView(RateLimitedMixin, FormView):
     rate_limit_action = "register"
     form_class = RegistrationForm
-    template_name = "accounts/form.html"
+    template_name = "accounts/auth/form.html"
     extra_context = {
         "title": "Регистрация",
         "description": "Укажите email и придумайте пароль.",
@@ -119,7 +119,7 @@ class RegistrationView(RateLimitedMixin, FormView):
 
 @method_decorator(never_cache, name="dispatch")
 class ActivationPendingView(TemplateView):
-    template_name = "accounts/activation_pending.html"
+    template_name = "accounts/auth/activation_pending.html"
 
     def get(self, request, *args, **kwargs):
         user = User.objects.filter(
@@ -141,7 +141,7 @@ class ActivateEmailView(View):
     def get(self, request, token):
         return TemplateResponse(
             request,
-            "accounts/activate.html",
+            "accounts/auth/activate.html",
             {
                 "title": "Подтверждение email",
                 "valid_link": verification_user(token) is not None,
@@ -153,7 +153,7 @@ class ActivateEmailView(View):
         if user is None:
             return TemplateResponse(
                 request,
-                "accounts/activate.html",
+                "accounts/auth/activate.html",
                 {"title": "Ссылка недействительна", "valid_link": False},
                 status=400,
             )
@@ -190,7 +190,7 @@ def skip_email_verification(request):
 
 
 class ResendActivationView(RateLimitedMixin, FormView):
-    template_name = "accounts/form.html"
+    template_name = "accounts/auth/form.html"
     form_class = EmailForm
     extra_context = {
         "title": "Повторить письмо подтверждения",
@@ -238,7 +238,7 @@ class ResendActivationView(RateLimitedMixin, FormView):
 
 class AccountPasswordResetView(RateLimitedMixin, PasswordResetView):
     form_class = AccountPasswordResetForm
-    template_name = "accounts/form.html"
+    template_name = "accounts/auth/form.html"
     email_template_name = "accounts/emails/password_reset.txt"
     subject_template_name = "accounts/emails/password_reset_subject.txt"
     success_url = reverse_lazy("accounts:password_reset_done")
@@ -248,15 +248,24 @@ class AccountPasswordResetView(RateLimitedMixin, PasswordResetView):
     }
 
 
+@method_decorator(never_cache, name="dispatch")
 class AccountHomeView(LoginRequiredMixin, TemplateView):
-    template_name = "accounts/home.html"
+    template_name = "applications/list.html"
     extra_context = {"account_tab": "applications"}
+
+    def get_context_data(self, **kwargs):
+        from applications.views import dashboard_context
+
+        return {
+            **super().get_context_data(**kwargs),
+            **dashboard_context(self.request.user, self.request.GET),
+        }
 
 
 @method_decorator(never_cache, name="dispatch")
 class ProfileView(LoginRequiredMixin, FormView):
     form_class = ProfileForm
-    template_name = "accounts/settings_form.html"
+    template_name = "accounts/settings/profile.html"
     extra_context = {
         "title": "Личные данные",
         "submit_label": "Сохранить изменения",
@@ -269,6 +278,7 @@ class ProfileView(LoginRequiredMixin, FormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["email_change_form"] = EmailChangeForm(user=self.request.user)
+        context["password_form"] = AccountPasswordChangeForm(user=self.request.user)
         context["email_verification_required"] = settings.EMAIL_VERIFICATION_REQUIRED
         return context
 
@@ -376,7 +386,7 @@ class PendingEmailChangeView(LoginRequiredMixin, View):
 
 @method_decorator(never_cache, name="dispatch")
 class EmailChangeConfirmView(View):
-    template_name = "accounts/email_change_confirm.html"
+    template_name = "accounts/auth/email_change_confirm.html"
 
     def get(self, request, token):
         user = email_change_user(token)
@@ -424,7 +434,7 @@ class EmailChangeConfirmView(View):
 @method_decorator(never_cache, name="dispatch")
 @method_decorator(sensitive_post_parameters("current_password"), name="dispatch")
 class AccountDeletionView(LoginRequiredMixin, FormView):
-    template_name = "accounts/delete.html"
+    template_name = "accounts/settings/delete.html"
     form_class = AccountDeletionForm
     extra_context = {"title": "Удаление аккаунта", "account_tab": "profile"}
 
@@ -457,13 +467,24 @@ class AccountDeletionView(LoginRequiredMixin, FormView):
 
 class AccountPasswordChangeView(PasswordChangeView):
     form_class = AccountPasswordChangeForm
-    template_name = "accounts/settings_form.html"
-    success_url = reverse_lazy("accounts:password_change")
+    template_name = "accounts/settings/profile.html"
+    success_url = reverse_lazy("accounts:profile")
     extra_context = {
         "title": "Изменить пароль",
         "submit_label": "Изменить пароль",
         "account_tab": "password",
     }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["password_form"] = context["form"]
+        context["form"] = ProfileForm(instance=self.request.user)
+        context["email_change_form"] = EmailChangeForm(user=self.request.user)
+        context["email_verification_required"] = settings.EMAIL_VERIFICATION_REQUIRED
+        context["account_tab"] = "profile"
+        context["title"] = "Личные данные"
+        context["submit_label"] = "Сохранить изменения"
+        return context
 
     def form_valid(self, form):
         response = super().form_valid(form)
