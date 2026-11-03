@@ -1,0 +1,52 @@
+.home-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 40px;
+}
+
+.hero-copy h1 {
+    margin-bottom: 28px;
+    font-size: clamp(40px, 4.6vw, 66px);
+    font-weight: 800;
+}
+
+.hero-description {
+    margin-bottom: 10px;
+    font-size: 20px;
+}
+
+.hero-actions {
+    margin-top: 32px;
+}
+
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 9px;
+    border-radius: 50%;
+    background: var(--color-accent);
+}
+
+@media (max-width: 900px) {
+    .home-hero {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 32px;
+    }
+
+    .home-hero .brand-scene {
+        width: min(100%, 340px);
+    }
+
+    .hero-copy h1 {
+        max-width: 650px;
+        font-size: clamp(40px, 7vw, 60px);
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-description {
+        font-size: 18px;
+    }
+}

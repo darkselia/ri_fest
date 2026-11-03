@@ -9,7 +9,7 @@ def test_home_renders_public_placeholder_without_database(client):
 
     assert response.status_code == 200
     assert response.headers["Content-Type"].startswith("text/html")
-    assert {"home.html", "base.html"} <= {
+    assert {"pages/home.html", "layouts/site.html"} <= {
         template.name for template in response.templates
     }
     assert '<html lang="ru">' in response.text

@@ -1,0 +1,263 @@
+/* Общие элементы пользовательских страниц; Unfold использует собственные компоненты. */
+.eyebrow {
+    margin: 0 0 20px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .11em;
+    line-height: 1.5;
+    text-transform: uppercase;
+}
+
+.muted {
+    color: var(--color-muted);
+}
+
+.text-accent {
+    color: var(--color-accent);
+}
+
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid var(--color-ink);
+    border-radius: 7px;
+    background: var(--color-ink);
+    color: var(--color-surface);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 650;
+    line-height: 1.5;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: filter 160ms ease, background-color 160ms ease;
+}
+
+.button:hover {
+    filter: brightness(.96);
+}
+
+.button:active {
+    transform: translateY(1px);
+}
+
+.button-wide {
+    width: 100%;
+}
+
+.button-secondary {
+    background: transparent;
+    color: var(--color-ink);
+    border-color: var(--color-line);
+}
+
+.button-secondary:hover {
+    background: var(--color-paper);
+}
+
+.button-danger, .action-delete {
+    background: var(--color-danger);
+    border-color: var(--color-danger);
+    color: var(--color-white);
+}
+
+.button-danger:hover, .action-delete:hover {
+    background: var(--color-danger-hover);
+    border-color: var(--color-danger-hover);
+}
+
+.action-draft {
+    background: var(--color-action-draft);
+    border-color: var(--color-action-draft);
+    color: var(--color-white);
+}
+
+.action-archive {
+    background: var(--color-action-archive);
+    border-color: var(--color-action-archive);
+    color: var(--color-white);
+}
+
+.account-form {
+    display: grid;
+    gap: 14px;
+}
+
+.account-form > .button {
+    justify-self: start;
+}
+
+.form-field {
+    display: grid;
+    gap: 0;
+    min-width: 0;
+}
+
+.form-field label {
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.form-field :is(input, textarea, select) {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--color-cabinet-input-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.form-field :is(input, textarea, select):focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+}
+
+.form-field :is(input, textarea, select)[aria-invalid=true] {
+    border-color: var(--color-error);
+}
+
+.field-help {
+    color: var(--color-muted);
+    font-size: 13px;
+    margin: 0;
+}
+
+.account-form .field-help {
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.field-help ul, .errorlist {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.form-errors, .field-errors {
+    color: var(--color-error);
+    font-size: 13px;
+}
+
+.form-errors {
+    padding: 14px 16px;
+    border-left: 3px solid var(--color-error);
+    border-radius: 8px;
+    background: var(--color-error-bg);
+}
+
+.site-messages {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.site-message {
+    margin: 0;
+    padding: 10px 16px;
+    border: 1px solid var(--color-line);
+    border-left: 3px solid var(--color-ink);
+    border-radius: 7px;
+    background: var(--color-surface);
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+
+.site-message.error {
+    border-left-color: var(--color-error);
+    color: var(--color-error);
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 36px;
+    color: var(--color-muted);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.back-link:hover {
+    color: var(--color-ink);
+    text-decoration: underline;
+}
+
+.application-badge, .email-status {
+    width: min-content;
+    align-items: center;
+    border-radius: 6px;
+    padding: 4px 9px;
+    background: var(--color-cabinet-draft-bg);
+    color: var(--color-cabinet-draft);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.application-badge--active, .email-status-confirmed {
+    background: var(--color-cabinet-sent-bg);
+    color: var(--color-success);
+}
+
+.application-badge--archive {
+    background: var(--color-cabinet-archive-bg);
+    color: var(--color-action-archive);
+}
+
+.application-badge--withdrawn {
+    background: var(--color-cabinet-withdrawn-bg);
+    color: var(--color-cabinet-withdrawn);
+}
+
+.brand-scene {
+    position: relative;
+    width: min(100%, 440px);
+    aspect-ratio: 1;
+    isolation: isolate;
+}
+
+.brand-scene::before {
+    position: absolute;
+    z-index: -1;
+    inset: 10%;
+    transform: rotate(8deg);
+    border-radius: 32px;
+    background: var(--color-yellow);
+    content: "";
+}
+
+.scene-art {
+    position: absolute;
+    top: 12%;
+    left: 12%;
+    width: 76%;
+    height: auto;
+    transform: rotate(-5deg);
+    border-radius: 24px;
+    box-shadow: var(--shadow-art);
+}
+
+.scene-spark {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 17%;
+    height: auto;
+}
+
+.scene-signal {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 18%;
+    height: auto;
+    transform: rotate(-15deg);
+}

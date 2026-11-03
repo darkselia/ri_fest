@@ -1,31 +1,127 @@
+:root {
+    --admin-tooltip-bg: var(--color-base-900);
+    --admin-tooltip-fg: var(--color-base-50);
+    --admin-focus: var(--color-primary-600);
+    --admin-panel-bg: var(--color-surface);
+    --admin-panel-border: var(--color-base-300);
+    --admin-page-bg: var(--color-paper);
+    --admin-panel-muted: var(--color-base-50);
+    --admin-subtle-text: var(--color-base-600);
+}
+
+/* Оттенки и нейтральные цвета Unfold; применяются только к его страницам. */
+html:root:has(#page) {
+    --color-white: var(--color-surface);
+    --color-primary-50: color-mix(in srgb, var(--color-accent) 5%, white);
+    --color-primary-100: color-mix(in srgb, var(--color-accent) 12%, white);
+    --color-primary-200: color-mix(in srgb, var(--color-accent) 25%, white);
+    --color-primary-300: color-mix(in srgb, var(--color-accent) 40%, white);
+    --color-primary-400: color-mix(in srgb, var(--color-accent) 60%, white);
+    --color-primary-500: color-mix(in srgb, var(--color-accent) 80%, white);
+    --color-primary-600: var(--color-accent);
+    --color-primary-700: var(--color-red-hover);
+    --color-primary-800: color-mix(in srgb, var(--color-accent), black 30%);
+    --color-primary-900: color-mix(in srgb, var(--color-accent), black 45%);
+    --color-primary-950: color-mix(in srgb, var(--color-accent), black 65%);
+    --color-base-50: #f9f7f0;
+    --color-base-100: var(--color-paper);
+    --color-base-200: #e2ddd0;
+    --color-base-300: var(--color-line);
+    --color-base-400: #a49d8f;
+    --color-base-500: #817a6d;
+    --color-base-600: var(--color-muted);
+    --color-base-700: #4d4942;
+    --color-base-800: #302d29;
+    --color-base-900: var(--color-ink);
+    --color-base-950: #151411;
+}
+
+html.dark:has(#page) {
+    --admin-tooltip-bg: var(--color-base-100);
+    --admin-tooltip-fg: var(--color-base-900);
+    --admin-focus: var(--color-primary-400);
+    --admin-subtle-text: #c7bfb0;
+    --admin-panel-bg: var(--color-base-900);
+    --admin-panel-border: var(--color-base-700);
+    --admin-page-bg: var(--color-base-950);
+    --admin-panel-muted: var(--color-base-900);
+}
+
 /* Переведённые подписи шире исходных английских: каждой нужен свой ряд. */
 div:has(> a[x-on\:click^="switchTheme"]) {
     display: grid;
     grid-template-columns: 1fr;
     gap: 2px;
 }
+
 div:has(> a[x-on\:click^="switchTheme"]) > a {
     margin: 0;
     min-width: 0;
     justify-content: flex-start;
 }
+
 div:has(> a[x-on\:click^="switchTheme"]) > a > span:last-child {
     display: block;
 }
 
-html.dark .text-subtle { color: var(--admin-subtle-text); }
+html.dark .text-subtle {
+    color: var(--admin-subtle-text);
+}
 
-#main { background-color: var(--admin-page-bg); }
+#main {
+    background-color: var(--admin-page-bg);
+}
+
 .admin-panel, fieldset.module {
     background-color: var(--admin-panel-bg);
     border: 1px solid var(--admin-panel-border);
     border-radius: 8px;
 }
-.admin-panel--muted { background-color: var(--admin-panel-muted); }
-.admin-border { border: 1px solid var(--admin-panel-border); }
+
+.admin-panel--muted {
+    background-color: var(--admin-panel-muted);
+}
+
+.admin-border {
+    border: 1px solid var(--admin-panel-border);
+}
 
 .publish-control {
     position: relative;
+}
+
+.festival-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid currentColor;
+    color: var(--color-white);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.festival-action.action-archive {
+    background: var(--color-action-archive);
+}
+
+.festival-action.action-draft {
+    background: var(--color-action-draft);
+}
+
+.festival-action.action-delete {
+    background: var(--color-action-delete);
+}
+
+.dark .festival-action {
+    border-color: var(--color-base-500);
+    color: var(--color-base-100);
+}
+
+.publish-control > button:not(:disabled) {
+    cursor: pointer;
+    opacity: 1;
 }
 
 .publish-control > button:disabled {
@@ -81,4 +177,5 @@ html.dark .text-subtle { color: var(--admin-subtle-text); }
         width: 100%;
         order: -1;
     }
+
 }

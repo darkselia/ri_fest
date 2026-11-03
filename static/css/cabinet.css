@@ -1,0 +1,312 @@
+.account-shell {
+    font-family: "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: auto;
+}
+
+.account-shell .site-main {
+    align-items: start;
+    padding-block: 32px 60px;
+}
+
+.account-shell .site-main > .container {
+    width: min(100%, 1200px);
+    padding-inline: 24px;
+}
+
+.account-shell h2 {
+    font-size: 21px;
+    line-height: 1.5;
+    letter-spacing: normal;
+    margin: 0 0 12px;
+}
+
+.account-shell h3 {
+    font-size: 16px;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.account-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 24px;
+    margin-bottom: 22px;
+}
+
+.account-heading-copy {
+    min-width: 0;
+    flex: 1;
+}
+
+.account-shell .account-kicker {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin: 0 0 7px;
+}
+
+.account-heading h1 {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.5;
+    letter-spacing: -.8px;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.account-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.account-tools:empty {
+    display: none;
+}
+
+.account-navigation {
+    display: flex;
+    gap: 5px;
+    border-bottom: 1px solid var(--color-line);
+    margin: 0;
+    padding: 0;
+}
+
+.account-navigation a {
+    padding: 12px 22px;
+    border: 1px solid transparent;
+    color: var(--color-muted);
+    font-weight: 650;
+    text-decoration: none;
+}
+
+.account-navigation a[aria-current=page] {
+    background: var(--color-surface);
+    color: var(--color-ink);
+    border-color: var(--color-line);
+    border-bottom-color: var(--color-surface);
+    border-radius: 10px 10px 0 0;
+    margin-bottom: -1px;
+}
+
+.account-workspace {
+    min-width: 0;
+    border: 1px solid var(--color-line);
+    border-top: 0;
+    border-radius: 0 0 12px 12px;
+    background: var(--color-surface);
+}
+
+.account-surface {
+    padding: 24px 30px;
+}
+
+.account-form-column {
+    min-width: 0;
+}
+
+.account-editor-profile {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+}
+
+.account-editor-profile > :is(.account-form-column, .account-email, .account-password, .account-delete-zone) {
+    min-width: 0;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--color-line);
+    overflow-wrap: anywhere;
+}
+
+.account-editor-profile h2 {
+    font-size: 16px;
+    margin: 0;
+}
+
+.account-editor-profile > .account-form-column .account-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.account-editor-profile > .account-form-column .account-form > :is(.button, .form-errors) {
+    grid-column: 1 / -1;
+}
+
+.account-email-identity {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-block: 6px 16px;
+}
+
+.account-shell .account-email-identity > p {
+    margin: 0;
+}
+
+.account-email-address {
+    font-size: 15px;
+    font-weight: 400;
+}
+
+.email-change-pending {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-line);
+}
+
+.email-change-actions, .account-delete-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.email-change-form {
+    margin-top: 16px;
+}
+
+.account-editor-profile summary {
+    width: fit-content;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 6px 8px;
+    margin-left: -8px;
+    border-radius: 6px;
+    color: var(--color-ink);
+    font-size: 15px;
+    font-weight: 600;
+    list-style: none;
+    cursor: pointer;
+}
+
+.account-editor-profile summary::-webkit-details-marker {
+    display: none;
+}
+
+.account-editor-profile summary:focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 3px;
+}
+
+.account-editor-profile details[open] summary {
+    margin-bottom: 0;
+}
+
+.account-editor-profile > .account-delete-zone {
+    border-bottom-color: var(--color-cabinet-danger-line);
+}
+
+.account-delete-zone h2 {
+    color: var(--color-danger);
+}
+
+.account-delete-zone .button-secondary {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+.account-empty {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding-block: 16px;
+}
+
+.account-empty img {
+    width: 64px;
+    height: auto;
+    transform: rotate(-8deg);
+}
+
+.account-empty h3 {
+    margin-bottom: 8px;
+}
+
+.account-shell .account-empty p {
+    margin: 0;
+}
+
+@media (max-width: 650px) {
+    .account-shell .site-main {
+        padding-top: 24px;
+    }
+
+    .account-shell .site-main > .container {
+        padding-inline: 12px;
+    }
+
+    .account-heading h1 {
+        font-size: 23px;
+    }
+
+    .account-navigation {
+        flex-wrap: wrap;
+    }
+
+    .account-navigation a {
+        padding: 10px 12px;
+    }
+
+    .account-surface {
+        padding: 18px 15px;
+    }
+
+    .account-editor-profile > .account-form-column .account-form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .account-empty {
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .account-empty img {
+        width: 44px;
+    }
+
+    .account-delete-actions, .email-change-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .account-delete-actions > *, .email-change-actions .button, .account-editor-profile .account-form > .button {
+        width: 100%;
+        justify-self: stretch;
+    }
+}
+
+/* Интервал задаёт следующий блок, поэтому отступы не складываются. */
+.account-editor-profile p {
+    margin: 6px 0 12px;
+}
+
+.account-editor-profile .account-form {
+    gap: 12px 14px;
+    margin-top: 12px;
+}
+
+.account-description {
+    margin-bottom: 16px;
+}
+
+.account-editor-profile summary::after {
+    content: "▶";
+    font-size: 12px;
+    line-height: 1;
+    transition: transform 160ms ease;
+}
+
+.account-editor-profile summary:hover {
+    background: var(--color-paper);
+}
+
+.account-editor-profile details[open] summary::after {
+    transform: rotate(90deg);
+}
