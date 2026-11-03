@@ -91,7 +91,12 @@ def publication_errors(festival, *, at=None, schema=None):
 
 
 def _candidate(festival, changes):
-    if set(changes) - {*EDITABLE_FIELDS, "_schema", "_schema_revision"}:
+    if set(changes) - {
+        *EDITABLE_FIELDS,
+        "_schema",
+        "_schema_revision",
+        "_schema_hiding",
+    }:
         raise ValidationError("Переданы недоступные для редактирования поля.")
     candidate = copy(festival)
     for field, value in changes.items():
@@ -110,6 +115,7 @@ def _schema_update(festival, changes, actor):
         prepare_schema,
         readiness,
         schema_revision,
+        validate_hiding,
     )
     from applications.services import require_schema_permission
 
@@ -120,6 +126,7 @@ def _schema_update(festival, changes, actor):
         )
     prepared, rows = prepare_schema(festival, changes["_schema"])
     check_schema_permissions(festival, prepared, actor)
+    validate_hiding(festival, prepared, changes.get("_schema_hiding", {}))
     if festival.status != Festival.Status.DRAFT:
         if readiness(export_schema(festival)) and rows != export_schema(festival):
             raise PermissionDenied(
@@ -142,7 +149,8 @@ def _return_to_drafts(applications, at):
         application.pk
         for application in applications
         if application.owner_id is not None
-        and application.status != Application.Status.DRAFT
+        and application.status
+        in (Application.Status.ACTIVE, Application.Status.ARCHIVED)
     ]
     if ids:
         Application.objects.filter(pk__in=ids).update(
@@ -151,11 +159,24 @@ def _return_to_drafts(applications, at):
     return len(ids)
 
 
+def _archive_applications(applications, at):
+    ids = [
+        item.pk
+        for item in applications
+        if item.owner_id is not None and item.status == Application.Status.ACTIVE
+    ]
+    if ids:
+        Application.objects.filter(pk__in=ids).update(
+            status=Application.Status.ARCHIVED, updated_at=at
+        )
+    return len(ids)
+
+
 def synchronize_locked_festival(festival, *, at):
     """Caller holds the parent lock; account deletion uses this same transition."""
     status = get_effective_status(festival, at=at)
     if status == Festival.Status.ARCHIVED:
-        _return_to_drafts(_applications(festival), at)
+        _archive_applications(_applications(festival), at)
     changed = festival.status != status
     if changed:
         festival.status = status
@@ -227,7 +248,13 @@ def festival_action_preview(festival_id, *, actor, action, changes=None, at=None
         return {
             "festival": festival,
             "application_count": sum(
-                item.owner_id is not None and item.status != Application.Status.DRAFT
+                item.owner_id is not None
+                and (
+                    item.status == Application.Status.ACTIVE
+                    if action in ("archive", "save")
+                    else item.status
+                    in (Application.Status.ACTIVE, Application.Status.ARCHIVED)
+                )
                 for item in applications
             ),
             "total_application_count": len(applications),
@@ -293,7 +320,7 @@ def save_festival(festival_id, *, actor, changes, at=None, confirmation=None):
                 _check_confirmation(
                     confirmation, festival, applications, actor, "save", changes, now
                 )
-                _return_to_drafts(applications, now)
+                _archive_applications(applications, now)
         if prepared_schema is not None:
             from applications.schema import write_schema
 
@@ -342,7 +369,10 @@ def _confirmed_action(festival_id, *, actor, action, confirmation, at):
             FormField.objects.filter(festival=festival).delete()
             festival.delete()
         else:
-            _return_to_drafts(applications, now)
+            if action == "archive":
+                _archive_applications(applications, now)
+            else:
+                _return_to_drafts(applications, now)
             target = (
                 Festival.Status.DRAFT
                 if action == "unpublish"

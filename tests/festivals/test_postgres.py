@@ -128,7 +128,11 @@ def test_competing_confirmed_transitions_reject_stale_snapshot(django_user_model
             ]
         )
     ) == ["ok", "rejected"]
-    assert Application.objects.get().status == "draft"
+    assert Application.objects.get().status == (
+        "archived"
+        if Festival.objects.get(pk=festival.pk).status == "archived"
+        else "draft"
+    )
 
 
 def test_archive_return_and_other_publication_are_independent(django_user_model):
@@ -244,7 +248,7 @@ def test_sync_rechecks_time_and_missing_row_after_wait(
     if change == "clock":
         assert Festival.objects.get(pk=festival.pk).status == "archived"
         record.refresh_from_db()
-        assert record.status == "draft"
+        assert record.status == "archived"
     else:
         assert not Festival.objects.filter(pk=festival.pk).exists()
 

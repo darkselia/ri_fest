@@ -46,15 +46,19 @@ def test_confirmed_transition_returns_owned_applications_only(
     )
     before = list(Application.objects.order_by("pk").values())
     preview = festival_action_preview(draft.pk, actor=organizer, action=action)
-    assert preview["application_count"] == 2
+    assert preview["application_count"] == 1
     assert preview["total_application_count"] == 4
     assert list(Application.objects.order_by("pk").values()) == before
     operation = unpublish_festival if action == "unpublish" else archive_festival
     operation(draft.pk, actor=organizer, confirmation=preview["confirmation"])
     for record in records:
         record.refresh_from_db()
-        assert record.status == "draft"
         original = next(item for item in before if item["id"] == record.pk)
+        assert record.status == (
+            ("archived" if action == "archive" else "draft")
+            if original["status"] == "active"
+            else original["status"]
+        )
         assert record.created_at == original["created_at"]
         assert record.owner_id == owner.pk
     anonymous.refresh_from_db()

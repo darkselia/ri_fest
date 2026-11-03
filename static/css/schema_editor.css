@@ -1,4 +1,4 @@
-.schema-toolbar, .schema-card-head, .schema-option, .schema-flags {
+.schema-card-head, .schema-flags {
     display: flex;
     flex-wrap: wrap;
     align-items: end;
@@ -57,15 +57,91 @@
     width: 100%;
 }
 
-.schema-source-label {
-    font-weight: 600;
-}
-
 .schema-card {
     position: relative;
     margin-top: 16px;
     padding: 20px;
     border-left: 3px solid var(--color-primary-600);
+}
+
+.schema-is-hidden {
+    border-style: dashed;
+}
+
+.schema-option.schema-is-hidden {
+    border: 1px dashed var(--admin-panel-border);
+}
+
+.schema-option.schema-is-hidden > .schema-control:first-of-type input {
+    text-decoration: line-through;
+}
+
+.schema-card.schema-is-hidden > .schema-card-head .schema-control,
+.schema-card.schema-is-hidden > .schema-control,
+.schema-card.schema-is-hidden > .schema-options .schema-control {
+    opacity: .6;
+    filter: blur(.6px);
+}
+
+.schema-card.schema-is-hidden .schema-control:focus-within {
+    opacity: 1;
+    filter: none;
+}
+
+.schema-option .schema-hidden-note {
+    border: 1px solid var(--admin-panel-border);
+    border-radius: 15px;
+    padding: 2px 8px;
+}
+
+.schema-options > button {
+    margin: 12px 8px 0 0;
+}
+
+.schema-preview-dialog {
+    width: min(920px, calc(100vw - 24px));
+    height: min(900px, calc(100dvh - 24px));
+    padding: 0;
+    border: 1px solid var(--admin-panel-border);
+    border-radius: 12px;
+    background: var(--admin-panel-bg);
+    color: var(--color-base-900);
+}
+
+.dark .schema-preview-dialog {
+    color: var(--color-base-100);
+}
+
+.schema-preview-dialog::backdrop {
+    background: color-mix(in srgb, var(--color-ink) 65%, transparent);
+}
+
+.schema-preview-dialog[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+.schema-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--admin-panel-border);
+}
+
+.schema-preview-header button {
+    padding: 6px 10px;
+    border: 1px solid var(--admin-panel-border);
+    border-radius: 6px;
+}
+
+.schema-preview-dialog iframe {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    background: var(--color-surface);
 }
 
 .schema-card::before {
@@ -81,7 +157,7 @@
 }
 
 .schema-card--info::before {
-    content: "Текстовый блок " attr(data-number);
+    content: "Текстовый блок";
 }
 
 .schema-card--info {
@@ -122,11 +198,49 @@
 }
 
 .schema-option {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 32px minmax(140px, 1fr) 150px minmax(90px, 140px) auto;
+    align-items: end;
     margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--admin-panel-border);
+    border-radius: 8px;
+    background: var(--admin-panel-bg);
+    position: relative;
 }
 
-.schema-option > .schema-control {
-    flex: 1 1 190px;
+.schema-option--choice { grid-template-columns: 32px minmax(140px, 1fr) auto; }
+.schema-option--refusal { grid-template-columns: minmax(140px, 1fr) auto; }
+.schema-option--refusal .schema-refusal-note { grid-column: 1; grid-row: 2; }
+.schema-option > .schema-hidden-note { grid-column: 1 / -1; justify-self: start; }
+.schema-option [data-control=service_date] { width: 150px; }
+.schema-option input { width: 100%; min-width: 0; }
+.schema-option-actions { display: flex; gap: 4px; position: relative; grid-column: -2 / -1; grid-row: 1; }
+.schema-card-tools { position: relative; }
+.schema-confirm { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: min(340px, 80vw); padding: 16px; box-shadow: var(--shadow-panel); color: var(--color-base-900); }
+.dark .schema-confirm { color: var(--color-base-100); }
+.schema-confirm p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; }
+.schema-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.schema-confirm-actions button { white-space: normal; }
+#schema-editor > div:last-child { padding-bottom: 16px; }
+[data-add-field] { margin-top: 16px; margin-bottom: 4px; }
+
+@media (max-width: 999px) {
+    .schema-option { grid-template-columns: 32px minmax(0, 1fr) minmax(90px, 1fr); }
+    .schema-option > [data-control=label] { grid-column: 2 / -1; }
+    .schema-option > [data-control=service_date] { grid-column: 2; width: min(150px, 100%); }
+    .schema-option > [data-control=price] { grid-column: 3; }
+    .schema-option-actions { grid-column: 1 / -1; grid-row: auto; justify-content: flex-end; flex-wrap: wrap; }
+    .schema-option--refusal > [data-control=label], .schema-option--refusal .schema-refusal-note { grid-column: 1 / -1; }
+    .schema-confirm { position: static; width: 100%; flex-basis: 100%; margin-top: 8px; }
+    .schema-card-tools { flex-wrap: wrap; }
+    [aria-label="Сохранение фестиваля"] { padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); gap: 12px; }
+}
+
+@media (max-width: 480px) {
+    .schema-option { grid-template-columns: 28px minmax(0, 1fr); }
+    .schema-option > [data-control=service_date], .schema-option > [data-control=price] { grid-column: 2; }
 }
 
 .schema-card-head .schema-control > div,
@@ -176,10 +290,6 @@
     border-top: 1px solid var(--admin-panel-border);
 }
 
-.schema-options > button {
-    margin-top: 12px;
-}
-
 .schema-preview-field {
     margin: 16px 0;
 }
@@ -216,15 +326,15 @@
         flex-basis: 100%;
     }
 
-    .schema-option > .schema-control {
-        flex-basis: 100%;
-    }
-
     .schema-card-tools {
         margin-left: auto;
     }
 
     .schema-toolbar-section > label {
         width: 100%;
+    }
+
+    .schema-card > .schema-control textarea{
+        min-height: 60px;
     }
 }

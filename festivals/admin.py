@@ -6,6 +6,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import Case, F, IntegerField, Value, When
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
@@ -23,11 +24,13 @@ from applications.schema import (
     calculate_rows,
     copied_schema,
     export_schema,
+    hiding_state,
     prepare_schema,
     readiness,
     schema_revision,
 )
 from applications.services import require_schema_permission, schema_errors
+
 from .models import Festival
 from .services import (
     EDITABLE_FIELDS,
@@ -67,6 +70,7 @@ def timezone_choices(current):
 class FestivalForm(forms.ModelForm):
     schema = forms.JSONField(required=False, widget=forms.HiddenInput)
     schema_revision = forms.CharField(required=False, widget=forms.HiddenInput)
+    schema_hiding = forms.JSONField(required=False, widget=forms.HiddenInput)
     timezone = forms.ChoiceField(
         label="Часовой пояс",
         help_text="Выберите часовой пояс. По умолчанию — Красноярск (UTC+07:00).",
@@ -84,6 +88,7 @@ class FestivalForm(forms.ModelForm):
         self.initial.setdefault("timezone", self.instance.timezone)
         self.initial.setdefault("schema", export_schema(self.instance))
         self.initial.setdefault("schema_revision", schema_revision(self.instance))
+        self.initial.setdefault("schema_hiding", hiding_state(self.instance))
         for name in ("start_date", "end_date"):
             if name in self.fields:
                 self.fields[name].label += " *"
@@ -102,6 +107,8 @@ class FestivalForm(forms.ModelForm):
                 )
             except ValidationError as error:
                 self.add_error("schema", ValidationError(error.messages))
+                self.data = self.data.copy()
+                self.data["schema_hiding"] = json.dumps(hiding_state(self.instance))
         return data
 
     def festival_changes(self):
@@ -114,6 +121,7 @@ class FestivalForm(forms.ModelForm):
             changes.update(
                 _schema=self.cleaned_data["schema"],
                 _schema_revision=self.cleaned_data.get("schema_revision", ""),
+                _schema_hiding=self.cleaned_data.get("schema_hiding") or {},
             )
         return changes
 
@@ -136,6 +144,20 @@ class FestivalAdmin(ModelAdmin):
     search_fields = ("name", "theme")
     list_filter = ("status",)
     ordering = ("start_date",)
+
+    def get_ordering(self, request):
+        return (
+            Case(
+                When(status="open", then=Value(0)),
+                When(status="running", then=Value(1)),
+                When(status="draft", then=Value(2)),
+                default=Value(3),
+                output_field=IntegerField(),
+            ),
+            F("start_date").asc(nulls_last=True),
+            "pk",
+        )
+
     sortable_by = ("name", "start_date", "end_date", "status")
     list_filter_sheet = False
     search_help_text = "Поиск по названию и теме"
@@ -194,7 +216,7 @@ class FestivalAdmin(ModelAdmin):
         )
 
     def festival_changeform_view(
-            self, request, object_id=None, form_url="", extra_context=None
+        self, request, object_id=None, form_url="", extra_context=None
     ):
         if request.method == "POST" and object_id is not None:
             festival = get_object_or_404(Festival, pk=object_id)
@@ -255,7 +277,7 @@ class FestivalAdmin(ModelAdmin):
         return redirect("admin:festivals_festival_change", saved.pk)
 
     def render_change_form(
-            self, request, context, add=False, change=False, form_url="", obj=None
+        self, request, context, add=False, change=False, form_url="", obj=None
     ):
         persisted = (
             Festival.objects.filter(pk=obj.pk).first() if obj and obj.pk else None
@@ -263,27 +285,27 @@ class FestivalAdmin(ModelAdmin):
         status = get_effective_status(persisted) if persisted else None
         context["festival_is_draft"] = add or status == Festival.Status.DRAFT
         context["can_publish_festival"] = (
-                context["festival_is_draft"]
-                and (
-                    self.has_add_permission(request)
-                    if add
-                    else self.has_change_permission(request, obj)
-                )
-                and self.has_publish_permission(request)
+            context["festival_is_draft"]
+            and (
+                self.has_add_permission(request)
+                if add
+                else self.has_change_permission(request, obj)
+            )
+            and self.has_publish_permission(request)
         )
         context["can_unpublish_festival"] = (
-                obj is not None
-                and status != Festival.Status.DRAFT
-                and self.has_publish_permission(request)
-                and (
-                        status != Festival.Status.ARCHIVED
-                        or self.has_restore_permission(request)
-                )
+            obj is not None
+            and status != Festival.Status.DRAFT
+            and self.has_publish_permission(request)
+            and (
+                status != Festival.Status.ARCHIVED
+                or self.has_restore_permission(request)
+            )
         )
         context["can_archive_festival"] = (
-                obj is not None
-                and status in (Festival.Status.OPEN, Festival.Status.RUNNING)
-                and self.has_change_permission(request, obj)
+            obj is not None
+            and status in (Festival.Status.OPEN, Festival.Status.RUNNING)
+            and self.has_change_permission(request, obj)
         )
         context["can_delete_festival"] = obj is not None and request.user.has_perm(
             "festivals.delete_festival"
@@ -319,13 +341,13 @@ class FestivalAdmin(ModelAdmin):
             for model in ("formfield", "formoption", "serviceoption")
         )
         context["schema_editable"] = (
-                context["can_view_schema"]
-                and status != Festival.Status.ARCHIVED
-                and (
-                    self.has_change_permission(request, obj)
-                    if obj
-                    else self.has_add_permission(request)
-                )
+            context["can_view_schema"]
+            and status != Festival.Status.ARCHIVED
+            and (
+                self.has_change_permission(request, obj)
+                if obj
+                else self.has_add_permission(request)
+            )
         )
         context["schema_types"] = list(FormField.Type.choices)
         context["schema_sources"] = (
@@ -416,7 +438,7 @@ class FestivalAdmin(ModelAdmin):
                 raise ValueError
             festival_id = data.get("festival_id")
             if festival_id is not None and (
-                    type(festival_id) is not int or festival_id <= 0
+                type(festival_id) is not int or festival_id <= 0
             ):
                 raise ValueError
         except (ValueError, TypeError):
@@ -484,7 +506,7 @@ class FestivalAdmin(ModelAdmin):
                     raise PermissionDenied
                 festival = Festival()
             _, rows = prepare_schema(festival, data.get("schema"))
-            form = TemplatePreviewForm(rows, data=data.get("answers"))
+            form = TemplatePreviewForm(rows, data=data.get("answers"), public=True)
             totals = None
             if form.is_bound and form.is_valid():
                 totals = calculate_rows(
@@ -516,7 +538,7 @@ class FestivalAdmin(ModelAdmin):
             )
 
     def confirmation_response(
-            self, request, object_id, action, *, changes=None, error=None
+        self, request, object_id, action, *, changes=None, error=None
     ):
         try:
             preview = festival_action_preview(
@@ -544,19 +566,16 @@ class FestivalAdmin(ModelAdmin):
             "delete": "Удалить фестиваль",
         }[action]
         if action == "delete":
-            description = (
-                "Будут навсегда удалены фестиваль и все его анкеты. Восстановление невозможно. "
-            )
+            description = f"Фестиваль «{preview['festival'].name}» и все его анкеты будут удалены вместе с ответами, выбранными услугами и настройками формы. Всего анкет: {preview['total_application_count']}. Аккаунты пользователей сохранятся."
         elif action == "unpublish":
             description = (
-                "Регистрация закроется. Отправленные анкеты пользователей станут черновиками "
-                "и окажутся в разделе «Черновики». После открытия "
-                "приёма их можно будет отправить заново."
+                f"Приём заявок закроется. Активные и архивные анкеты владельцев станут личными черновиками: {preview['application_count']}. "
+                "После повторной публикации владельцы смогут отправить их заново; отозванные анкеты останутся в архиве."
             )
         else:
             description = (
-                "Отправленные анкеты пользователей переместятся в раздел «Архив». "
-                "Для редактирования фестиваля необходимо будет вернуть его в черновик."
+                f"Активные анкеты будут перенесены в архив: {preview['application_count']}. "
+                "Отозванные останутся в архиве, личные черновики сохранятся у владельцев."
             )
         return TemplateResponse(
             request,
@@ -566,6 +585,7 @@ class FestivalAdmin(ModelAdmin):
                 "title": title,
                 "description": description,
                 "confirm_label": title,
+                "count_in_description": True,
                 "confirm_variant": action,
                 "danger": action == "delete",
                 "opts": self.model._meta,

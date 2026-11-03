@@ -5,11 +5,7 @@
     <span hidden data-publication-url="{{ publication_readiness_url }}"
           data-festival-id="{{ original.pk|default:'0' }}"></span>
     <div class="mb-4 leading-relaxed text-subtle">
-        <p>После публикации открывается приём заявок. В дату начала статус автоматически меняется на «Проходит», а после
-            окончания фестиваль переносится в архив.</p>
-        <p class="mt-2">Если вы вручную отправите фестиваль в архив или вернёте его в черновик, отправленные анкеты
-            станут черновиками пользователей. Перед действием вы увидите количество таких анкет для подтверждения
-            изменения.</p>
+        <p>Публикация открывает приём заявок до начала фестиваля. В дату начала фестиваль переходит в состояние «Проходит», после окончания — в архив. Даты учитываются по часовому поясу фестиваля.</p>
     </div>
 {% endblock %}
 {% block after_field_sets %}
@@ -21,7 +17,8 @@
                  data-readiness-url="{{ publication_readiness_url }}" {% if schema_input.errors %}open{% endif %}>
             <summary class="cursor-pointer font-semibold p-4">Шаблон анкеты <span data-schema-count></span></summary>
             <div class="p-4">
-                {{ schema_input }}{{ schema_revision_input }}
+                <p class="mb-4 text-subtle">Изменения вопросов и вариантов применяются после сохранения фестиваля. Предпросмотр показывает текущий шаблон, включая несохранённые изменения.</p>
+                {{ schema_input }}{{ schema_revision_input }}{{ adminform.form.schema_hiding }}
                 {{ schema_types|json_script:"schema-types" }}
                 {% for widget in schema_widgets %}
                     <template data-editor-control="{{ widget.name }}">{{ widget }}</template>{% endfor %}
@@ -60,7 +57,11 @@
                         архиве.</p>{% elif not schema_editable %}
                     <p>Шаблон доступен только для просмотра.</p>{% endif %}
                 <p data-schema-message role="status" aria-live="polite"></p>
-                <section id="schema-preview" data-schema-preview class="mb-4" aria-label="Предпросмотр анкеты" aria-live="polite" hidden></section>
+                <dialog id="schema-preview-dialog" class="schema-preview-dialog" aria-label="Предпросмотр анкеты">
+                    <div class="schema-preview-header"><strong>Предпросмотр анкеты</strong><button type="button" data-close-preview aria-label="Закрыть предпросмотр">Закрыть ×</button></div>
+                    <iframe title="Анкета участника" data-preview-frame></iframe>
+                </dialog>
+                <section data-schema-preview hidden></section>
                 <div data-schema-fields {% if schema_editable %}x-sort="window.riSchemaSort($item, $position)"
                      x-sort:config="{handle: '[data-drag-handle]', animation: 150}"{% endif %}></div>
                 {% if schema_editable %}
@@ -79,7 +80,7 @@
     {% endif %}
     {% if can_unpublish_festival %}
         {% url 'admin:festivals_festival_unpublish' original.pk as draft_url %}
-        {% include "unfold/helpers/tab_action.html" with title="В черновик" link=draft_url icon="edit" %}
+        {% include "unfold/helpers/tab_action.html" with title="В черновик" link=draft_url icon="edit_note" %}
     {% endif %}
     {% if can_delete_festival %}
         {% url 'admin:festivals_festival_delete_permanently' original.pk as delete_url %}
