@@ -121,22 +121,49 @@ def test_whole_festival_creation_with_services_and_same_page_preview(client, act
     row = element(
         "service",
         "Проживание",
-        services=[service("Ночь", "2070.00"), service("Бесплатно", "0")],
+        services=[
+            service(f"Ночь {day}→{day + 1}", "2070.10", service_date=f"2030-01-{day}")
+            for day in (28, 29, 30)
+        ]
+        + [service("Бесплатно", "0")],
+    )
+    meals = element(
+        "service",
+        "Питание",
+        services=[
+            service("Завтрак, 09:00", "250.20", service_date="2030-01-29"),
+            service("Ужин, 19:00", "400.30", service_date="2030-01-30"),
+        ],
     )
     data = {
         "name": "Новый",
         "start_date": "2030-01-28",
         "end_date": "2030-01-31",
         "timezone": "Asia/Krasnoyarsk",
-        "schema": json.dumps([element(), row]),
+        "schema": json.dumps([element(), row, meals]),
         "schema_revision": schema_revision(Festival()),
         "_publish": "1",
     }
     response = client.post(add, data)
     assert response.status_code == 302
     festival = Festival.objects.get()
-    assert festival.status == "open" and festival.form_fields.count() == 2
-    assert ServiceOption.objects.count() == 2
+    assert festival.status == "open" and festival.form_fields.count() == 3
+    saved = export_schema(festival)
+    assert [option["service_date"] for option in saved[1]["services"]] == [
+        "2030-01-28",
+        "2030-01-29",
+        "2030-01-30",
+        None,
+    ]
+    assert [Decimal(option["price"]) for option in saved[2]["services"]] == [
+        Decimal("250.20"),
+        Decimal("400.30"),
+    ]
+    reopened = client.get(
+        reverse("admin:festivals_festival_change", args=[festival.pk])
+    )
+    assert reopened.status_code == 200
+    assert json.loads(reopened.context["adminform"].form["schema"].value()) == saved
     before = Application.objects.count()
     preview = client.post(
         reverse("admin:festivals_schema_preview"),
@@ -150,7 +177,7 @@ def test_whole_festival_creation_with_services_and_same_page_preview(client, act
         ),
         content_type="application/json",
     )
-    assert preview.status_code == 200 and "2070.00" in preview.json()["html"]
+    assert preview.status_code == 200 and "2070.10" in preview.json()["html"]
     assert Application.objects.count() == before
 
 

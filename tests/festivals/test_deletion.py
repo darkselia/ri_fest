@@ -4,7 +4,12 @@ import pytest
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models.deletion import ProtectedError
 
-from applications.models import Application
+from applications.models import (
+    Application,
+    ApplicationServiceSelection,
+    FormField,
+    ServiceOption,
+)
 from festivals.models import Festival
 from festivals.services import (
     FestivalActionConflict,
@@ -80,6 +85,24 @@ def test_permanent_delete_preserves_users_and_other_festivals(
     other = Festival.objects.create(name="Другой фестиваль")
     own = Application.objects.create(owner=owner, festival=draft)
     preserved = Application.objects.create(owner=owner, festival=other)
+    removed_field = FormField.objects.create(
+        festival=draft, field_type="service", label="Проживание"
+    )
+    kept_field = FormField.objects.create(
+        festival=other, field_type="service", label="Проживание"
+    )
+    removed_option = ServiceOption.objects.create(
+        field=removed_field, label="Ночь", price="100.10"
+    )
+    kept_option = ServiceOption.objects.create(
+        field=kept_field, label="Ночь", price="100.10"
+    )
+    removed_selection = ApplicationServiceSelection.objects.create(
+        application=own, option=removed_option
+    )
+    kept_selection = ApplicationServiceSelection.objects.create(
+        application=preserved, option=kept_option
+    )
     with pytest.raises(ProtectedError):
         draft.delete()
     preview = festival_action_preview(draft.pk, actor=organizer, action="delete")
@@ -89,6 +112,16 @@ def test_permanent_delete_preserves_users_and_other_festivals(
     delete_festival(original_pk, actor=organizer, confirmation=preview["confirmation"])
     assert not Festival.objects.filter(pk=original_pk).exists()
     assert not Application.objects.filter(pk=own.pk).exists()
+    assert not ApplicationServiceSelection.objects.filter(
+        pk=removed_selection.pk
+    ).exists()
+    assert not ServiceOption.objects.filter(pk=removed_option.pk).exists()
+    assert not FormField.objects.filter(pk=removed_field.pk).exists()
+    assert ApplicationServiceSelection.objects.filter(
+        pk=kept_selection.pk, option=kept_option, application=preserved
+    ).exists()
+    assert ServiceOption.objects.filter(pk=kept_option.pk, field=kept_field).exists()
+    assert FormField.objects.filter(pk=kept_field.pk, festival=other).exists()
     assert Application.objects.filter(pk=preserved.pk, owner=owner).exists()
     assert django_user_model.objects.filter(pk=owner.pk).exists()
 
