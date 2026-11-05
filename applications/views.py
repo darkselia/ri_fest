@@ -53,7 +53,9 @@ def application_context(application):
         else "Фестиваль завершился, анкета перенесена в архив. Здесь сохранены ваши ответы и выбранные услуги.",
     }.get(state, "")
     if status == Application.Status.WITHDRAWN:
-        reason = "Участие по этой анкете отменено. Ответы и выбранные услуги сохранены в архиве. Для новой регистрации создайте отдельную анкету, если приём открыт."
+        reason = "Участие по этой анкете отменено. Ответы и выбранные услуги сохранены в архиве."
+        if state in ("open", "running"):
+            reason += " Для восстановления участия обратитесь к организаторам."
     editable = draft or application.status == Application.Status.ACTIVE
     if state == "open" and editable and schema_errors(festival):
         reason = "Форма фестиваля временно недоступна для заполнения."
@@ -103,11 +105,29 @@ def dashboard_context(user, params):
             if tab == "drafts"
             else query.filter(submitted_filter)
         )
+    query = query.prefetch_related("answers", "service_selections__option")
     page = Paginator(query, 20).get_page(params.get("page"))
     cards = []
     for application in page:
         application.festival = festivals[application.festival_id]
-        cards.append(application_context(application))
+        card = application_context(application)
+        card["needs_attention"] = False
+        if application.status == "active" and not card["archived"]:
+            saved = application_form(application.festival, application)
+            checked = application_form(
+                application.festival,
+                application,
+                data=saved.initial,
+                require_complete=True,
+            )
+            card["needs_attention"] = not checked.is_valid()
+            if card["needs_attention"]:
+                card["attention_message"] = (
+                    "Форма анкеты изменилась. Дополните или исправьте ответы."
+                    if card["can_edit"]
+                    else "Форма анкеты изменилась. Для дополнения ответов обратитесь к организаторам."
+                )
+        cards.append(card)
     return {"tab": tab, "page_obj": page, "cards": cards, "application_counts": counts}
 
 

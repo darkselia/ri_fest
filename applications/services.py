@@ -56,7 +56,12 @@ def application_form(festival, application=None, *, data=None, require_complete=
         answers = {
             answer.field_id: answer.value for answer in application.answers.all()
         }
-        for selection in application.service_selections.select_related("option"):
+        selections = application.service_selections.all()
+        if "service_selections" not in getattr(
+            application, "_prefetched_objects_cache", {}
+        ):
+            selections = selections.select_related("option")
+        for selection in selections:
             answers.setdefault(selection.option.field_id, []).append(
                 str(selection.option_id)
             )
@@ -107,6 +112,10 @@ def _save_application(
     submit=False,
     revision=None,
     edit_active=False,
+    organizer=False,
+    owner_id=None,
+    expected_updated_at=None,
+    restoring=False,
 ):
     from datetime import date
     from decimal import Decimal
@@ -117,7 +126,7 @@ def _save_application(
         if festival_id is not None:
             raise ValidationError("Фестиваль сохранённой анкеты менять нельзя.")
         festival_id = (
-            Application.objects.for_owner(actor)
+            (Application.objects if organizer else Application.objects.for_owner(actor))
             .values_list("festival_id", flat=True)
             .get(pk=application_id)
         )
@@ -125,12 +134,40 @@ def _save_application(
         raise ValidationError("Выберите фестиваль.")
     with transaction.atomic():
         festival = Festival.objects.select_for_update().get(pk=festival_id)
-        current = (
-            get_user_model()
-            .objects.select_for_update()
-            .filter(pk=actor.pk, is_active=True)
-            .first()
-        )
+        if organizer:
+            owner_id = (
+                Application.objects.values_list("owner_id", flat=True).get(
+                    pk=application_id
+                )
+                if application_id
+                else owner_id
+            )
+            locked_users = {
+                user.pk: user
+                for user in get_user_model()
+                .objects.select_for_update()
+                .filter(pk__in=[actor.pk, owner_id])
+                .order_by("pk")
+            }
+            employee = locked_users.get(actor.pk)
+            permission = "change" if application_id else "add"
+            if (
+                employee is None
+                or not employee.is_active
+                or not employee.is_staff
+                or not employee.has_perm(f"applications.{permission}_application")
+            ):
+                raise PermissionDenied
+            current = locked_users.get(owner_id)
+            if current is None or not current.is_active:
+                raise PermissionDenied("Аккаунт владельца недоступен.")
+        else:
+            current = (
+                get_user_model()
+                .objects.select_for_update()
+                .filter(pk=actor.pk, is_active=True)
+                .first()
+            )
         application = (
             Application.objects.select_for_update().get(
                 pk=application_id, festival=festival
@@ -142,17 +179,48 @@ def _save_application(
             current is None
             or application.owner_id != current.pk
             or (
+                organizer
+                and application_id
+                and application.status
+                != (
+                    Application.Status.WITHDRAWN
+                    if restoring
+                    else Application.Status.ACTIVE
+                )
+            )
+            or (
                 application.status != Application.Status.DRAFT
                 and not (
                     edit_active
-                    and application.status == Application.Status.ACTIVE
-                    and not submit
+                    and application.status
+                    == (
+                        Application.Status.WITHDRAWN
+                        if restoring and organizer
+                        else Application.Status.ACTIVE
+                    )
+                    and (not submit or organizer)
                 )
             )
         ):
             raise PermissionDenied
-        if get_effective_status(festival) != Festival.Status.OPEN:
+        allowed_states = ("open", "running") if organizer else ("open",)
+        if restoring and (
+            not organizer
+            or not application_id
+            or revision is None
+            or expected_updated_at is None
+        ):
+            raise PermissionDenied(
+                "Для восстановления требуется актуальное подтверждение."
+            )
+        if get_effective_status(festival) not in allowed_states:
             raise PermissionDenied("Приём анкет закрыт.")
+        if expected_updated_at is not None and (
+            application.updated_at.isoformat() != expected_updated_at
+        ):
+            raise ValidationError(
+                "Анкета изменилась после открытия страницы. Проверьте актуальные данные перед повторным сохранением."
+            )
         assert_form_ready(festival)
         require_complete = (
             require_complete or application.status == Application.Status.ACTIVE
@@ -234,9 +302,11 @@ def delete_application(application_id, *, actor):
         return get_effective_status(festival) == Festival.Status.ARCHIVED
 
 
-def withdraw_application(application_id, *, actor, expected_updated_at=None):
+def withdraw_application(
+    application_id, *, actor, expected_updated_at=None, organizer=False
+):
     festival_id = (
-        Application.objects.for_owner(actor)
+        (Application.objects if organizer else Application.objects.for_owner(actor))
         .values_list("festival_id", flat=True)
         .get(pk=application_id)
     )
@@ -250,14 +320,21 @@ def withdraw_application(application_id, *, actor, expected_updated_at=None):
         )
         if current is None:
             raise PermissionDenied
+        if organizer and (
+            not current.is_staff
+            or not current.has_perm("applications.change_application")
+        ):
+            raise PermissionDenied
         application = (
             Application.objects.select_for_update()
-            .for_owner(current)
+            .filter(**({} if organizer else {"owner": current}))
             .get(pk=application_id)
         )
         if (
-            get_effective_status(festival) != Festival.Status.OPEN
+            get_effective_status(festival)
+            not in (("open", "running") if organizer else ("open",))
             or application.status != Application.Status.ACTIVE
+            or application.owner_id is None
         ):
             raise PermissionDenied(
                 "Отозвать можно только активную анкету при открытом приёме."
@@ -272,6 +349,48 @@ def withdraw_application(application_id, *, actor, expected_updated_at=None):
         application.status = Application.Status.WITHDRAWN
         application.save(update_fields=["status", "updated_at"])
         return application
+
+
+def save_organizer_application(
+    *,
+    actor,
+    data,
+    festival_id=None,
+    owner_id=None,
+    application_id=None,
+    revision=None,
+    expected_updated_at=None,
+):
+    return _save_application(
+        actor=actor,
+        data=data,
+        festival_id=festival_id,
+        owner_id=owner_id,
+        application_id=application_id,
+        revision=revision,
+        expected_updated_at=expected_updated_at,
+        organizer=True,
+        require_complete=True,
+        submit=True,
+        edit_active=True,
+    )
+
+
+def restore_organizer_application(
+    application_id, *, actor, data, revision, expected_updated_at
+):
+    return _save_application(
+        actor=actor,
+        data=data,
+        application_id=application_id,
+        revision=revision,
+        expected_updated_at=expected_updated_at,
+        organizer=True,
+        restoring=True,
+        edit_active=True,
+        require_complete=True,
+        submit=True,
+    )
 
 
 def require_schema_permission(actor, action, model="formfield"):

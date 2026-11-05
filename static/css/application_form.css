@@ -1,0 +1,264 @@
+/* Общая анкета: кабинет, Admin и iframe предпросмотра. */
+.application-card {
+    padding: 16px;
+    border: 1px solid var(--form-line, var(--color-line));
+    border-radius: 10px;
+    background: var(--form-surface, var(--color-surface));
+    overflow-wrap: anywhere;
+}
+
+.application-card h3 {
+    margin: 0 0 12px;
+}
+
+
+.application-form {
+    --form-surface: var(--color-surface);
+    --form-ink: var(--color-ink);
+    --form-border: var(--color-cabinet-input-border);
+    --form-muted: var(--color-muted);
+    --form-paper: var(--color-paper);
+    --form-line: var(--color-line);
+    --form-error: var(--color-error);
+    --form-error-bg: var(--color-error-bg);
+    --form-danger: var(--color-danger);
+    display: grid;
+    gap: 0;
+    margin: 0;
+    counter-reset: question;
+}
+
+.application-form .application-field {
+    min-width: 0;
+    counter-increment: question;
+    padding: 18px 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+}
+
+.application-field > label, .application-field > legend {
+    display: block;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.application-field > label::before, .application-field > legend::before {
+    content: counter(question) ". ";
+}
+
+.application-field > legend {
+    float: left;
+    width: 100%;
+    padding: 0;
+    margin-bottom: 10px;
+}
+
+.application-field > legend + * {
+    clear: both;
+}
+
+.application-form input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+.application-form textarea, .application-form select, .application-selector select {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--form-border, var(--color-cabinet-input-border));
+    border-radius: 6px;
+    background: var(--form-surface, var(--color-surface));
+    color: var(--form-ink, var(--color-ink));
+    font: inherit;
+}
+
+.application-field > label:not(.application-boolean) + input,
+.application-field > label:not(.application-boolean) + textarea,
+.application-field > label:not(.application-boolean) + select {
+    margin-top: 3px;
+}
+
+.application-form textarea {
+    height: 78px;
+    min-height: 78px;
+    resize: vertical;
+}
+
+.application-form input[type=checkbox], .application-form input[type=radio] {
+    accent-color: var(--form-ink);
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.application-field > .application-boolean {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.application-field > .application-boolean input {
+    margin-left: 5px;
+}
+
+.application-choices label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 9px 0;
+}
+
+.application-choices > div > div:has(input[data-opt-out]) {
+    border-top: 1px dashed var(--form-line, var(--color-line));
+}
+
+.application-field label:has(input:disabled) {
+    color: var(--form-muted, var(--color-muted));
+}
+
+.application-form .help {
+    margin: 3px 0 10px;
+    color: var(--form-muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.application-form .errorlist {
+    color: var(--form-error);
+    font-size: 13px;
+}
+
+.application-form .schema-info {
+    margin: 18px 0 22px;
+    padding: 6px 18px;
+    border-left: 3px solid var(--color-accent);
+}
+
+.application-form .schema-info h3 {
+    font-size: 16px;
+    margin: 0;
+}
+
+
+.application-form .application-subtotal, .account-shell .application-subtotal, .application-preview .application-subtotal {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--form-paper, var(--color-paper));
+    margin: 14px 0 0;
+    font-size: 13px;
+}
+
+.application-subtotal output {
+    font-weight: 750;
+}
+
+.application-form .application-total, .account-shell .application-total, .application-preview .application-total {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    border-top: 1px solid var(--form-line, var(--color-line));
+    padding: 16px 0;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 400;
+}
+
+.application-total output, .application-total strong {
+    font-weight: 700;
+}
+
+
+.required-mark {
+    color: var(--form-danger, var(--color-danger));
+}
+
+
+.application-field + .application-field {
+    border-top: 1px solid var(--form-line, var(--color-line));
+}
+
+.application-form .application-field:has(+ .application-total) {
+    padding-bottom: 24px;
+}
+
+.application-form-heading {
+    display: grid;
+    gap: 12px;
+    padding-bottom: 16px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--form-line, var(--admin-panel-border));
+}
+
+.application-form-heading p, .application-form-heading h2 {
+    margin: 0;
+}
+
+.application-editor-title {
+    font-size: 20px;
+    font-weight: 750;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.application-editor-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 40px;
+    margin: 0;
+}
+
+.application-editor-meta dt {
+    color: var(--form-muted);
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.application-editor-meta dd {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.application-editor-note {
+    padding: 12px 16px;
+    border-left: 3px solid var(--color-accent);
+    background: var(--form-paper);
+    line-height: 1.6;
+}
+
+.dark #page .application-form {
+    color-scheme: dark;
+    --form-surface: var(--admin-panel-bg);
+    --form-ink: var(--color-base-100);
+    --form-border: var(--admin-panel-border);
+    --form-muted: var(--admin-subtle-text);
+    --form-paper: var(--admin-page-bg);
+    --form-line: var(--admin-panel-border);
+    --form-error: var(--color-red-400);
+    --form-error-bg: color-mix(in srgb, var(--color-red-400) 10%, var(--admin-panel-bg));
+    --form-danger: var(--color-red-400);
+}
+
+.application-preview {
+    background: var(--color-surface);
+    padding: 16px;
+    font: 15px/1.5 "Segoe UI", sans-serif;
+    -webkit-font-smoothing: auto;
+}
+
+.application-preview main {
+    width: 100%;
+    margin: 0 auto;
+}
+
+.application-preview h3 {
+    font-size: 16px;
+    margin: 0;
+}
+
+.application-preview p {
+    margin: 6px 0 16px;
+}

@@ -25,6 +25,7 @@ ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 
 INSTALLED_APPS = [
     "unfold",
+    "unfold.contrib.filters",
     "accounts.apps.AccountsConfig",
     "festivals.apps.FestivalsConfig",
     "applications.apps.ApplicationsConfig",
@@ -44,6 +45,7 @@ UNFOLD = {
     ],
     "STYLES": [
         lambda request: static("css/theme.css"),
+        lambda request: static("css/components.css"),
         lambda request: static("css/admin_theme.css"),
     ],
     "SIDEBAR": {
@@ -59,7 +61,17 @@ UNFOLD = {
                             request.user.has_perm(f"festivals.{action}_festival")
                             for action in ("view", "add", "change", "delete")
                         ),
-                    }
+                    },
+                    {
+                        "title": "Анкеты",
+                        "icon": "assignment",
+                        "link": reverse_lazy(
+                            "admin:applications_application_changelist"
+                        ),
+                        "permission": lambda request: request.user.has_perm(
+                            "applications.view_application"
+                        ),
+                    },
                 ],
             },
             {
