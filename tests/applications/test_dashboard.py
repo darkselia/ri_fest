@@ -3,10 +3,47 @@ from datetime import date
 import pytest
 from django.urls import reverse
 
-from applications.models import Application, ApplicationAnswer
+from applications.models import Application, ApplicationAnswer, FormField
+from applications.services import save_application
+from applications.views import dashboard_context
 from festivals.models import Festival
 
 pytestmark = pytest.mark.django_db
+
+
+def test_changed_required_question_marks_active_application_until_completed(cabinet):
+    owner, _, festival, field, _, _ = cabinet
+    app, form = save_application(
+        actor=owner,
+        data={f"field_{field.pk}": "Участник"},
+        festival_id=festival.pk,
+        submit=True,
+    )
+    assert form.is_valid()
+    assert not dashboard_context(owner, {})["cards"][0]["needs_attention"]
+    added = FormField.objects.create(
+        festival=festival,
+        field_type="text",
+        label="Новые данные",
+        is_required=True,
+        order=9,
+    )
+    draft = Application.objects.create(owner=owner, festival=festival)
+    cards = {
+        card["application"].pk: card for card in dashboard_context(owner, {})["cards"]
+    }
+    assert cards[app.pk]["needs_attention"]
+    assert not cards[draft.pk]["needs_attention"]
+    _, form = save_application(
+        actor=owner,
+        application_id=app.pk,
+        data={f"field_{field.pk}": "Участник", f"field_{added.pk}": "Дополнено"},
+    )
+    assert form.is_valid()
+    cards = {
+        card["application"].pk: card for card in dashboard_context(owner, {})["cards"]
+    }
+    assert not cards[app.pk]["needs_attention"]
 
 
 def test_dashboard_partition_effective_archive_without_writes(client, cabinet):

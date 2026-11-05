@@ -1,6 +1,6 @@
 {% extends "applications/base.html" %}
 {% block account_content %}
-<a class="application-back" href="{% url 'applications:detail' application.pk %}">← Назад</a>
+{% include "components/history_back.html" %}
 <h2>Отозвать анкету {{ application.number }}?</h2>
 <p>{{ festival.name }}</p>
 <p>Участие по анкете {{ application.number }} на фестиваль «{{ festival.name }}» будет отменено. Анкета с ответами и выбранными услугами останется в архиве для просмотра.</p>

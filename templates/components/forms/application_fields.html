@@ -3,7 +3,7 @@
     <section class="schema-info"><h3>{{ entry.row.label }}</h3><div>{{ entry.row.help_text|urlize|linebreaksbr }}</div></section>
   {% else %}
     {% if entry.kind == 'multi' or entry.kind == 'service' or entry.kind == 'service1' %}
-    <fieldset class="schema-preview-field application-field" {% if entry.kind == 'service' or entry.kind == 'service1' %}data-service-group="{{ entry.key }}"{% endif %}>
+    <fieldset class="application-field" {% if entry.kind == 'service' or entry.kind == 'service1' %}data-service-group="{{ entry.key }}"{% endif %}>
       <legend>{{ entry.row.label }}{% if entry.row.is_required %}<span class="required-mark" aria-hidden="true"> *</span>{% endif %}</legend>
     {% elif entry.kind == 'boolean' %}
     <div class="application-field"><label class="application-boolean" for="{{ entry.field.id_for_label }}">{{ entry.row.label }}{% if entry.row.is_required %}<span class="required-mark" aria-hidden="true"> *</span>{% endif %} {{ entry.field }}</label>
@@ -12,7 +12,7 @@
     {% endif %}
       {% if entry.row.help_text %}<div class="help">{{ entry.row.help_text|urlize|linebreaksbr }}</div>{% endif %}
       {{ entry.field.errors }}
-      {% if entry.kind != 'boolean' %}{{ entry.field }}{% endif %}
+      {% if entry.kind == 'multi' or entry.kind == 'service' or entry.kind == 'service1' %}<div class="application-choices">{{ entry.field }}</div>{% elif entry.kind != 'boolean' %}{{ entry.field }}{% endif %}
       {% if entry.kind == 'service' or entry.kind == 'service1' %}<p class="application-subtotal"><span>Подытог · {{ entry.row.label }}</span><output data-group-total aria-live="polite">{{ entry.subtotal|default:'0,00' }} ₽</output></p>{% endif %}
     {% if entry.kind == 'multi' or entry.kind == 'service' or entry.kind == 'service1' %}</fieldset>{% else %}</div>{% endif %}
   {% endif %}

@@ -1,7 +1,7 @@
 {% extends "applications/base.html" %}
 {% load static %}
 {% block account_content %}
-<a class="application-back" href="{% url 'accounts:home' %}">← Назад</a>
+{% include "components/history_back.html" %}
 <div class="application-heading">
     <h2>{% if application.pk %}{{ festival.name }}{% else %}Добавить анкету{% endif %}</h2>
     {% if application.pk %}<span class="application-badge{% if application.status == 'active' %} application-badge--active{% endif %}">{{ application.get_status_display }}</span>{% endif %}
@@ -29,11 +29,7 @@
     <input type="hidden" name="form_snapshot" value="{{ form_snapshot }}">
     {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
     {% include "components/forms/application_fields.html" %}
-    {% if hidden_selections %}
-    <section class="application-card"><h3>Сохранённые услуги</h3><p>Эти поля скрыты организатором. Ваш выбор и его стоимость сохранены.</p>
-    <ul>{% for selection in hidden_selections %}<li>{{ selection.option.field.label }}: {{ selection.option.label }} — {{ selection.option.price }} ₽</li>{% endfor %}</ul></section>
-    {% endif %}
-    <p class="application-total"><span>Сумма услуг</span><output data-application-total data-fixed-kopecks="{{ hidden_kopecks }}" aria-live="polite">{{ service_total }} ₽</output></p>
+    {% include "components/forms/application_services.html" %}
     <div class="application-actions">
         {% if application.status == 'active' %}
         <button type="submit" name="action" value="update" class="button">Сохранить изменения</button>

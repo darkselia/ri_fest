@@ -1,7 +1,6 @@
 {% extends "applications/base.html" %}
 {% block account_content %}
-<a class="application-back" href="{% url 'accounts:home' %}?tab={% if archived %}archive{% elif is_draft %}drafts
-{% else %}submitted{% endif %}">← Назад</a>
+{% include "components/history_back.html" %}
 <div class="application-heading"><h2>{{ festival.name }}</h2><span class="application-badge{% if application.status == 'withdrawn' %} application-badge--withdrawn{% elif archived %} application-badge--archive{% elif application.status == 'active' %} application-badge--active{% endif %}">{{ status_label }}</span></div>
 <p class="muted">Анкета {{ application.number }}</p>
 {% if closed_reason %}<p class="application-note">{{ closed_reason }}</p>{% endif %}

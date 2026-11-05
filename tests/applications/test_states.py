@@ -15,7 +15,9 @@ from applications.models import (
     ApplicationServiceSelection,
 )
 from applications.services import (
+    application_form,
     delete_application,
+    restore_organizer_application,
     save_application,
     withdraw_application,
 )
@@ -198,7 +200,8 @@ def test_concurrent_number_allocation(cabinet):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_withdraw_races_archive(cabinet, django_user_model):
+@pytest.mark.parametrize("organizer", [False, True])
+def test_withdraw_races_archive(cabinet, django_user_model, organizer):
     if connection.vendor != "postgresql":
         pytest.skip("Requires PostgreSQL locks")
     owner, _, festival, _, _, _ = cabinet
@@ -211,7 +214,9 @@ def test_withdraw_races_archive(cabinet, django_user_model):
         try:
             barrier.wait(timeout=10)
             if withdraw:
-                withdraw_application(app.pk, actor=owner)
+                withdraw_application(
+                    app.pk, actor=admin if organizer else owner, organizer=organizer
+                )
             else:
                 token = festival_action_preview(
                     festival.pk, actor=admin, action="archive"
@@ -228,3 +233,61 @@ def test_withdraw_races_archive(cabinet, django_user_model):
         assert "ok" in [job.result(timeout=20) for job in jobs]
     app.refresh_from_db()
     assert app.status in ("archived", "withdrawn")
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("remove_owner", [False, True])
+def test_restore_races_archive_or_owner_deletion(
+    cabinet, django_user_model, remove_owner
+):
+    if connection.vendor != "postgresql":
+        pytest.skip("Requires PostgreSQL locks")
+    from accounts.services import delete_account
+    from applications.schema import schema_revision
+
+    owner, _, festival, _, _, _ = cabinet
+    admin = django_user_model.objects.create_superuser("restore-race@example.invalid")
+    app = Application.objects.create(owner=owner, festival=festival, status="withdrawn")
+    version, revision = app.updated_at.isoformat(), schema_revision(festival)
+    name = next(iter(application_form(festival).fields))
+    barrier = Barrier(2)
+
+    def run(restore):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            if restore:
+                restore_organizer_application(
+                    app.pk,
+                    actor=admin,
+                    data={name: "Ответ"},
+                    revision=revision,
+                    expected_updated_at=version,
+                )
+            elif remove_owner:
+                delete_account(owner.pk, actor=owner, password="synthetic-password")
+            else:
+                token = festival_action_preview(
+                    festival.pk, actor=admin, action="archive"
+                )["confirmation"]
+                archive_festival(festival.pk, actor=admin, confirmation=token)
+            return "ok"
+        except (PermissionDenied, ValidationError):
+            return "rejected"
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        jobs = [pool.submit(run, value) for value in (True, False)]
+        assert "ok" in [job.result(timeout=20) for job in jobs]
+    app.refresh_from_db()
+    if remove_owner:
+        assert app.owner_id is None and not app.answers.exists()
+        assert app.status in ("archived", "withdrawn")
+    else:
+        festival.refresh_from_db()
+        if festival.status == "archived":
+            assert app.status in ("archived", "withdrawn")
+        else:
+            # Restoration can invalidate the archive confirmation before its POST.
+            assert festival.status == "open" and app.status == "active"

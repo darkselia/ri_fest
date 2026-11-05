@@ -16,7 +16,8 @@
 {% for card in cards %}
     <article class="application-row">
         <span class="application-badge{% if card.application.status == 'withdrawn' %} application-badge--withdrawn{% elif card.archived %} application-badge--archive{% elif card.application.status == 'active' %} application-badge--active{% endif %}">{{ card.status_label }}</span>
-        <h3><a class="application-title" href="{% if card.can_edit %}{% url 'applications:edit' card.application.pk %}{% else %}{% url 'applications:detail' card.application.pk %}{% endif %}">{{ card.festival.name }} <small>Анкета {{ card.application.number }}</small></a></h3>
+        <div><h3><a class="application-title" href="{% if card.can_edit %}{% url 'applications:edit' card.application.pk %}{% else %}{% url 'applications:detail' card.application.pk %}{% endif %}">{{ card.festival.name }} <small>Анкета {{ card.application.number }}</small></a></h3>
+        {% if card.needs_attention %}<p class="application-attention" role="status">{{ card.attention_message }}</p>{% endif %}</div>
         <div class="application-actions">
             {% if card.is_draft %}<a class="application-icon" aria-label="Удалить анкету {{ card.application.number }}" title="Удалить черновик" href="{% url 'applications:delete' card.application.pk %}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></svg></a>{% endif %}
         </div>
