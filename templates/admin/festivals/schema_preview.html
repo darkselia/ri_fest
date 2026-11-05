@@ -2,8 +2,8 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Предпросмотр анкеты</title>
-<link rel="stylesheet" href="{% static 'css/theme.css' %}"><link rel="stylesheet" href="{% static 'css/site.css' %}"><link rel="stylesheet" href="{% static 'css/components.css' %}"><link rel="stylesheet" href="{% static 'css/applications.css' %}">
-</head><body class="application-preview"><main>
+<link rel="stylesheet" href="{% static 'css/theme.css' %}"><link rel="stylesheet" href="{% static 'css/site.css' %}"><link rel="stylesheet" href="{% static 'css/components.css' %}"><link rel="stylesheet" href="{% static 'css/application_form.css' %}">
+</head><body class="site-page application-preview"><main>
 <p class="muted">Это предпросмотр анкеты участника. Можно заполнить поля и проверить ответы; введённые данные не сохраняются.</p>
 {% if readiness_errors %}<div class="form-errors"><p>Шаблон пока не готов к публикации:</p><ul>{% for error in readiness_errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
 <form class="application-form" data-application-form onsubmit="return false">

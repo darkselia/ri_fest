@@ -37,3 +37,52 @@
     --shadow-panel: 0 18px 50px rgb(70 49 20 / 5%);
     --shadow-art: 0 24px 40px rgb(70 49 20 / 12%);
 }
+
+:root {
+    --admin-tooltip-bg: var(--color-base-900);
+    --admin-tooltip-fg: var(--color-base-50);
+    --admin-focus: var(--color-primary-600);
+    --admin-panel-bg: var(--color-surface);
+    --admin-panel-border: var(--color-base-300);
+    --admin-page-bg: var(--color-paper);
+    --admin-panel-muted: var(--color-base-50);
+    --admin-subtle-text: var(--color-base-600);
+}
+
+/* Оттенки и нейтральные цвета Unfold; применяются только к его страницам. */
+html:root:has(#page) {
+    --color-white: var(--color-surface);
+    --color-primary-50: color-mix(in srgb, var(--color-accent) 5%, white);
+    --color-primary-100: color-mix(in srgb, var(--color-accent) 12%, white);
+    --color-primary-200: color-mix(in srgb, var(--color-accent) 25%, white);
+    --color-primary-300: color-mix(in srgb, var(--color-accent) 40%, white);
+    --color-primary-400: color-mix(in srgb, var(--color-accent) 60%, white);
+    --color-primary-500: color-mix(in srgb, var(--color-accent) 80%, white);
+    --color-primary-600: var(--color-accent);
+    --color-primary-700: var(--color-red-hover);
+    --color-primary-800: color-mix(in srgb, var(--color-accent), black 30%);
+    --color-primary-900: color-mix(in srgb, var(--color-accent), black 45%);
+    --color-primary-950: color-mix(in srgb, var(--color-accent), black 65%);
+    --color-base-50: #f9f7f0;
+    --color-base-100: var(--color-paper);
+    --color-base-200: #e2ddd0;
+    --color-base-300: var(--color-line);
+    --color-base-400: #a49d8f;
+    --color-base-500: #817a6d;
+    --color-base-600: var(--color-muted);
+    --color-base-700: #4d4942;
+    --color-base-800: #302d29;
+    --color-base-900: var(--color-ink);
+    --color-base-950: #151411;
+}
+
+html.dark:has(#page) {
+    --admin-tooltip-bg: var(--color-base-100);
+    --admin-tooltip-fg: var(--color-base-900);
+    --admin-focus: var(--color-primary-400);
+    --admin-subtle-text: #c7bfb0;
+    --admin-panel-bg: var(--color-base-900);
+    --admin-panel-border: var(--color-base-700);
+    --admin-page-bg: var(--color-base-950);
+    --admin-panel-muted: var(--color-base-900);
+}

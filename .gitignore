@@ -20,4 +20,4 @@ media/
 staticfiles/
 /docs/
 /.playwright-cli/
-
+/output/

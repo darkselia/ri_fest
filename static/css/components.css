@@ -1,4 +1,4 @@
-/* Общие элементы пользовательских страниц; Unfold использует собственные компоненты. */
+/* Общие компоненты сайта; оболочка Admin использует Unfold. */
 .eyebrow {
     margin: 0 0 20px;
     font-size: 12px;
@@ -91,18 +91,19 @@
     justify-self: start;
 }
 
-.form-field {
+/* Публичные поля не переопределяют одноимённые элементы Unfold. */
+.site-page .form-field {
     display: grid;
     gap: 0;
     min-width: 0;
 }
 
-.form-field label {
+.site-page .form-field label {
     font-size: 13px;
     font-weight: 650;
 }
 
-.form-field :is(input, textarea, select) {
+.site-page .form-field :is(input, textarea, select) {
     width: 100%;
     min-width: 0;
     padding: 8px 10px;
@@ -115,16 +116,16 @@
     line-height: 1.5;
 }
 
-.form-field :is(input, textarea, select):focus-visible {
+.site-page .form-field :is(input, textarea, select):focus-visible {
     outline: 2px solid var(--color-ink);
     outline-offset: 2px;
 }
 
-.form-field :is(input, textarea, select)[aria-invalid=true] {
+.site-page .form-field :is(input, textarea, select)[aria-invalid=true] {
     border-color: var(--color-error);
 }
 
-.field-help {
+.site-page .field-help {
     color: var(--color-muted);
     font-size: 13px;
     margin: 0;
@@ -141,15 +142,15 @@
 }
 
 .form-errors, .field-errors {
-    color: var(--color-error);
+    color: var(--form-error, var(--color-error));
     font-size: 13px;
 }
 
 .form-errors {
     padding: 14px 16px;
-    border-left: 3px solid var(--color-error);
+    border-left: 3px solid var(--form-error, var(--color-error));
     border-radius: 8px;
-    background: var(--color-error-bg);
+    background: var(--form-error-bg, var(--color-error-bg));
 }
 
 .site-messages {
