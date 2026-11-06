@@ -260,7 +260,7 @@ def test_failed_creation_does_not_allocate_number(cabinet, django_user_model):
         )
 
 
-def test_registry_requires_one_festival_and_denies_anonymized_writes(
+def test_registry_all_festivals_and_denies_anonymized_writes(
     client, cabinet, django_user_model
 ):
     from festivals.models import Festival
@@ -280,7 +280,7 @@ def test_registry_requires_one_festival_and_denies_anonymized_writes(
     Application.objects.create(owner=owner, festival=other, status="active")
     client.force_login(staff)
     url = reverse("admin:applications_application_changelist")
-    assert not list(client.get(url).context["cl"].queryset)
+    assert client.get(url).context["cl"].queryset.count() == 2
     assert list(
         client.get(url, {"festival__id__exact": festival.pk}).context["cl"].queryset
     ) == [app]

@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from festivals.models import Festival
 
 from .models import (
+    Application,
     ApplicationAnswer,
     ApplicationServiceSelection,
     FormField,
@@ -37,6 +38,15 @@ class SchemaHidingConflict(ValidationError):
 def hiding_state(festival):
     affected = {}
     option_affected = {}
+    fee_applications = (
+        list(
+            Application.objects.filter(festival=festival)
+            .order_by("pk")
+            .values_list("pk", "status", "updated_at")
+        )
+        if festival.pk
+        else []
+    )
     if festival.pk:
         answers = ApplicationAnswer.objects.filter(
             field__festival=festival
@@ -64,6 +74,10 @@ def hiding_state(festival):
                     key: sorted(values)
                     for key, values in sorted(option_affected.items())
                 },
+                "fee_applications": [
+                    [pk, status, changed.isoformat()]
+                    for pk, status, changed in fee_applications
+                ],
             },
             sort_keys=True,
         ).encode()
@@ -76,6 +90,7 @@ def hiding_state(festival):
     return {
         "token": signing.dumps(payload, salt="schema.hiding"),
         "counts": {key: len(values) for key, values in affected.items()},
+        "fee_count": len(fee_applications),
         "option_counts": {key: len(values) for key, values in option_affected.items()},
         "active_options": (
             [
@@ -119,6 +134,17 @@ def validate_hiding(festival, prepared, confirmation):
         and not field.is_active
         and (state["counts"].get(str(field.pk), 0) or str(field.pk) in acknowledged)
     ]
+    kept = {field.pk: field for field, _, _ in prepared if field.pk}
+    cancelled_fees = [
+        str(pk)
+        for pk, field in old.items()
+        if field.field_type == "datefee"
+        and field.is_active
+        and (
+            pk not in kept or not kept[pk].is_active or kept[pk].field_type != "datefee"
+        )
+    ]
+    hidden.extend(cancelled_fees)
     for _, options, services in prepared:
         for prefix, variants in (("a", options), ("s", services)):
             labels.update(
@@ -151,6 +177,12 @@ def validate_hiding(festival, prepared, confirmation):
         ):
             raise signing.BadSignature
     except (signing.BadSignature, AttributeError, TypeError):
+        if cancelled_fees:
+            titles = ", ".join(f"«{labels[key]}»" for key in cancelled_fees)
+            raise SchemaHidingConflict(
+                f"Повторно подтвердите отмену платы {titles}: шаблон или состав анкет изменился. "
+                f"Будет затронуто анкет: {state['fee_count']}. Внесённые деньги сохраняются."
+            ) from None
         counts = "; ".join(
             f"«{labels[key]}»: {state['counts'].get(key, state['option_counts'].get(key, 0))}"
             for key in hidden
@@ -186,7 +218,7 @@ def export_schema(festival):
         return []
     fields = festival.form_fields.all()
     if "form_fields" not in getattr(festival, "_prefetched_objects_cache", {}):
-        fields = fields.prefetch_related("options", "service_options")
+        fields = fields.prefetch_related("options", "service_options", "fee_periods")
     return [
         {
             "id": field.pk,
@@ -195,6 +227,20 @@ def export_schema(festival):
             "services": [
                 dump_option(o, SERVICE_NAMES) for o in field.service_options.all()
             ],
+            **(
+                {
+                    "fee_periods": [
+                        {
+                            "id": p.pk,
+                            "ends_on": p.ends_on.isoformat() if p.ends_on else None,
+                            "amount": str(p.amount),
+                        }
+                        for p in field.fee_periods.all()
+                    ]
+                }
+                if field.field_type == "datefee"
+                else {}
+            ),
         }
         for field in fields
     ]
@@ -209,7 +255,7 @@ def schema_revision(festival):
 def readiness(rows):
     active = [r for r in rows if r["is_active"]]
     errors = []
-    if not any(r["field_type"] != "info" for r in active):
+    if not any(r["field_type"] not in ("info", "datefee") for r in active):
         errors.append("Добавьте хотя бы один активный вопрос анкеты.")
     for row in active:
         title = row["label"]
@@ -231,6 +277,11 @@ def readiness(rows):
                 errors.append(f"Поле «{title}»: добавьте хотя бы одну активную услугу.")
             if any(not o["label"].strip() for o in row["services"] if o["is_active"]):
                 errors.append(f"Поле «{title}»: заполните подписи услуг.")
+        elif row["field_type"] == "datefee":
+            if not any(p["ends_on"] is None for p in row.get("fee_periods", [])):
+                errors.append(
+                    f"Поле «{title}»: добавьте последний тариф без конечной даты."
+                )
     return errors
 
 
@@ -257,6 +308,7 @@ def prepare_schema(festival, rows):
                 *FIELD_NAMES,
                 "options",
                 "services",
+                "fee_periods",
             }:
                 raise ValidationError("Неизвестные настройки элемента.")
             pk = _identity(row.get("id"))
@@ -291,7 +343,7 @@ def prepare_schema(festival, rows):
             field.label = (
                 field.label.strip() if isinstance(field.label, str) else field.label
             )
-            if field.field_type == "info" and field.is_required:
+            if field.field_type in ("info", "datefee") and field.is_required:
                 raise ValidationError("Информационный блок не требует заполнения.")
             field.full_clean(
                 exclude=["festival", "label"]
@@ -302,6 +354,12 @@ def prepare_schema(festival, rows):
             )
             options = _prepare_options(field, row.get("options", []), False)
             services = _prepare_options(field, row.get("services", []), True)
+            from .date_fees import prepare_periods
+
+            periods = prepare_periods(field, row.get("fee_periods", []))
+            if periods and field.field_type != "datefee":
+                raise ValidationError("Тарифы допустимы только для платы по дате.")
+            field._prepared_fee_periods = periods
             prepared.append((field, options, services))
             normalized.append(
                 {
@@ -309,6 +367,11 @@ def prepare_schema(festival, rows):
                     **{name: getattr(field, name) for name in FIELD_NAMES},
                     "options": [dump_option(o, OPTION_NAMES) for o in options],
                     "services": [dump_option(o, SERVICE_NAMES) for o in services],
+                    **(
+                        {"fee_periods": periods}
+                        if field.field_type == "datefee"
+                        else {}
+                    ),
                 }
             )
         except (ValidationError, TypeError, ValueError, AttributeError) as error:
@@ -440,6 +503,18 @@ def check_schema_permissions(festival, prepared, actor):
             require_schema_permission(actor, "add")
         elif any(getattr(original, n) != getattr(field, n) for n in FIELD_NAMES):
             require_schema_permission(actor, "change")
+        periods = getattr(field, "_prepared_fee_periods", [])
+        previous_periods = list(original.fee_periods.all()) if original else []
+        previous = [
+            {
+                "id": p.pk,
+                "ends_on": p.ends_on.isoformat() if p.ends_on else None,
+                "amount": str(p.amount),
+            }
+            for p in previous_periods
+        ]
+        if periods != previous:
+            require_schema_permission(actor, "change")
         for variants, names, relation, model in (
             (options, OPTION_NAMES, "options", "formoption"),
             (services, SERVICE_NAMES, "service_options", "serviceoption"),
@@ -465,6 +540,25 @@ def write_schema(festival, prepared, actor):
     for field, options, services in prepared:
         field.festival = festival
         field.save()
+        periods = getattr(field, "_prepared_fee_periods", [])
+        previous = [
+            {
+                "id": p.pk,
+                "ends_on": p.ends_on.isoformat() if p.ends_on else None,
+                "amount": str(p.amount),
+            }
+            for p in field.fee_periods.all()
+        ]
+        if periods != previous:
+            from .models import FeePeriod
+
+            field.fee_periods.all().delete()
+            FeePeriod.objects.bulk_create(
+                [
+                    FeePeriod(field=field, ends_on=p["ends_on"], amount=p["amount"])
+                    for p in periods
+                ]
+            )
         field.service_options.filter(is_opt_out=True).update(is_opt_out=False)
         for variants, relation in ((options, "options"), (services, "service_options")):
             manager = getattr(field, relation)
@@ -478,7 +572,11 @@ def copied_schema(festival):
     result = export_schema(festival)
     for field in result:
         field["id"] = None
-        for option in [*field["options"], *field["services"]]:
+        for option in [
+            *field["options"],
+            *field["services"],
+            *field.get("fee_periods", []),
+        ]:
             option["id"] = None
     return result
 

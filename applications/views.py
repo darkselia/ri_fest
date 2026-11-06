@@ -30,7 +30,11 @@ def available_festivals():
     return [
         festival
         for festival in Festival.objects.filter(status__in=["open", "running"])
-        .prefetch_related("form_fields__options", "form_fields__service_options")
+        .prefetch_related(
+            "form_fields__options",
+            "form_fields__service_options",
+            "form_fields__fee_periods",
+        )
         .order_by("start_date", "pk")
         if get_effective_status(festival) == Festival.Status.OPEN
         and not schema_errors(festival)
@@ -241,7 +245,11 @@ def edit_application(request, pk=None):
         except (PermissionDenied, ValidationError) as error:
             form = (
                 TemplatePreviewForm(
-                    snapshot["rows"], data=data, preview=False, require_complete=False
+                    snapshot["rows"],
+                    data=data,
+                    preview=False,
+                    require_complete=False,
+                    timezone_name=festival.timezone,
                 )
                 if snapshot is not None and get_effective_status(festival) != "open"
                 else application_form(festival, application, data=data)
@@ -268,6 +276,8 @@ def edit_application(request, pk=None):
     hidden_total = sum((item.option.price for item in hidden), Decimal("0.00"))
     total = hidden_total
     for entry in form.entries:
+        if entry["kind"] == "datefee" and "fee" in entry:
+            total += entry["fee"]["amount"]
         if entry["kind"] not in ("service", "service1"):
             continue
         values = entry["field"].value() or []
@@ -318,7 +328,12 @@ def detail(request, pk):
     answers = {answer.field_id: answer.value for answer in application.answers.all()}
     entries = []
     for row in export_schema(application.festival):
-        if not row["is_active"] or row["field_type"] in ("info", "service", "service1"):
+        if not row["is_active"] or row["field_type"] in (
+            "info",
+            "service",
+            "service1",
+            "datefee",
+        ):
             continue
         value = answers.get(row["id"])
         if row["field_type"] in ("single", "multi"):
@@ -343,10 +358,21 @@ def detail(request, pk):
                 "value": value if value not in (None, "") else "Не заполнено",
             }
         )
+    fee_entries = [
+        entry
+        for entry in application_form(application.festival, application).entries
+        if entry["kind"] == "datefee"
+    ]
+    totals = calculate_existing_services(application)
+    totals["total"] += sum(
+        (entry["fee"]["amount"] for entry in fee_entries if "fee" in entry),
+        Decimal("0.00"),
+    )
     context.update(
         entries=entries,
+        fee_entries=fee_entries,
         selections=application.service_selections.select_related("option__field"),
-        totals=calculate_existing_services(application),
+        totals=totals,
     )
     return render(request, "applications/detail.html", context)
 

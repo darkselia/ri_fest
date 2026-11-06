@@ -2,7 +2,8 @@
 {% load unfold %}
 {% block nav-global-side %}{% endblock %}
 {% block form_top %}
-    <span hidden data-publication-url="{{ publication_readiness_url }}"
+    <span hidden
+          data-publication-url="{{ publication_readiness_url }}"
           data-festival-id="{{ original.pk|default:'0' }}"></span>
     <div class="mb-4 leading-relaxed text-subtle">
         <p>Публикация открывает приём заявок до начала фестиваля. В дату начала фестиваль переходит в состояние «Проходит», после окончания — в архив. Даты учитываются по часовому поясу фестиваля.</p>
@@ -11,62 +12,89 @@
 {% block after_field_sets %}
     {{ block.super }}
     {% if can_view_schema %}
-        <details id="schema-editor" class="admin-panel"
-                 data-editable="{{ schema_editable|yesno:'true,false' }}" data-festival="{{ original.pk|default:'0' }}"
-                 data-preview-url="{{ schema_preview_url }}" data-source-url="{{ schema_source_url }}"
-                 data-readiness-url="{{ publication_readiness_url }}" {% if schema_input.errors %}open{% endif %}>
+        <details id="schema-editor"
+                 class="admin-panel"
+                 data-editable="{{ schema_editable|yesno:'true,false' }}"
+                 data-festival="{{ original.pk|default:'0' }}"
+                 data-preview-url="{{ schema_preview_url }}"
+                 data-source-url="{{ schema_source_url }}"
+                 data-readiness-url="{{ publication_readiness_url }}"
+                 {% if schema_input.errors %}open{% endif %}>
             <summary class="cursor-pointer font-semibold p-4">Шаблон анкеты <span data-schema-count></span></summary>
             <div class="p-4">
                 <p class="mb-4 text-subtle">Изменения вопросов и вариантов применяются после сохранения фестиваля. Предпросмотр показывает текущий шаблон, включая несохранённые изменения.</p>
                 {{ schema_input }}{{ schema_revision_input }}{{ adminform.form.schema_hiding }}
                 {{ schema_types|json_script:"schema-types" }}
                 {% for widget in schema_widgets %}
-                    <template data-editor-control="{{ widget.name }}">{{ widget }}</template>{% endfor %}
+                    <template data-editor-control="{{ widget.name }}">{{ widget }}</template>
+                {% endfor %}
                 <template data-editor-button>
                     {% component "unfold/components/button.html" with type="button" variant="default" %}
-                        <span data-button-label></span>{% endcomponent %}</template>
-                {% if schema_input.errors %}<div class="mb-4 text-red-600 dark:text-red-500" role="alert">{{ schema_input.errors }}</div>{% endif %}
+                        <span data-button-label></span>
+                    {% endcomponent %}
+                </template>
+                {% if schema_input.errors %}<div class="mb-4 text-red-600 dark:text-red-500"
+                                                 role="alert">{{ schema_input.errors }}</div>{% endif %}
                 <div class="schema-toolbar">
-                    <div class="schema-toolbar-section schema-preview-tool">
-                        <div class="schema-tool-description"><strong>Проверьте анкету</strong><p>Ответы предпросмотра не сохраняются.</p></div>
-                        {% component "unfold/components/button.html" with type="button" variant="default" extra_attrs='data-show-preview' %}
-                            Предпросмотр{% endcomponent %}
+                    <div class="schema-toolbar__section schema-preview-tool">
+                        <div class="schema-toolbar__description">
+                            <strong>Проверьте анкету</strong>
+                            <p>Ответы предпросмотра не сохраняются.</p>
+                        </div>
+                        {% component "unfold/components/button.html" with type="button" variant="default" extra_attrs="data-show-preview" %}
+                            Предпросмотр
+                        {% endcomponent %}
                     </div>
                     {% if schema_editable %}
-                        <div class="schema-toolbar-section schema-copy-tool">
-                            <div class="schema-tool-description"><strong>Используйте созданный
-                                шаблон</strong><p>Вопросы
-                                добавятся после текущих.</p></div>
+                        <div class="schema-toolbar__section schema-copy-tool">
+                            <div class="schema-toolbar__description">
+                                <strong>Используйте созданный шаблон</strong>
+                                <p>Вопросы добавятся после текущих.</p>
+                            </div>
                             <label class="flex flex-col gap-2">
                                 <select data-copy-source
                                         class="admin-border rounded-default px-3 py-2 bg-white dark:bg-base-900">
-                                    <option value="">— Выберите фестиваль —</option>
+                                    <option value="">Выберите фестиваль</option>
                                     {% for source in schema_sources %}
-                                        <option value="{{ source.pk }}">{{ source.name }}
-                                            — {{ source.get_status_display }}</option>{% endfor %}
+                                        <option value="{{ source.pk }}">
+                                            {{ source.name }}
+                                            — {{ source.get_status_display }}
+                                        </option>
+                                    {% endfor %}
                                 </select>
                             </label>
-                            {% component "unfold/components/button.html" with type="button" variant="default" extra_attrs='data-copy-template' %}
-                                Дублировать{% endcomponent %}
+                            {% component "unfold/components/button.html" with type="button" variant="default" extra_attrs="data-copy-template" %}
+                                Дублировать
+                            {% endcomponent %}
                         </div>
                     {% endif %}
                 </div>
                 <noscript>Для редактирования шаблона включите JavaScript.</noscript>
                 {% if schema_requires_unpublish %}
-                    <p>Анкету нельзя редактировать, если фестиваль проходит или в
-                        архиве.</p>{% elif not schema_editable %}
-                    <p>Шаблон доступен только для просмотра.</p>{% endif %}
+                    <p>Анкету нельзя редактировать, если фестиваль проходит или в архиве.</p>
+                {% elif not schema_editable %}
+                    <p>Шаблон доступен только для просмотра.</p>
+                {% endif %}
                 <p data-schema-message role="status" aria-live="polite"></p>
-                <dialog id="schema-preview-dialog" class="schema-preview-dialog" aria-label="Предпросмотр анкеты">
-                    <div class="schema-preview-header"><strong>Предпросмотр анкеты</strong><button type="button" data-close-preview aria-label="Закрыть предпросмотр">Закрыть ×</button></div>
+                <dialog id="schema-preview-dialog"
+                        class="schema-preview-dialog"
+                        aria-label="Предпросмотр анкеты">
+                    <div class="schema-preview-dialog__header">
+                        <strong>Предпросмотр анкеты</strong><button type="button"
+                                                                    data-close-preview
+                                                                    aria-label="Закрыть предпросмотр">Закрыть ×</button>
+                    </div>
                     <iframe title="Анкета участника" data-preview-frame></iframe>
                 </dialog>
-                <section data-schema-preview hidden></section>
-                <div data-schema-fields {% if schema_editable %}x-sort="window.riSchemaSort($item, $position)"
-                     x-sort:config="{handle: '[data-drag-handle]', animation: 150}"{% endif %}></div>
+                <section data-schema-preview hidden>
+                </section>
+                <div data-schema-fields
+                     {% if schema_editable %}x-sort="window.riSchemaSort($item, $position)" x-sort:config="{handle: '[data-drag-handle]', animation: 150}"{% endif %}>
+                </div>
                 {% if schema_editable %}
-                    {% component "unfold/components/button.html" with type="button" extra_attrs='data-add-field' class="mt-4" %}
-                        Добавить вопрос{% endcomponent %}
+                    {% component "unfold/components/button.html" with type="button" extra_attrs="data-add-field" class="mt-4" %}
+                        Добавить вопрос
+                    {% endcomponent %}
                 {% endif %}
             </div>
         </details>

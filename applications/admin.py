@@ -44,7 +44,7 @@ def ordered_festivals():
 class FestivalFilter(DropdownFilter):
     title = "Фестиваль"
     parameter_name = "festival__id__exact"
-    all_option = ["0", "Выберите фестиваль"]
+    all_option = ["", "Фестивали — все"]
 
     def lookups(self, request, model_admin):
         return [
@@ -53,7 +53,7 @@ class FestivalFilter(DropdownFilter):
         ]
 
     def queryset(self, request, queryset):
-        return queryset.filter(festival_id=self.value() or 0)
+        return queryset.filter(festival_id=self.value()) if self.value() else queryset
 
 
 class ApplicationStateFilter(admin.SimpleListFilter):
@@ -104,7 +104,15 @@ class ApplicationAdmin(ModelAdmin):
 
     @admin.display(description="Email")
     def owner_label(self, obj):
-        return obj.owner.email if obj.owner_id else "Владелец удалён"
+        return (
+            format_html(
+                '<span class="admin-email" title="{}">{}</span>',
+                obj.owner.email,
+                obj.owner.email,
+            )
+            if obj.owner_id
+            else "Владелец удалён"
+        )
 
     @admin.display(description="Автор анкеты", ordering="owner__last_name")
     def author_label(self, obj):
@@ -217,18 +225,6 @@ class ApplicationAdmin(ModelAdmin):
             raise PermissionDenied
         festivals = ordered_festivals()
         selected = request.GET.get("festival__id__exact")
-        if not selected:
-            active = [
-                f for f in festivals if get_effective_status(f) in ("open", "running")
-            ]
-            if len(active) == 1:
-                query = request.GET.copy()
-                query["festival__id__exact"] = active[0].pk
-                return redirect(f"{request.path}?{query.urlencode()}")
-        # A missing selection must never expose a combined list of festivals.
-        if not selected:
-            request.GET = request.GET.copy()
-            request.GET["festival__id__exact"] = "0"
         return super().changelist_view(
             request,
             {
@@ -258,25 +254,12 @@ class ApplicationAdmin(ModelAdmin):
             if get_effective_status(f) in ("open", "running")
         ]
         selector = forms.Form(request.GET or None)
-        selector.fields["owner_search"] = forms.CharField(
-            required=False,
-            label="Поиск владельца",
-            help_text="По email, имени или фамилии.",
-            widget=UnfoldAdminTextInputWidget,
-        )
         selector.fields["festival"] = forms.ModelChoiceField(
             Festival.objects.filter(pk__in=[f.pk for f in festivals]),
             label="Фестиваль",
             widget=UnfoldAdminSelectWidget,
         )
         owners = get_user_model().objects.filter(is_active=True)
-        search = request.GET.get("owner_search", "").strip()
-        if search:
-            owners = owners.filter(
-                Q(email__icontains=search)
-                | Q(first_name__icontains=search)
-                | Q(last_name__icontains=search)
-            )
         selector.fields["owner"] = forms.ModelChoiceField(
             owners.order_by("email"),
             label="Владелец",
@@ -461,6 +444,8 @@ class ApplicationAdmin(ModelAdmin):
                         UnfoldAdminTextInputWidget().attrs.get("class", "")
                     )
             for entry in form.entries:
+                if entry["kind"] == "datefee" and "fee" in entry:
+                    total += entry["fee"]["amount"]
                 if entry["kind"] in ("service", "service1"):
                     values = entry["field"].value() or []
                     values = [values] if isinstance(values, str) else values

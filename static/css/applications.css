@@ -1,4 +1,5 @@
-.application-heading, .application-actions {
+.application-heading,
+.application-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -16,11 +17,11 @@
     overflow-wrap: anywhere;
 }
 
-.application-heading > .button {
+.application-heading>.button {
     width: auto;
 }
 
-.application-heading > .button span {
+.application-heading>.button span {
     font-size: 15px;
 }
 
@@ -83,18 +84,27 @@
     overflow-wrap: anywhere;
 }
 
-.application-title {
+.application-row__title {
     color: var(--color-ink);
     text-decoration: none;
 }
 
-.application-title:hover {
+.application-row__title:hover {
     text-decoration: underline;
 }
 
-.application-attention { margin: 8px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--color-warning-bg); color: var(--color-warning); font-size: 13px; line-height: 1.5; font-weight: 500; }
+.application-row__attention {
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    font-size: 13px;
+    line-height: 1.5;
+    font-weight: 500;
+}
 
-.application-title small {
+.application-row__title small {
     display: block;
     color: var(--color-muted);
     font-size: 13px;
@@ -104,7 +114,7 @@
 
 
 
-.application-icon {
+.application-row__delete {
     display: inline-flex;
     flex-shrink: 0;
     width: 34px;
@@ -116,12 +126,12 @@
     color: var(--color-danger);
 }
 
-.application-icon svg {
+.application-row__delete svg {
     width: 18px;
     height: 18px;
 }
 
-.account-shell .application-list-help {
+.account-shell .application-list__help {
     margin: 20px 0 0;
     color: var(--color-muted);
     font-size: 12px;
@@ -137,6 +147,17 @@
     gap: 12px;
     align-items: center;
     margin-bottom: 16px;
+}
+
+.application-selector select {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--color-cabinet-input-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font: inherit;
 }
 
 .application-selector label {
@@ -155,7 +176,7 @@
     margin: 16px 0;
 }
 
-.application-answers > div {
+.application-answers>div {
     padding-block: 18px;
     border-bottom: 1px solid var(--color-line);
 }
@@ -197,17 +218,20 @@
         grid-template-columns: minmax(0, 1fr);
         align-items: stretch;
     }
-
-    .application-actions > :is(.button, a) {
-        width: 100%;
-        text-align: center;
-    }
-
-    .application-actions > a:not(.button) {
-        padding: 8px 14px;
-    }
 }
 
-.application-switch-confirm { grid-column: 1 / -1; padding: 16px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
-.application-switch-confirm p { margin: 0 0 12px; }
-.application-switch-confirm button { margin: 0 8px 4px 0; }
+.application-switch-confirm {
+    grid-column: 1 / -1;
+    padding: 16px;
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    background: var(--color-surface);
+}
+
+.application-switch-confirm p {
+    margin: 0 0 12px;
+}
+
+.application-switch-confirm button {
+    margin: 0 8px 4px 0;
+}

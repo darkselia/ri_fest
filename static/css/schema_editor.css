@@ -1,4 +1,5 @@
-.schema-card-head, .schema-flags {
+.schema-card__head,
+.schema-flags {
     display: flex;
     flex-wrap: wrap;
     align-items: end;
@@ -13,7 +14,7 @@
     margin-bottom: 24px;
 }
 
-.schema-toolbar-section {
+.schema-toolbar__section {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
@@ -24,31 +25,31 @@
     background: var(--admin-panel-muted);
 }
 
-.schema-tool-description {
+.schema-toolbar__description {
     flex: 1 0 100%;
     line-height: 1.5;
 }
 
-.schema-tool-description strong {
+.schema-toolbar__description strong {
     display: block;
     color: var(--color-base-900);
     font-size: 1rem;
 }
 
-.dark .schema-tool-description strong {
+.dark .schema-toolbar__description strong {
     color: var(--color-base-100);
 }
 
-.schema-tool-description p {
+.schema-toolbar__description p {
     margin-top: 4px;
     color: var(--color-base-600);
 }
 
-.dark .schema-tool-description p {
+.dark .schema-toolbar__description p {
     color: var(--admin-subtle-text);
 }
 
-.schema-copy-tool > label {
+.schema-copy-tool>label {
     flex: 1 1 200px;
     min-width: 0;
 }
@@ -64,26 +65,26 @@
     border-left: 3px solid var(--color-primary-600);
 }
 
-.schema-is-hidden {
+.schema-card--hidden {
     border-style: dashed;
 }
 
-.schema-option.schema-is-hidden {
+.schema-option.schema-option--hidden {
     border: 1px dashed var(--admin-panel-border);
 }
 
-.schema-option.schema-is-hidden > .schema-control:first-of-type input {
+.schema-option.schema-option--hidden>.schema-control:first-of-type input {
     text-decoration: line-through;
 }
 
-.schema-card.schema-is-hidden > .schema-card-head .schema-control,
-.schema-card.schema-is-hidden > .schema-control,
-.schema-card.schema-is-hidden > .schema-options .schema-control {
+.schema-card.schema-card--hidden>.schema-card__head .schema-control,
+.schema-card.schema-card--hidden>.schema-control,
+.schema-card.schema-card--hidden>.schema-options .schema-control {
     opacity: .6;
     filter: blur(.6px);
 }
 
-.schema-card.schema-is-hidden .schema-control:focus-within {
+.schema-card.schema-card--hidden .schema-control:focus-within {
     opacity: 1;
     filter: none;
 }
@@ -94,7 +95,7 @@
     padding: 2px 8px;
 }
 
-.schema-options > button {
+.schema-options>button {
     margin: 12px 8px 0 0;
 }
 
@@ -121,7 +122,7 @@
     flex-direction: column;
 }
 
-.schema-preview-header {
+.schema-preview-dialog__header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -130,7 +131,7 @@
     border-bottom: 1px solid var(--admin-panel-border);
 }
 
-.schema-preview-header button {
+.schema-preview-dialog__header button {
     padding: 6px 10px;
     border: 1px solid var(--admin-panel-border);
     border-radius: 6px;
@@ -144,20 +145,17 @@
     background: var(--color-surface);
 }
 
-.schema-card::before {
-    content: "Вопрос " attr(data-number);
-    display: block;
+.schema-card__title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     margin-bottom: 16px;
     color: var(--color-base-600);
     font-weight: 600;
 }
 
-.dark .schema-card::before {
+.dark .schema-card__title {
     color: var(--admin-subtle-text);
-}
-
-.schema-card--info::before {
-    content: "Текстовый блок";
 }
 
 .schema-card--info {
@@ -171,23 +169,23 @@
     min-width: 0;
 }
 
-.schema-card-head > .schema-control {
+.schema-card__head>.schema-control {
     flex: 1 1 180px;
 }
 
-.schema-card > .schema-control {
+.schema-card>.schema-control {
     width: 100%;
     margin-top: 12px;
 }
 
-.schema-card > .schema-control textarea {
+.schema-card>.schema-control textarea {
     width: 100%;
     max-width: none;
     min-height: 44px;
     resize: vertical;
 }
 
-.schema-card-tools {
+.schema-card__tools {
     display: flex;
     gap: 4px;
     margin-left: auto;
@@ -197,7 +195,7 @@
 .schema-option {
     display: grid;
     gap: 12px;
-    grid-template-columns: 32px minmax(140px, 1fr) 150px minmax(90px, 140px) auto;
+    grid-template-columns: 32px minmax(140px, 672px) 150px minmax(90px, 140px) minmax(max-content, 1fr);
     align-items: end;
     margin-top: 12px;
     padding: 12px;
@@ -207,20 +205,49 @@
     position: relative;
 }
 
+.schema-option.schema-fee-period {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+}
+
+.schema-fee-period>span {
+    flex-basis: 100%;
+}
+
+.schema-fee-period>.schema-control {
+    flex: 0 1 150px;
+    min-width: 0;
+}
+
+.schema-fee-period>.schema-editor-icon {
+    margin-left: auto;
+}
+
 .schema-option--choice {
     grid-template-columns: 32px minmax(140px, 1fr) auto;
 }
 
-.schema-option--refusal {
-    grid-template-columns: minmax(140px, 1fr) auto;
+.schema-option.schema-option--refusal {
+    grid-template-columns: minmax(0, 672px) minmax(max-content, 1fr);
 }
 
-.schema-option--refusal .schema-refusal-note {
+.schema-option.schema-option--refusal .schema-refusal-note {
+    grid-column: 1 / -1;
+    grid-row: 1;
+}
+
+.schema-option.schema-option--refusal>[data-control=label] {
     grid-column: 1;
     grid-row: 2;
 }
 
-.schema-option > .schema-hidden-note {
+.schema-option.schema-option--refusal .schema-option__actions {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+.schema-option>.schema-hidden-note {
     grid-column: 1 / -1;
     justify-self: start;
 }
@@ -234,12 +261,13 @@
     min-width: 0;
 }
 
-.schema-option-actions {
+.schema-option__actions {
     display: flex;
     gap: 4px;
     position: relative;
     grid-column: -2 / -1;
     grid-row: 1;
+    justify-self: end;
 }
 
 .schema-confirm {
@@ -263,18 +291,18 @@
     line-height: 1.5;
 }
 
-.schema-confirm-actions {
+.schema-confirm__actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
 }
 
-.schema-confirm-actions button {
+.schema-confirm__actions button {
     white-space: normal;
 }
 
-#schema-editor > div:last-child {
+#schema-editor>div:last-child {
     padding-bottom: 16px;
 }
 
@@ -288,27 +316,28 @@
         grid-template-columns: 32px minmax(0, 1fr) minmax(90px, 1fr);
     }
 
-    .schema-option > [data-control=label] {
+    .schema-option>[data-control=label] {
         grid-column: 2 / -1;
     }
 
-    .schema-option > [data-control=service_date] {
+    .schema-option>[data-control=service_date] {
         grid-column: 2;
         width: min(150px, 100%);
     }
 
-    .schema-option > [data-control=price] {
+    .schema-option>[data-control=price] {
         grid-column: 3;
     }
 
-    .schema-option-actions {
+    .schema-option__actions {
         grid-column: 1 / -1;
         grid-row: auto;
         justify-content: flex-end;
         flex-wrap: wrap;
     }
 
-    .schema-option--refusal > [data-control=label], .schema-option--refusal .schema-refusal-note {
+    .schema-option--refusal>[data-control=label],
+    .schema-option--refusal .schema-refusal-note {
         grid-column: 1 / -1;
     }
 
@@ -319,7 +348,7 @@
         margin-top: 8px;
     }
 
-    .schema-card-tools {
+    .schema-card__tools {
         flex-wrap: wrap;
     }
 
@@ -335,20 +364,21 @@
         grid-template-columns: 28px minmax(0, 1fr);
     }
 
-    .schema-option > [data-control=service_date], .schema-option > [data-control=price] {
+    .schema-option>[data-control=service_date],
+    .schema-option>[data-control=price] {
         grid-column: 2;
     }
 }
 
 /* Без ручки перетаскивания подпись остаётся во второй колонке сетки. */
 @media (min-width: 1000px) {
-    [data-editable="false"] .schema-option:not(.schema-option--refusal) > [data-control=label] {
+    [data-editable="false"] .schema-option:not(.schema-option--refusal)>[data-control=label] {
         grid-column: 2;
     }
 }
 
-.schema-card-head .schema-control > div,
-.schema-option .schema-control > div {
+.schema-card__head .schema-control>div,
+.schema-option .schema-control>div {
     width: 100%;
     min-width: 0;
 }
@@ -399,11 +429,32 @@
 }
 
 @media (max-width: 600px) {
+
+    .schema-option>[data-control=label],
+    .schema-option>[data-control=service_date],
+    .schema-option>[data-control=price] {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
+    .schema-option.schema-option--refusal>[data-control=label] {
+        grid-column: 1 / -1;
+    }
+
+    .schema-option.schema-option--refusal .schema-option__actions {
+        grid-column: 1 / -1;
+        grid-row: auto;
+    }
+
+    .schema-fee-period>.schema-control {
+        flex-basis: 100%;
+    }
+
     .schema-toolbar {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .schema-toolbar-section {
+    .schema-toolbar__section {
         padding: 14px;
     }
 
@@ -411,19 +462,19 @@
         padding: 12px;
     }
 
-    .schema-card-head > .schema-control {
+    .schema-card__head>.schema-control {
         flex-basis: 100%;
     }
 
-    .schema-card-tools {
+    .schema-card__tools {
         margin-left: auto;
     }
 
-    .schema-toolbar-section > label {
+    .schema-toolbar__section>label {
         width: 100%;
     }
 
-    .schema-card > .schema-control textarea {
+    .schema-card>.schema-control textarea {
         min-height: 60px;
     }
 }

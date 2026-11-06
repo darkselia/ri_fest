@@ -506,7 +506,15 @@ class FestivalAdmin(ModelAdmin):
                     raise PermissionDenied
                 festival = Festival()
             _, rows = prepare_schema(festival, data.get("schema"))
-            form = TemplatePreviewForm(rows, data=data.get("answers"), public=True)
+            timezone_name = data.get("timezone", festival.timezone)
+            from .models import validate_timezone
+
+            if not isinstance(timezone_name, str):
+                raise ValidationError("Укажите существующий часовой пояс.")
+            validate_timezone(timezone_name)
+            form = TemplatePreviewForm(
+                rows, data=data.get("answers"), public=True, timezone_name=timezone_name
+            )
             totals = None
             if form.is_bound and form.is_valid():
                 totals = calculate_rows(
@@ -514,6 +522,8 @@ class FestivalAdmin(ModelAdmin):
                 )
                 for entry in form.entries:
                     entry["subtotal"] = totals["fields"].get(entry["key"])
+                    if entry["kind"] == "datefee" and "fee" in entry:
+                        totals["total"] += entry["fee"]["amount"]
             return JsonResponse(
                 {
                     "html": render_to_string(

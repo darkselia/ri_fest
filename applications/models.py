@@ -29,6 +29,7 @@ class FormField(models.Model):
         INFO = "info", "Информационный блок"
         SERVICE = "service", "Платные услуги — несколько вариантов"
         SERVICE_SINGLE = "service1", "Платные услуги — один вариант"
+        DATE_FEE = "datefee", "Плата по дате"
 
     festival = models.ForeignKey(
         "festivals.Festival",
@@ -66,6 +67,7 @@ class FormField(models.Model):
                         "info",
                         "service",
                         "service1",
+                        "datefee",
                     ]
                 ),
                 name="form_field_valid_type",
@@ -74,6 +76,30 @@ class FormField(models.Model):
 
     def __str__(self):
         return self.label
+
+
+class FeePeriod(models.Model):
+    field = models.ForeignKey(
+        FormField, on_delete=models.CASCADE, related_name="fee_periods"
+    )
+    ends_on = models.DateField("До включительно", null=True, blank=True)
+    amount = models.DecimalField("Сумма", max_digits=12, decimal_places=2)
+
+    class Meta:
+        ordering = (models.F("ends_on").asc(nulls_last=True), "pk")
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount__gte=0), name="fee_period_nonnegative"
+            ),
+            models.UniqueConstraint(
+                fields=("field",),
+                condition=models.Q(ends_on__isnull=True),
+                name="fee_period_one_open",
+            ),
+            models.UniqueConstraint(
+                fields=("field", "ends_on"), name="fee_period_unique_end"
+            ),
+        ]
 
 
 class FormOption(models.Model):
@@ -264,6 +290,7 @@ class ApplicationAnswer(models.Model):
                 raise ValidationError("Вопрос относится к другому фестивалю.")
             if self.field.field_type in (
                 FormField.Type.INFO,
+                FormField.Type.DATE_FEE,
                 FormField.Type.SERVICE,
                 FormField.Type.SERVICE_SINGLE,
             ):

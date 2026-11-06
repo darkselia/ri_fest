@@ -71,6 +71,7 @@ def application_form(festival, application=None, *, data=None, require_complete=
         answers=answers,
         require_complete=require_complete,
         preview=False,
+        timezone_name=festival.timezone,
     )
 
 
@@ -242,7 +243,7 @@ def _save_application(
             return application, form
         application.save()
         for entry in form.entries:
-            if entry["kind"] == "info":
+            if entry["kind"] in ("info", "datefee"):
                 continue
             field_id = entry["row"]["id"]
             value = form.cleaned_data[entry["field"].name]
@@ -523,6 +524,15 @@ def save_form_field(
     with edit_schema(
         festival_id, actor=actor, action="change" if field_id else "add", at=at
     ) as festival:
+        if changes.get("field_type") == "datefee" or (
+            field_id
+            and FormField.objects.filter(
+                pk=field_id, festival=festival, field_type="datefee"
+            ).exists()
+        ):
+            raise ValidationError(
+                "Изменяйте плату по дате через редактор шаблона фестиваля."
+            )
         field, variants = prepare_form_field(
             festival, field_id=field_id, changes=changes, options=options
         )
@@ -567,6 +577,10 @@ def validate_field_deletion(festival, field_id):
 def delete_form_field(festival_id, field_id, *, actor, at=None):
     with edit_schema(festival_id, actor=actor, action="delete", at=at) as festival:
         field = FormField.objects.get(pk=field_id, festival=festival)
+        if field.field_type == "datefee":
+            raise ValidationError(
+                "Отменяйте плату по дате через редактор шаблона фестиваля с подтверждением."
+            )
         validate_field_deletion(festival, field.pk)
         if field.options.exists():
             require_schema_permission(actor, "delete", "formoption")

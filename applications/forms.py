@@ -98,6 +98,8 @@ class TemplatePreviewForm(forms.Form):
         require_complete=True,
         preview=True,
         public=False,
+        timezone_name="Asia/Krasnoyarsk",
+        at=None,
     ):
         super().__init__(
             data=data,
@@ -118,7 +120,17 @@ class TemplatePreviewForm(forms.Form):
                 "kind": kind,
                 "key": str(row["id"]) if row.get("id") else f"new_{i}",
             }
-            if kind != "info":
+            if kind == "datefee":
+                from .date_fees import fee_schedule
+
+                try:
+                    entry["fee"] = fee_schedule(
+                        row.get("fee_periods", []), timezone_name=timezone_name, at=at
+                    )
+                    entry["fee"]["kopecks"] = int(entry["fee"]["amount"] * 100)
+                except forms.ValidationError as error:
+                    entry["fee_error"] = " ".join(error.messages)
+            elif kind != "info":
                 settings = {
                     "label": row["label"],
                     "help_text": row["help_text"],
