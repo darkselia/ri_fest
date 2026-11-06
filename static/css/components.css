@@ -45,41 +45,29 @@
     transform: translateY(1px);
 }
 
-.button-wide {
+.button--wide {
     width: 100%;
 }
 
-.button-secondary {
+.button--secondary {
     background: transparent;
     color: var(--color-ink);
     border-color: var(--color-line);
 }
 
-.button-secondary:hover {
+.button--secondary:hover {
     background: var(--color-paper);
 }
 
-.button-danger, .action-delete {
+.button--danger {
     background: var(--color-danger);
     border-color: var(--color-danger);
     color: var(--color-white);
 }
 
-.button-danger:hover, .action-delete:hover {
+.button--danger:hover {
     background: var(--color-danger-hover);
     border-color: var(--color-danger-hover);
-}
-
-.action-draft {
-    background: var(--color-action-draft);
-    border-color: var(--color-action-draft);
-    color: var(--color-white);
-}
-
-.action-archive {
-    background: var(--color-action-archive);
-    border-color: var(--color-action-archive);
-    color: var(--color-white);
 }
 
 .account-form {
@@ -87,23 +75,23 @@
     gap: 14px;
 }
 
-.account-form > .button {
+.account-form>.button {
     justify-self: start;
 }
 
 /* Публичные поля не переопределяют одноимённые элементы Unfold. */
-.site-page .form-field {
+.site-page .account-field {
     display: grid;
     gap: 0;
     min-width: 0;
 }
 
-.site-page .form-field label {
+.site-page .account-field label {
     font-size: 13px;
     font-weight: 650;
 }
 
-.site-page .form-field :is(input, textarea, select) {
+.site-page .account-field :is(input, textarea, select) {
     width: 100%;
     min-width: 0;
     padding: 8px 10px;
@@ -116,12 +104,12 @@
     line-height: 1.5;
 }
 
-.site-page .form-field :is(input, textarea, select):focus-visible {
+.site-page .account-field :is(input, textarea, select):focus-visible {
     outline: 2px solid var(--color-ink);
     outline-offset: 2px;
 }
 
-.site-page .form-field :is(input, textarea, select)[aria-invalid=true] {
+.site-page .account-field :is(input, textarea, select)[aria-invalid=true] {
     border-color: var(--color-error);
 }
 
@@ -136,12 +124,14 @@
     line-height: 1.45;
 }
 
-.field-help ul, .errorlist {
+.field-help ul,
+.errorlist {
     margin: 0;
     padding-left: 18px;
 }
 
-.form-errors, .field-errors {
+.form-errors,
+.field-errors {
     color: var(--form-error, var(--color-error));
     font-size: 13px;
 }
@@ -191,7 +181,8 @@
     text-decoration: underline;
 }
 
-.application-badge, .email-status {
+.application-badge,
+.email-status {
     width: min-content;
     align-items: center;
     border-radius: 6px;
@@ -203,7 +194,8 @@
     white-space: nowrap;
 }
 
-.application-badge--active, .email-status-confirmed {
+.application-badge--active,
+.email-status--confirmed {
     background: var(--color-cabinet-sent-bg);
     color: var(--color-success);
 }
@@ -235,7 +227,7 @@
     content: "";
 }
 
-.scene-art {
+.brand-scene__art {
     position: absolute;
     top: 12%;
     left: 12%;
@@ -246,7 +238,7 @@
     box-shadow: var(--shadow-art);
 }
 
-.scene-spark {
+.brand-scene__spark {
     position: absolute;
     top: 0;
     right: 0;
@@ -254,7 +246,7 @@
     height: auto;
 }
 
-.scene-signal {
+.brand-scene__signal {
     position: absolute;
     bottom: 0;
     left: 0;

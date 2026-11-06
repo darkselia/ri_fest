@@ -1,41 +1,61 @@
 {% extends "layouts/cabinet.html" %}
 {% load static %}
-{% block extra_css %}{{ block.super }}<link rel="stylesheet" href="{% static 'css/applications.css' %}">{% endblock %}
-
+{% block extra_css %}{{ block.super }}<link rel="stylesheet"
+                                            href="{% static 'css/applications.css' %}">{% endblock %}
 {% block account_content %}
-<div class="application-heading">
-    <nav class="application-filters" aria-label="Статус анкет">
-        <a href="?tab=all"{% if tab == 'all' %} aria-current="page"{% endif %}>Все · {{ application_counts.all }}</a>
-        <a href="?tab=drafts"{% if tab == 'drafts' %} aria-current="page"{% endif %}>Черновики · {{ application_counts.drafts }}</a>
-        <a href="?tab=submitted"{% if tab == 'submitted' %} aria-current="page"{% endif %}>Отправленные · {{ application_counts.submitted }}</a>
-        <a href="?tab=archive"{% if tab == 'archive' %} aria-current="page"{% endif %}>Архив · {{ application_counts.archive }}</a>
-    </nav>
-    <a class="button" href="{% url 'applications:new' %}"><span aria-hidden="true">＋</span> Добавить</a>
-</div>
-<div class="application-list">
-{% for card in cards %}
-    <article class="application-row">
-        <span class="application-badge{% if card.application.status == 'withdrawn' %} application-badge--withdrawn{% elif card.archived %} application-badge--archive{% elif card.application.status == 'active' %} application-badge--active{% endif %}">{{ card.status_label }}</span>
-        <div><h3><a class="application-title" href="{% if card.can_edit %}{% url 'applications:edit' card.application.pk %}{% else %}{% url 'applications:detail' card.application.pk %}{% endif %}">{{ card.festival.name }} <small>Анкета {{ card.application.number }}</small></a></h3>
-        {% if card.needs_attention %}<p class="application-attention" role="status">{{ card.attention_message }}</p>{% endif %}</div>
-        <div class="application-actions">
-            {% if card.is_draft %}<a class="application-icon" aria-label="Удалить анкету {{ card.application.number }}" title="Удалить черновик" href="{% url 'applications:delete' card.application.pk %}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></svg></a>{% endif %}
-        </div>
-    </article>
-{% empty %}
-    <div class="account-empty">
-        <img src="{% static 'img/ticket.svg' %}" alt="" width="96" height="72" aria-hidden="true">
-        <div>{% if tab == 'all' %}<h3>Пока нет анкет</h3><p>Добавьте анкету, чтобы записаться на фестиваль. Её можно сохранить и заполнить позже.</p>{% elif tab == 'drafts' %}<h3>Пока нет черновиков</h3><p>Добавьте анкету: её можно сохранить и заполнить позже.</p>{% elif tab == 'submitted' %}<h3>Пока нет отправленных анкет</h3><p>Здесь появятся анкеты после отправки на фестиваль.</p>{% else %}<h3>Архив пока пуст</h3><p>Здесь будут ваши анкеты завершённых фестивалей.</p>{% endif %}</div>
+    <div class="application-heading">
+        <nav class="application-filters" aria-label="Статус анкет">
+            <a href="?tab=all"{% if tab == 'all' %} aria-current="page"{% endif %}>Все · {{ application_counts.all }}</a>
+            <a href="?tab=drafts"{% if tab == 'drafts' %} aria-current="page"{% endif %}>Черновики · {{ application_counts.drafts }}</a>
+            <a href="?tab=submitted"{% if tab == 'submitted' %} aria-current="page"{% endif %}>Отправленные · {{ application_counts.submitted }}</a>
+            <a href="?tab=archive"{% if tab == 'archive' %} aria-current="page"{% endif %}>Архив · {{ application_counts.archive }}</a>
+        </nav>
+        <a class="button"
+           href="{% url 'applications:new' %}"><span aria-hidden="true">＋</span> Добавить</a>
     </div>
-{% endfor %}
-</div>
-<p class="application-list-help">Черновики сохраняются до отправки и видны только вам. При открытом приёме активную анкету можно изменить или отозвать. Архивные и отозванные анкеты находятся в разделе «Архив» и доступны для просмотра.</p>
-{% if page_obj.has_other_pages %}
-<nav class="application-actions" aria-label="Страницы анкет">
-    {% if page_obj.has_previous %}<a href="?tab={{ tab }}&amp;page={{ page_obj.previous_page_number }}">Предыдущая</a>{% endif %}
-    <span>Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
-    {% if page_obj.has_next %}<a href="?tab={{ tab }}&amp;page={{ page_obj.next_page_number }}">Следующая</a>{% endif %}
-</nav>
-{% endif %}
-<script src="{% static 'js/application_form.js' %}" defer></script>
+    <div class="application-list">
+        {% for card in cards %}
+            <article class="application-row">
+                <span class="application-badge{% if card.application.status == 'withdrawn' %} application-badge--withdrawn{% elif card.archived %} application-badge--archive{% elif card.application.status == 'active' %} application-badge--active{% endif %}">{{ card.status_label }}</span>
+                <div><h3><a class="application-row__title"
+                            href="{% if card.can_edit %}{% url 'applications:edit' card.application.pk %}{% else %}{% url 'applications:detail' card.application.pk %}{% endif %}">{{ card.festival.name }} <small>Анкета {{ card.application.number }}</small></a></h3>
+                {% if card.needs_attention %}<p class="application-row__attention"
+                                                role="status">{{ card.attention_message }}</p>{% endif %}</div>
+                <div class="application-actions">
+                    {% if card.is_draft %}
+                        <a class="application-row__delete"
+                           aria-label="Удалить анкету {{ card.application.number }}"
+                           title="Удалить черновик"
+                           href="{% url 'applications:delete' card.application.pk %}">
+                            <svg viewBox="0 0 24 24"
+                                 aria-hidden="true"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="1.7">
+                                <path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7" />
+                            </svg>
+                        </a>
+                    {% endif %}
+                </div>
+            </article>
+        {% empty %}
+            <div class="account-empty">
+                <img src="{% static 'img/ticket.svg' %}"
+                     alt=""
+                     width="96"
+                     height="72"
+                     aria-hidden="true">
+                <div>{% if tab == "all" %}<h3>Пока нет анкет</h3><p>Добавьте анкету, чтобы записаться на фестиваль. Её можно сохранить и заполнить позже.</p>{% elif tab == "drafts" %}<h3>Пока нет черновиков</h3><p>Добавьте анкету: её можно сохранить и заполнить позже.</p>{% elif tab == "submitted" %}<h3>Пока нет отправленных анкет</h3><p>Здесь появятся анкеты после отправки на фестиваль.</p>{% else %}<h3>Архив пока пуст</h3><p>Здесь будут ваши анкеты завершённых фестивалей.</p>{% endif %}</div>
+            </div>
+        {% endfor %}
+    </div>
+    <p class="application-list__help">Черновики сохраняются до отправки и видны только вам. При открытом приёме активную анкету можно изменить или отозвать. Архивные и отозванные анкеты находятся в разделе «Архив» и доступны для просмотра.</p>
+    {% if page_obj.has_other_pages %}
+        <nav class="application-actions" aria-label="Страницы анкет">
+            {% if page_obj.has_previous %}<a href="?tab={{ tab }}&amp;page={{ page_obj.previous_page_number }}">Предыдущая</a>{% endif %}
+            <span>Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}<a href="?tab={{ tab }}&amp;page={{ page_obj.next_page_number }}">Следующая</a>{% endif %}
+        </nav>
+    {% endif %}
+    <script src="{% static 'js/application_form.js' %}" defer></script>
 {% endblock %}

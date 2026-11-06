@@ -1,6 +1,7 @@
-<div class="form-field">
+<div class="account-field">
     {% if no_suffix %}<label for="{{ field.id_for_label }}">{{ field.label }}</label>{% else %}{{ field.label_tag }}{% endif %}
     {{ field }}
-    {% if field.help_text %}<div class="field-help" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</div>{% endif %}
+    {% if field.help_text %}<div class="field-help"
+                                 id="{{ field.auto_id }}_helptext">{{ field.help_text }}</div>{% endif %}
     {% if field.errors %}<div class="field-errors" role="alert">{{ field.errors }}</div>{% endif %}
 </div>

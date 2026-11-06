@@ -2,45 +2,94 @@
 {% load static unfold %}
 {% block nav-global-side %}{% endblock %}
 {% block object-tools-items %}
-{% url 'admin:applications_application_history' original.pk as history_url %}
-{% include "unfold/helpers/tab_action.html" with title="История" link=history_url icon="history" %}
-{% if can_withdraw %}
-{% include "unfold/helpers/tab_action.html" with title="Отозвать" link="?confirm=withdraw" icon="cancel" %}
-{% elif can_restore and not restoring %}
-{% include "unfold/helpers/tab_action.html" with title="Восстановить" link="?restore=1" icon="restore" %}
-{% endif %}
+    {% url 'admin:applications_application_history' original.pk as history_url %}
+    {% include "unfold/helpers/tab_action.html" with title="История" link=history_url icon="history" %}
+    {% if can_withdraw %}
+        {% include "unfold/helpers/tab_action.html" with title="Отозвать" link="?confirm=withdraw" icon="cancel" %}
+    {% elif can_restore and not restoring %}
+        {% include "unfold/helpers/tab_action.html" with title="Восстановить" link="?restore=1" icon="restore" %}
+    {% endif %}
 {% endblock %}
 {% block content %}
-{% if not festival %}
-<section class="admin-panel p-4">
-<p class="mb-4">Выберите фестиваль и зарегистрированного пользователя. После заполнения анкета появится в его личном кабинете со статусом «Активна».</p>
-{% if error %}<p role="alert">{{ error }}</p>{% endif %}
-<form method="get">
-<div class="flex flex-col gap-6">{% for field in selector %}{% include "unfold/helpers/field.html" with field=field %}{% endfor %}</div>
-<div class="flex flex-wrap gap-3 mt-6">
-{% component "unfold/components/button.html" with type="submit" variant="default" extra_attrs="formnovalidate" %}Найти пользователя{% endcomponent %}
-{% component "unfold/components/button.html" with type="submit" %}Продолжить{% endcomponent %}
-</div></form></section>
-{% else %}{{ block.super }}{% endif %}
+    {% if not festival %}
+        <section class="admin-panel p-4 application-owner-selector">
+            <p class="mb-4">
+                Выберите фестиваль и зарегистрированного пользователя. После заполнения анкета появится в
+                его личном кабинете со статусом «Активна».
+            </p>
+            {% if error %}
+                <p role="alert">{{ error }}</p>
+            {% endif %}
+            <form method="get">
+                <div class="flex flex-col gap-6">
+                    {% for field in selector %}
+                        {% include "unfold/helpers/field.html" with field=field %}
+                    {% endfor %}
+                </div>
+                <div class="flex flex-wrap gap-3 mt-6">
+                    {% component "unfold/components/button.html" with type="submit" %}
+                        Продолжить
+                    {% endcomponent %}
+                </div>
+            </form>
+        </section>
+    {% else %}
+        {{ block.super }}
+    {% endif %}
 {% endblock %}
 {% block field_sets %}
-<section class="admin-panel p-4 application-form" data-application-form>
-<div class="application-form-heading">
-<div class="flex flex-wrap items-center gap-3"><h2 class="application-editor-title">{{ festival.name }}{% if original %} · Анкета {{ original.number }}{% endif %}</h2>{% if original %}{{ display_status }}{% endif %}</div>
-<dl class="application-editor-meta"><div><dt>Владелец</dt><dd>{{ owner.get_full_name|default:'Имя не указано' }}</dd></div><div><dt>Email</dt><dd>{{ owner.email|default:'Владелец удалён' }}</dd></div></dl>
-{% if not original %}<details><summary>Изменить фестиваль или владельца</summary><p>Несохранённые ответы будут потеряны.</p>{% component "unfold/components/button.html" with href="?" variant="default" %}Изменить выбор{% endcomponent %}</details>{% endif %}
-{% if error %}<p role="alert" class="form-errors">{{ error }}</p>{% endif %}
-{% if restoring %}<p class="application-editor-note">Проверьте ответы и нажмите «Восстановить». Анкета станет активной, изменения сохранятся.</p>
-{% elif original.anonymized_at %}<p>Аккаунт владельца удалён. Сохранена обезличенная история участия.</p>
-{% elif not editable %}<p>Анкета доступна только для просмотра сохранённых данных.</p>
-{% else %}<p>Изменения сохранятся после нажатия «Сохранить». Заполните все обязательные вопросы.</p>{% endif %}
-</div>
-<input type="hidden" name="version" value="{{ version }}">
-{{ preview_form.non_field_errors }}
-{% include "components/forms/application_fields.html" %}
-{% include "components/forms/application_services.html" %}
-</section>
+    <section class="admin-panel p-4 application-form" data-application-form>
+        <div class="application-form__heading">
+            <div class="flex flex-wrap items-center gap-3">
+                <h2 class="application-form__title">
+                {{ festival.name }}{% if original %} · Анкета {{ original.number }}{% endif %}</h2>
+                {% if original %}
+                    {{ display_status }}
+                {% endif %}
+            </div>
+            <dl class="application-form__meta">
+                <div>
+                    <dt>Владелец</dt>
+                    <dd>
+                        {{ owner.get_full_name|default:'Имя не указано' }}
+                    </dd>
+                </div>
+                <div>
+                    <dt>Email</dt>
+                    <dd class="admin-email" title="{{ owner.email }}">
+                        {{ owner.email|default:'Владелец удалён' }}
+                    </dd>
+                </div>
+            </dl>
+            {% if error %}
+                <p role="alert" class="form-errors">{{ error }}</p>
+            {% endif %}
+            {% if restoring %}
+                <p class="application-form__note">
+                    Проверьте ответы и нажмите «Восстановить». Анкета станет активной,
+                    изменения сохранятся.
+                </p>
+            {% elif original.anonymized_at %}
+                <p>Аккаунт владельца удалён. Сохранена обезличенная история участия.</p>
+            {% elif not editable %}
+                <p>Анкета доступна только для просмотра сохранённых данных.</p>
+            {% endif %}
+        </div>
+        <input type="hidden" name="version" value="{{ version }}">
+        {{ preview_form.non_field_errors }}
+        {% include "components/forms/application_fields.html" %}
+        {% include "components/forms/application_services.html" %}
+    </section>
 {% endblock %}
-{% block submit_buttons_bottom %}{% if festival and editable %}{{ block.super }}{% endif %}{% endblock %}
+{% block submit_buttons_bottom %}
+    {% if festival and editable %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}
 {% block admin_change_form_document_ready %}{% endblock %}
-{% block extrahead %}{{ block.super }}{% if editable %}<script src="{% static 'js/application_form.js' %}" defer></script>{% endif %}{% endblock %}
+{% block extrahead %}
+    {{ block.super }}
+    {% if editable %}
+        <script src="{% static 'js/application_form.js' %}" defer></script>
+    {% endif %}
+{% endblock %}

@@ -8,11 +8,8 @@
     --color-line: #d7d1c3;
     --color-line-soft: rgb(215 209 195 / 70%);
     --color-white: #fff;
-    --color-transparent: transparent;
     --color-yellow: #f9de6d;
-    --color-red: var(--color-accent);
-    --color-red-hover: color-mix(in srgb, var(--color-accent), black 14%);
-    --color-input-border: #928979;
+    --color-accent-hover: color-mix(in srgb, var(--color-accent), black 14%);
     --color-cabinet-input-border: #a69e8d;
     --color-cabinet-draft: #79580b;
     --color-cabinet-draft-bg: #f6eac7;
@@ -26,19 +23,17 @@
     --color-danger: #a42b31;
     --color-danger-hover: #822027;
     --color-action-archive: #235fa3;
-    --color-action-draft: #202020;
+    --color-action-draft: var(--color-ink);
     --color-action-delete: var(--color-danger);
     --color-success: #285323;
     --color-success-bg: #e4efe0;
     --color-warning: #684a0c;
     --color-warning-bg: #fff0c2;
-    --radius-panel: 24px;
-    --radius-control: 12px;
     --shadow-panel: 0 18px 50px rgb(70 49 20 / 5%);
     --shadow-art: 0 24px 40px rgb(70 49 20 / 12%);
 }
 
-:root {
+html:root:has(#page) {
     --admin-tooltip-bg: var(--color-base-900);
     --admin-tooltip-fg: var(--color-base-50);
     --admin-focus: var(--color-primary-600);
@@ -47,10 +42,7 @@
     --admin-page-bg: var(--color-paper);
     --admin-panel-muted: var(--color-base-50);
     --admin-subtle-text: var(--color-base-600);
-}
-
-/* Оттенки и нейтральные цвета Unfold; применяются только к его страницам. */
-html:root:has(#page) {
+    /* Оттенки и нейтральные цвета Unfold. */
     --color-white: var(--color-surface);
     --color-primary-50: color-mix(in srgb, var(--color-accent) 5%, white);
     --color-primary-100: color-mix(in srgb, var(--color-accent) 12%, white);
@@ -59,7 +51,7 @@ html:root:has(#page) {
     --color-primary-400: color-mix(in srgb, var(--color-accent) 60%, white);
     --color-primary-500: color-mix(in srgb, var(--color-accent) 80%, white);
     --color-primary-600: var(--color-accent);
-    --color-primary-700: var(--color-red-hover);
+    --color-primary-700: var(--color-accent-hover);
     --color-primary-800: color-mix(in srgb, var(--color-accent), black 30%);
     --color-primary-900: color-mix(in srgb, var(--color-accent), black 45%);
     --color-primary-950: color-mix(in srgb, var(--color-accent), black 65%);

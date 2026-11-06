@@ -1,11 +1,13 @@
 {% extends "admin/submit_line.html" %}
 {% load unfold %}
 {% block submit-row %}
-<div class="flex flex-wrap gap-3 w-full" role="group" aria-label="Сохранение анкеты">
-{% if restoring %}
-{% component "unfold/components/button.html" with submit=1 form="application_form" name="action" value="restore" variant="default" %}Восстановить{% endcomponent %}
-{% elif show_save %}
-{% component "unfold/components/button.html" with submit=1 form="application_form" name="_save" value="1" variant="default" %}{% if original %}Сохранить изменения{% else %}Создать анкету{% endif %}{% endcomponent %}
-{% endif %}
-</div>
+    <div class="flex flex-wrap gap-3 w-full"
+         role="group"
+         aria-label="Сохранение анкеты">
+        {% if restoring %}
+            {% component "unfold/components/button.html" with submit=1 form="application_form" name="action" value="restore" variant="default" %}Восстановить{% endcomponent %}
+        {% elif show_save %}
+            {% component "unfold/components/button.html" with submit=1 form="application_form" name="_save" value="1" variant="default" %}{% if original %}Сохранить изменения{% else %}Создать анкету{% endif %}{% endcomponent %}
+        {% endif %}
+    </div>
 {% endblock %}

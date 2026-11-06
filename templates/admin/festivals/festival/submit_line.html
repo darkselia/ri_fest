@@ -1,17 +1,21 @@
 {% extends "admin/submit_line.html" %}
 {% load unfold %}
 {% block submit-row %}
-  {% if show_save %}
-    <div class="flex flex-wrap gap-3 w-full" role="group" aria-label="Сохранение фестиваля">
-      {% component "unfold/components/button.html" with submit=1 form="festival_form" name="_save" value="1" variant="default" %}{% if festival_is_draft %}Сохранить черновик{% else %}Сохранить изменения{% endif %}{% endcomponent %}
-      {% if can_publish_festival %}
-        <span class="publish-control" tabindex="0" aria-describedby="publish-reasons">
-          {% component "unfold/components/button.html" with submit=1 form="festival_form" name="_publish" value="1" attrs=publish_attrs extra_attrs='data-publish' %}Сохранить и опубликовать{% endcomponent %}
-          <span id="publish-reasons" role="tooltip">{% for reason in publication_errors %}{{ reason }}{% if not forloop.last %}; {% endif %}{% endfor %}</span>
-        </span>
-      {% endif %}
-    </div>
-  {% else %}
-    {{ block.super }}
-  {% endif %}
+    {% if show_save %}
+        <div class="flex flex-wrap gap-3 w-full"
+             role="group"
+             aria-label="Сохранение фестиваля">
+            {% component "unfold/components/button.html" with submit=1 form="festival_form" name="_save" value="1" variant="default" %}{% if festival_is_draft %}Сохранить черновик{% else %}Сохранить изменения{% endif %}{% endcomponent %}
+            {% if can_publish_festival %}
+                <span class="publish-control"
+                      tabindex="0"
+                      aria-describedby="publish-reasons">
+                    {% component "unfold/components/button.html" with submit=1 form="festival_form" name="_publish" value="1" attrs=publish_attrs extra_attrs='data-publish' %}Сохранить и опубликовать{% endcomponent %}
+                    <span id="publish-reasons" role="tooltip">{% for reason in publication_errors %}{{ reason }}{% if not forloop.last %}; {% endif %}{% endfor %}</span>
+                </span>
+            {% endif %}
+        </div>
+    {% else %}
+        {{ block.super }}
+    {% endif %}
 {% endblock %}

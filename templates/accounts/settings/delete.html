@@ -1,17 +1,19 @@
 {% extends "layouts/cabinet.html" %}
-
 {% block account_content %}
-<div class="account-form-column">
-    <h2>Удаление аккаунта</h2>
-    <p class="account-description">Аккаунт и все личные черновики будут удалены. Активные анкеты будут отозваны, а история отправленных, архивных и отозванных анкет сохранится без привязки к аккаунту и персональных ответов. Для подтверждения введите текущий пароль.</p>
-    <form method="post" class="account-form">
-        {% csrf_token %}
-        {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-        {% for field in form %}{% include "components/forms/field.html" %}{% endfor %}
-        <div class="account-delete-actions">
-            <button type="submit" class="button button-danger">Удалить аккаунт</button>
-            <a class="button button-secondary" href="{% url 'accounts:profile' %}">Отмена</a>
-        </div>
-    </form>
-</div>
+    <div class="profile-editor__column">
+        <h2>Удаление аккаунта</h2>
+        <p class="account-description">Аккаунт и все личные черновики будут удалены. Активные анкеты будут отозваны, а история отправленных, архивных и отозванных анкет сохранится без привязки к аккаунту и персональных ответов. Для подтверждения введите текущий пароль.</p>
+        <form method="post" class="account-form">
+            {% csrf_token %}
+            {% if form.non_field_errors %}<div class="form-errors"
+                                               role="alert">{{ form.non_field_errors }}</div>{% endif %}
+            {% for field in form %}
+                {% include "components/forms/field.html" %}
+            {% endfor %}
+            <div class="account-deletion-actions">
+                <button type="submit" class="button button--danger">Удалить аккаунт</button>
+                <a class="button button--secondary" href="{% url 'accounts:profile' %}">Отмена</a>
+            </div>
+        </form>
+    </div>
 {% endblock %}

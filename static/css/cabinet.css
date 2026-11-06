@@ -10,7 +10,7 @@
     padding-block: 32px 60px;
 }
 
-.account-shell .site-main > .container {
+.account-shell .site-main>.container {
     width: min(100%, 1200px);
     padding-inline: 24px;
 }
@@ -37,7 +37,7 @@
     margin-bottom: 22px;
 }
 
-.account-heading-copy {
+.account-heading__copy {
     min-width: 0;
     flex: 1;
 }
@@ -107,37 +107,37 @@
     padding: 24px 30px;
 }
 
-.account-form-column {
+.profile-editor__column {
     min-width: 0;
 }
 
-.account-editor-profile {
+.profile-editor {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
 }
 
-.account-editor-profile > :is(.account-form-column, .account-email, .account-password, .account-delete-zone) {
+.profile-editor> :is(.profile-editor__column, .profile-editor__email, .profile-editor__password, .profile-editor__delete) {
     min-width: 0;
     padding: 18px 0;
     border-bottom: 1px solid var(--color-line);
     overflow-wrap: anywhere;
 }
 
-.account-editor-profile h2 {
+.profile-editor h2 {
     font-size: 16px;
     margin: 0;
 }
 
-.account-editor-profile > .account-form-column .account-form {
+.profile-editor>.profile-editor__column .account-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.account-editor-profile > .account-form-column .account-form > :is(.button, .form-errors) {
+.profile-editor>.profile-editor__column .account-form> :is(.button, .form-errors) {
     grid-column: 1 / -1;
 }
 
-.account-email-identity {
+.profile-editor__identity {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -145,11 +145,11 @@
     margin-block: 6px 16px;
 }
 
-.account-shell .account-email-identity > p {
+.account-shell .profile-editor__identity>p {
     margin: 0;
 }
 
-.account-email-address {
+.profile-editor__address {
     font-size: 15px;
     font-weight: 400;
 }
@@ -160,17 +160,18 @@
     border-top: 1px solid var(--color-line);
 }
 
-.email-change-actions, .account-delete-actions {
+.email-change-pending__actions,
+.account-deletion-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
 }
 
-.email-change-form {
+.email-change {
     margin-top: 16px;
 }
 
-.account-editor-profile summary {
+.profile-editor summary {
     width: fit-content;
     display: inline-flex;
     align-items: center;
@@ -186,28 +187,28 @@
     cursor: pointer;
 }
 
-.account-editor-profile summary::-webkit-details-marker {
+.profile-editor summary::-webkit-details-marker {
     display: none;
 }
 
-.account-editor-profile summary:focus-visible {
+.profile-editor summary:focus-visible {
     outline: 2px solid var(--color-ink);
     outline-offset: 3px;
 }
 
-.account-editor-profile details[open] summary {
+.profile-editor details[open] summary {
     margin-bottom: 0;
 }
 
-.account-editor-profile > .account-delete-zone {
+.profile-editor>.profile-editor__delete {
     border-bottom-color: var(--color-cabinet-danger-line);
 }
 
-.account-delete-zone h2 {
+.profile-editor__delete h2 {
     color: var(--color-danger);
 }
 
-.account-delete-zone .button-secondary {
+.profile-editor__delete .button--secondary {
     color: var(--color-danger);
     border-color: var(--color-danger);
 }
@@ -234,11 +235,19 @@
 }
 
 @media (max-width: 650px) {
+    .account-heading {
+        align-items: flex-start;
+    }
+
+    .account-heading__copy {
+        flex-basis: 100%;
+    }
+
     .account-shell .site-main {
         padding-top: 24px;
     }
 
-    .account-shell .site-main > .container {
+    .account-shell .site-main>.container {
         padding-inline: 12px;
     }
 
@@ -258,7 +267,7 @@
         padding: 18px 15px;
     }
 
-    .account-editor-profile > .account-form-column .account-form {
+    .profile-editor>.profile-editor__column .account-form {
         grid-template-columns: minmax(0, 1fr);
     }
 
@@ -271,23 +280,26 @@
         width: 44px;
     }
 
-    .account-delete-actions, .email-change-actions {
+    .account-deletion-actions,
+    .email-change-pending__actions {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .account-delete-actions > *, .email-change-actions .button, .account-editor-profile .account-form > .button {
+    .account-deletion-actions>*,
+    .email-change-pending__actions .button,
+    .profile-editor .account-form>.button {
         width: 100%;
         justify-self: stretch;
     }
 }
 
 /* Интервал задаёт следующий блок, поэтому отступы не складываются. */
-.account-editor-profile p {
+.profile-editor p {
     margin: 6px 0 12px;
 }
 
-.account-editor-profile .account-form {
+.profile-editor .account-form {
     gap: 12px 14px;
     margin-top: 12px;
 }
@@ -296,17 +308,17 @@
     margin-bottom: 16px;
 }
 
-.account-editor-profile summary::after {
+.profile-editor summary::after {
     content: "▶";
     font-size: 12px;
     line-height: 1;
     transition: transform 160ms ease;
 }
 
-.account-editor-profile summary:hover {
+.profile-editor summary:hover {
     background: var(--color-paper);
 }
 
-.account-editor-profile details[open] summary::after {
+.profile-editor details[open] summary::after {
     transform: rotate(90deg);
 }

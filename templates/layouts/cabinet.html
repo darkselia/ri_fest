@@ -1,32 +1,33 @@
 {% extends "layouts/site.html" %}
 {% load static %}
-
 {% block title %}Личный кабинет — РИ-фест{% endblock %}
 {% block body_class %}account-shell{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/cabinet.css' %}"><link rel="stylesheet" href="{% static 'css/application_form.css' %}">{% endblock %}
-
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/cabinet.css' %}">
+{% endblock %}
 {% block content %}
-<section aria-labelledby="account-title">
-    <div class="account-heading">
-        {% firstof user.first_name.strip user.email as greeting_name %}
-        <div class="account-heading-copy">
-            <p class="account-kicker">Личный кабинет</p>
-            <h1 id="account-title">Здравствуйте, {{ greeting_name }}!</h1>
+    <section aria-labelledby="account-title">
+        <div class="account-heading">
+            {% firstof user.first_name.strip user.email as greeting_name %}
+            <div class="account-heading__copy">
+                <p class="account-kicker">Личный кабинет</p>
+                <h1 id="account-title">Здравствуйте, {{ greeting_name }}!</h1>
+            </div>
+            <div class="account-tools">
+                {% if user.is_staff %}
+                    <a class="button button--secondary"
+                       href="{% url 'admin:index' %}">Открыть админку <span aria-hidden="true">↗</span></a>
+                {% endif %}
+            </div>
         </div>
-        <div class="account-tools">
-            {% if user.is_staff %}
-                <a class="button button-secondary" href="{% url 'admin:index' %}">Открыть админку <span aria-hidden="true">↗</span></a>
-            {% endif %}
+        <nav class="account-navigation" aria-label="Разделы личного кабинета">
+            <a href="{% url 'accounts:home' %}"{% if account_tab == 'applications' %} aria-current="page"{% endif %}>Анкеты</a>
+            <a href="{% url 'accounts:profile' %}"{% if account_tab == 'profile' or account_tab == 'password' %} aria-current="page"{% endif %}>Личные данные</a>
+        </nav>
+        <div class="account-workspace">
+            <div class="account-surface">
+                {% block account_content %}{% endblock %}
+            </div>
         </div>
-    </div>
-    <nav class="account-navigation" aria-label="Разделы личного кабинета">
-        <a href="{% url 'accounts:home' %}"{% if account_tab == 'applications' %} aria-current="page"{% endif %}>Анкеты</a>
-        <a href="{% url 'accounts:profile' %}"{% if account_tab == 'profile' or account_tab == 'password' %} aria-current="page"{% endif %}>Личные данные</a>
-    </nav>
-    <div class="account-workspace">
-        <div class="account-surface">
-            {% block account_content %}{% endblock %}
-        </div>
-    </div>
-</section>
+    </section>
 {% endblock %}

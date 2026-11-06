@@ -5,18 +5,18 @@
     gap: 40px;
 }
 
-.hero-copy h1 {
+.home-hero__copy h1 {
     margin-bottom: 28px;
     font-size: clamp(40px, 4.6vw, 66px);
     font-weight: 800;
 }
 
-.hero-description {
+.home-hero__description {
     margin-bottom: 10px;
     font-size: 20px;
 }
 
-.hero-actions {
+.home-hero__actions {
     margin-top: 32px;
 }
 
@@ -39,14 +39,14 @@
         width: min(100%, 340px);
     }
 
-    .hero-copy h1 {
+    .home-hero__copy h1 {
         max-width: 650px;
         font-size: clamp(40px, 7vw, 60px);
     }
 }
 
 @media (max-width: 480px) {
-    .hero-description {
+    .home-hero__description {
         font-size: 18px;
     }
 }

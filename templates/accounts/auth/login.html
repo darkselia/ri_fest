@@ -1,21 +1,20 @@
 {% extends "layouts/auth.html" %}
-
 {% block title %}Вход — РИ-фест{% endblock %}
 {% block auth_title %}Вход в аккаунт{% endblock %}
 {% block auth_description %}<p class="muted">Укажите email и пароль своего аккаунта.</p>{% endblock %}
-
 {% block auth_content %}
-<form method="post" class="account-form">
-    {% csrf_token %}
-    {% if form.non_field_errors %}
-        <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
-    {% endif %}
-    {% for field in form %}{% include "components/forms/field.html" %}{% endfor %}
-    <button type="submit" class="button button-wide">Войти</button>
-</form>
+    <form method="post" class="account-form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
+        {% endif %}
+        {% for field in form %}
+            {% include "components/forms/field.html" %}
+        {% endfor %}
+        <button type="submit" class="button button--wide">Войти</button>
+    </form>
 {% endblock %}
-
 {% block auth_links %}
-<a href="{% url 'accounts:register' %}">Регистрация</a>
-<a href="{% url 'accounts:password_reset' %}">Забыли пароль?</a>
+    <a href="{% url 'accounts:register' %}">Регистрация</a>
+    <a href="{% url 'accounts:password_reset' %}">Забыли пароль?</a>
 {% endblock %}

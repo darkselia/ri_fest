@@ -1,8 +1,7 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
-
 {% block extrahead %}
-{{ block.super }}
-<link rel="stylesheet" href="{% static 'css/application_form.css' %}">
-<link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/application_form.css' %}">
+    <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
 {% endblock %}

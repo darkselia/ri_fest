@@ -1,14 +1,13 @@
 {% extends "layouts/auth.html" %}
-
 {% block auth_content %}
-<form method="post" class="account-form">
-    {% csrf_token %}
-    {% if form.non_field_errors %}
-        <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
-    {% endif %}
-    {% for field in form %}
-        {% include "components/forms/field.html" %}
-    {% endfor %}
-    <button type="submit" class="button button-wide">{{ submit_label }}</button>
-</form>
+    <form method="post" class="account-form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
+        {% endif %}
+        {% for field in form %}
+            {% include "components/forms/field.html" %}
+        {% endfor %}
+        <button type="submit" class="button button--wide">{{ submit_label }}</button>
+    </form>
 {% endblock %}

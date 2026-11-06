@@ -1,86 +1,107 @@
 {% extends "layouts/cabinet.html" %}
-
 {% block account_content %}
-<div{% if account_tab == 'profile' %} class="account-editor-profile"{% endif %}>
-    <div class="account-form-column">
-        {% if account_tab == 'profile' %}<h2>Как к вам обращаться</h2>{% endif %}
-        {% if description %}<p class="account-description muted">{{ description }}</p>{% endif %}
-        <form method="post" class="account-form" aria-label="{{ title }}">
-            {% csrf_token %}
-            {% if form.non_field_errors %}
-                <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
-            {% endif %}
-            {% for field in form %}{% if account_tab == 'profile' %}{% include "components/forms/field.html" with no_suffix=True %}{% else %}{% include "components/forms/field.html" %}{% endif %}{% endfor %}
-            <button type="submit" class="button{% if account_tab == 'profile' %} button-secondary{% endif %}">{% if account_tab == 'profile' %}Сохранить имя{% else %}{{ submit_label }}{% endif %}</button>
-        </form>
-    </div>
-    {% if account_tab == 'profile' %}
-        <aside class="account-email" aria-labelledby="account-email-title">
-            <h2 id="account-email-title">Электронная почта</h2>
-            <div class="account-email-identity">
-            <p class="account-email-address">{{ user.email }}</p>
-            {% if user.email_verified_at %}
-                <p class="email-status email-status-confirmed">Email подтверждён</p>
-            {% else %}
-                <p class="email-status email-status-pending">Email не подтверждён</p>
-            {% endif %}
-            </div>
-            {% if not user.email_verified_at %}
-                <p class="field-help">Для подтверждения перейдите по ссылке из письма.</p>
-                <form method="post" action="{% url 'accounts:activation_resend' %}">
-                    {% csrf_token %}
-                    <button type="submit" class="button button-secondary">Отправить письмо повторно</button>
-                </form>
-            {% endif %}
-            {% if user.pending_email %}
-                <div class="email-change-pending">
-                    <p class="field-help">Ожидает подтверждения: <strong>{{ user.pending_email }}</strong></p>
-                    <p class="field-help">Новый email станет адресом для входа после подтверждения. Пока используйте прежний адрес: {{ user.email }}.</p>
-                    {% if not email_verification_required %}<p class="field-help">Чтобы применить новый адрес сразу без подтверждения, заново сохраните его в форме «Изменить email».</p>{% endif %}
-                    <div class="email-change-actions">
-                        <form method="post" action="{% url 'accounts:email_change_resend' %}">
-                            {% csrf_token %}
-                            <button type="submit" class="button button-secondary">Отправить письмо повторно</button>
-                        </form>
-                        <form method="post" action="{% url 'accounts:email_change_cancel' %}">
-                            {% csrf_token %}
-                            <button type="submit" class="button button-secondary">Отменить изменение</button>
-                        </form>
-                    </div>
-                </div>
-            {% endif %}
-            <details class="email-change-form"{% if email_change_form.is_bound %} open{% endif %}>
-                <summary>Изменить email</summary>
-                {% if email_verification_required %}
-                    <p class="field-help">Новый адрес станет логином после подтверждения. До этого прежний email продолжит работать.</p>
-                {% else %}
-                    <p class="field-help">Новый адрес сразу станет логином. Подтверждение почты необязательно.</p>
+    <div{% if account_tab == 'profile' %} class="profile-editor"{% endif %}>
+        <div class="profile-editor__column">
+            {% if account_tab == "profile" %}<h2>Как к вам обращаться</h2>{% endif %}
+            {% if description %}<p class="account-description muted">{{ description }}</p>{% endif %}
+            <form method="post" class="account-form" aria-label="{{ title }}">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
                 {% endif %}
-                <form method="post" action="{% url 'accounts:email_change' %}" class="account-form">
-                    {% csrf_token %}
-                    {% if email_change_form.non_field_errors %}<div class="form-errors" role="alert">{{ email_change_form.non_field_errors }}</div>{% endif %}
-                    {% for field in email_change_form %}{% include "components/forms/field.html" %}{% endfor %}
-                    <button type="submit" class="button button-secondary">Изменить email</button>
-                </form>
-            </details>
-        </aside>
-        <section class="account-password" aria-labelledby="account-password-title">
-            <h2 id="account-password-title">Пароль</h2>
-            <details{% if password_form.is_bound %} open{% endif %}>
-                <summary>Изменить пароль</summary>
-                <form method="post" action="{% url 'accounts:password_change' %}" class="account-form">
-                    {% csrf_token %}
-                    {% if password_form.non_field_errors %}<div class="form-errors" role="alert">{{ password_form.non_field_errors }}</div>{% endif %}
-                    {% for field in password_form %}{% include "components/forms/field.html" %}{% endfor %}
-                    <button type="submit" class="button button-secondary">Сохранить пароль</button>
-                </form>
-            </details>
-        </section>
-        <section class="account-delete-zone">
-            <h2>Удаление аккаунта</h2>
-            <p class="muted">Удаление необходимо подтвердить текущим паролем.</p>
-            <a class="button button-secondary" href="{% url 'accounts:delete' %}">Удалить аккаунт</a>
-        </section>
-    {% endif %}
-</div>
+                {% for field in form %}
+                    {% if account_tab == "profile" %}
+                        {% include "components/forms/field.html" with no_suffix=True %}
+                    {% else %}
+                        {% include "components/forms/field.html" %}
+                    {% endif %}
+                {% endfor %}
+                <button type="submit"
+                        class="button{% if account_tab == 'profile' %} button--secondary{% endif %}">{% if account_tab == "profile" %}Сохранить имя{% else %}{{ submit_label }}{% endif %}</button>
+            </form>
+        </div>
+        {% if account_tab == "profile" %}
+            <aside class="profile-editor__email" aria-labelledby="account-email-title">
+                <h2 id="account-email-title">Электронная почта</h2>
+                <div class="profile-editor__identity">
+                    <p class="profile-editor__address">{{ user.email }}</p>
+                    {% if user.email_verified_at %}
+                        <p class="email-status email-status--confirmed">Email подтверждён</p>
+                    {% else %}
+                        <p class="email-status email-status--pending">Email не подтверждён</p>
+                    {% endif %}
+                </div>
+                {% if not user.email_verified_at %}
+                    <p class="field-help">Для подтверждения перейдите по ссылке из письма.</p>
+                    <form method="post" action="{% url 'accounts:activation_resend' %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="button button--secondary">Отправить письмо повторно</button>
+                    </form>
+                {% endif %}
+                {% if user.pending_email %}
+                    <div class="email-change-pending">
+                        <p class="field-help">Ожидает подтверждения: <strong>{{ user.pending_email }}</strong></p>
+                        <p class="field-help">Новый email станет адресом для входа после подтверждения. Пока используйте прежний адрес: {{ user.email }}.</p>
+                        {% if not email_verification_required %}<p class="field-help">Чтобы применить новый адрес сразу без подтверждения, заново сохраните его в форме «Изменить email».</p>{% endif %}
+                        <div class="email-change-pending__actions">
+                            <form method="post" action="{% url 'accounts:email_change_resend' %}">
+                                {% csrf_token %}
+                                <button type="submit"
+                                        class="button button--secondary">Отправить письмо повторно</button>
+                            </form>
+                            <form method="post" action="{% url 'accounts:email_change_cancel' %}">
+                                {% csrf_token %}
+                                <button type="submit"
+                                        class="button button--secondary">Отменить изменение</button>
+                            </form>
+                        </div>
+                    </div>
+                {% endif %}
+                <details class="email-change"{% if email_change_form.is_bound %} open{% endif %}>
+                    <summary>Изменить email</summary>
+                    {% if email_verification_required %}
+                        <p class="field-help">Новый адрес станет логином после подтверждения. До этого прежний email продолжит работать.</p>
+                    {% else %}
+                        <p class="field-help">Новый адрес сразу станет логином. Подтверждение почты необязательно.</p>
+                    {% endif %}
+                    <form method="post"
+                          action="{% url 'accounts:email_change' %}"
+                          class="account-form">
+                        {% csrf_token %}
+                        {% if email_change_form.non_field_errors %}<div class="form-errors" role="alert">{{ email_change_form.non_field_errors }}</div>{% endif %}
+                        {% for field in email_change_form %}
+                            {% include "components/forms/field.html" %}
+                        {% endfor %}
+                        <button type="submit"
+                                class="button button--secondary">Изменить email</button>
+                    </form>
+                </details>
+            </aside>
+            <section class="profile-editor__password"
+                     aria-labelledby="account-password-title">
+                <h2 id="account-password-title">Пароль</h2>
+                <details{% if password_form.is_bound %} open{% endif %}>
+                    <summary>Изменить пароль</summary>
+                    <form method="post"
+                          action="{% url 'accounts:password_change' %}"
+                          class="account-form">
+                        {% csrf_token %}
+                        {% if password_form.non_field_errors %}<div class="form-errors" role="alert">{{ password_form.non_field_errors }}</div>{% endif %}
+                        {% for field in password_form %}
+                            {% include "components/forms/field.html" %}
+                        {% endfor %}
+                        <button type="submit"
+                                class="button button--secondary">Сохранить пароль</button>
+                    </form>
+                </details>
+            </section>
+            <section class="profile-editor__delete">
+                <h2>Удаление аккаунта</h2>
+                <p class="muted">Удаление необходимо подтвердить текущим паролем.</p>
+                <a class="button button--secondary"
+                   href="{% url 'accounts:delete' %}">Удалить аккаунт</a>
+            </section>
+        {% endif %}
+    </div>
 {% endblock %}

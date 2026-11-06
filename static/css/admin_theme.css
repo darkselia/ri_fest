@@ -5,13 +5,13 @@ div:has(> a[x-on\:click^="switchTheme"]) {
     gap: 2px;
 }
 
-div:has(> a[x-on\:click^="switchTheme"]) > a {
+div:has(> a[x-on\:click^="switchTheme"])>a {
     margin: 0;
     min-width: 0;
     justify-content: flex-start;
 }
 
-div:has(> a[x-on\:click^="switchTheme"]) > a > span:last-child {
+div:has(> a[x-on\:click^="switchTheme"])>a>span:last-child {
     display: block;
 }
 
@@ -23,7 +23,9 @@ html.dark .text-subtle {
     background-color: var(--admin-page-bg);
 }
 
-.admin-panel, fieldset.module {
+.admin-panel,
+fieldset.module {
+    min-width: 0;
     background-color: var(--admin-panel-bg);
     border: 1px solid var(--admin-panel-border);
     border-radius: 8px;
@@ -35,6 +37,20 @@ html.dark .text-subtle {
 
 .admin-border {
     border: 1px solid var(--admin-panel-border);
+}
+
+/* Адаптер штатного виджета Unfold: сводка пароля и действие переносятся отдельно. */
+.field-password .grow {
+    min-width: 0;
+}
+
+.field-password div:has(> .readonly) {
+    flex-wrap: wrap;
+}
+
+.field-password .readonly {
+    flex: 1 1 240px;
+    min-width: 0;
 }
 
 .publish-control {
@@ -53,15 +69,15 @@ html.dark .text-subtle {
     text-decoration: none;
 }
 
-.festival-action.action-archive {
+.festival-action--archive {
     background: var(--color-action-archive);
 }
 
-.festival-action.action-draft {
+.festival-action--draft {
     background: var(--color-action-draft);
 }
 
-.festival-action.action-delete {
+.festival-action--danger {
     background: var(--color-action-delete);
 }
 
@@ -70,12 +86,12 @@ html.dark .text-subtle {
     color: var(--color-base-100);
 }
 
-.publish-control > button:not(:disabled) {
+.publish-control>button:not(:disabled) {
     cursor: pointer;
     opacity: 1;
 }
 
-.publish-control > button:disabled {
+.publish-control>button:disabled {
     pointer-events: none;
     opacity: .5;
     cursor: not-allowed;
@@ -109,6 +125,7 @@ html.dark .text-subtle {
     position: sticky;
     top: 16px;
     align-self: flex-start;
+    margin-bottom: 16px;
 }
 
 @media (min-width: 1024px) {
@@ -118,7 +135,7 @@ html.dark .text-subtle {
 }
 
 @media (max-width: 1023px) {
-    #changelist > .result-list-wrapper {
+    #changelist>.result-list-wrapper {
         flex-direction: column;
     }
 
@@ -126,15 +143,130 @@ html.dark .text-subtle {
         position: static;
         flex-basis: auto;
         width: 100%;
-        order: -1;
+        order: 0;
     }
 
 }
 
 #result_list tbody a[href*="/change/"] {
-    font-weight: 500;
-    text-decoration: underline;
-    text-underline-offset: 3px;
+    font-weight: 650;
+    text-decoration: none;
+    color: inherit;
+    display: inline-block;
+    padding: 6px;
+}
+
+#result_list tbody a[href*="/change/"]:hover {
+    background: var(--admin-panel-border);
+    border-radius: 3px;
+}
+
+.admin-email {
+    display: inline-block;
+    max-width: min(240px, 45vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+}
+
+.admin-list-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(300px, auto) minmax(0, 1fr) auto;
+    align-items: center;
+    margin-bottom: 16px !important;
+    padding-bottom: 12px !important;
+}
+
+.admin-list-toolbar>form {
+    order: 1;
+    min-width: 300px;
+}
+
+.admin-list-toolbar:not(:has(>form)) {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.admin-list-toolbar>form .form-field {
+    min-width: 300px;
+}
+
+.admin-list-toolbar>form .select2-container {
+    min-width: 300px;
+    width: 100% !important;
+}
+
+.admin-list-toolbar>#toolbar {
+    order: 2;
+    min-width: 0;
+}
+
+.admin-list-toolbar>.filter-open-button {
+    order: 3;
+    display: none;
+}
+
+@media (max-width: 1023px) {
+    .admin-list-toolbar>.filter-open-button {
+        display: flex;
+    }
+}
+
+.application-owner-selector>p {
+    margin: 0 0 24px;
+}
+
+.application-owner-selector .form-field {
+    margin-bottom: 0;
+}
+
+.admin-list-toolbar #changelist-search>div {
+    width: 100%;
+}
+
+@media (max-width: 799px) {
+    .admin-list-toolbar {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .admin-list-toolbar>#toolbar {
+        order: 1;
+    }
+
+    .admin-list-toolbar>.filter-open-button {
+        order: 2;
+    }
+
+    .admin-list-toolbar>form {
+        order: 3;
+        grid-column: 1 / -1;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .admin-list-toolbar .form-field {
+        min-width: 0 !important;
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-list-toolbar>form .form-field>div {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-list-toolbar>form .form-field>div>div {
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+    }
+
+    .admin-list-toolbar>form .select2-container {
+        min-width: 0;
+        width: 100%;
+        max-width: none !important;
+    }
 }
 
 #result_list tbody a[href*="/change/"]:focus-visible {
