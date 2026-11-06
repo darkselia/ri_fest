@@ -90,6 +90,28 @@ docker compose -f compose.yaml -f compose.dev.yaml exec web python manage.py mak
 
 Проверки выбираются по изменению согласно [AGENTS.md](AGENTS.md). Для правки документации приложение запускать не требуется; полный набор нужен при завершении контрольной точки и перед выпуском.
 
+## Отступы и dev-линтер
+
+`.editorconfig` задаёт четыре пробела для Python, Django HTML, JS и CSS (два для YAML/JSON).
+Изолированный dev-образ содержит djLint для Django-шаблонов и форматирующие проверки JS/CSS;
+Python проверяется форматтером Ruff. Форматтеры расставляют пробелы вокруг операторов по правилам
+соответствующего языка; в CSS комбинаторы `>`, `+` и `~` также отделяются пробелами.
+Production-зависимости не меняются. Проверки ничего не перезаписывают:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml --profile dev-tools build lint
+docker compose -f compose.yaml -f compose.dev.yaml --profile dev-tools run --rm lint
+```
+
+Можно проверить только изменённые файлы, передав их аргументами:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml --profile dev-tools run --rm lint python tools/lint_format.py templates/admin/applications/edit.html static/js/admin_lists.js
+```
+
+Полная проверка также показывает старые расхождения форматирования. Правила Python-кода
+дополнительно проверяются командой `ruff check` в `check.py`.
+
 ## Почта и подтверждение email
 
 Для настоящей отправки заполните SMTP-переменные из [.env.example](.env.example): сервер, порт, логин, пароль, TLS/SSL и адрес отправителя. TLS и SSL одновременно не включаются. После изменения `.env` повторите `up -d` для выбранного режима и отдельно проверьте доставку. При использовании внешнего SMTP Mailpit не требуется.

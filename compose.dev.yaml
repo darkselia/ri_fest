@@ -10,6 +10,14 @@ x-dev: &dev
     RUFF_CACHE_DIR: /tmp/ruff-cache
 
 services:
+  lint:
+    profiles: ["dev-tools"]
+    build:
+      context: .
+      dockerfile: Dockerfile.lint
+    volumes:
+      - .:/app:ro
+
   db:
     ports:
       - "5432:5432"

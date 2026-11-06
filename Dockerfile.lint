@@ -1,0 +1,5 @@
+FROM ri-fest-app:local
+USER root
+RUN pip install --no-cache-dir djlint==1.49.9
+USER app
+CMD ["python", "tools/lint_format.py"]
