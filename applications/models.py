@@ -200,6 +200,9 @@ class Application(models.Model):
         "Номер анкеты владельца на фестиваль", null=True, editable=False
     )
     updated_at = models.DateTimeField("Изменена", auto_now=True)
+    paid_amount = models.DecimalField(
+        "Внесено", max_digits=12, decimal_places=2, default=0, editable=False
+    )
     anonymized_at = models.DateTimeField(
         "Обезличена", null=True, blank=True, editable=False
     )
@@ -211,6 +214,10 @@ class Application(models.Model):
         verbose_name_plural = "анкеты"
         ordering = ("-created_at", "-pk")
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(paid_amount__gte=0),
+                name="application_paid_amount_nonnegative",
+            ),
             models.UniqueConstraint(
                 fields=("owner", "festival", "number"),
                 name="application_owner_festival_number_unique",

@@ -7,15 +7,19 @@ from django.contrib.auth import get_user_model
 from django.core import signing
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Q
-from django.http import Http404
+from django.db.models import OuterRef, Q, Subquery
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
+from django.utils.formats import number_format
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin
 from unfold.contrib.filters.admin import DropdownFilter
 from unfold.widgets import UnfoldAdminSelectWidget, UnfoldAdminTextInputWidget
 
+from billing.forms import PaymentForm
+from billing.models import AuditEvent
+from billing.services import change_paid_amount
 from festivals.models import Festival
 from festivals.services import get_effective_status
 
@@ -173,6 +177,159 @@ class ApplicationAdmin(ModelAdmin):
             and super().has_change_permission(request, obj)
         )
 
+    def can_change_payment(self, request, obj):
+        return bool(
+            obj
+            and obj.status in ("active", "withdrawn")
+            and obj.owner_id
+            and obj.owner.is_active
+            and obj.anonymized_at is None
+            and get_effective_status(obj.festival) in ("open", "running")
+            and super().has_change_permission(request, obj)
+        )
+
+    def payment_object(self, request, pk):
+        # Amount and revision must come from the same database snapshot.
+        return get_object_or_404(
+            self.get_queryset(request).annotate(
+                payment_audit_id=Subquery(
+                    AuditEvent.objects.filter(application_id=OuterRef("pk"))
+                    .order_by("-pk")
+                    .values("pk")[:1]
+                )
+            ),
+            pk=pk,
+        )
+
+    def payment_version(self, request, obj):
+        return signing.dumps(
+            {
+                "actor": request.user.pk,
+                "application": obj.pk,
+                "festival": obj.festival_id,
+                "audit_id": obj.payment_audit_id,
+            },
+            salt="billing.admin",
+        )
+
+    def payment_response(self, request, obj, form, *, status=200, **result):
+        current = self.payment_object(request, obj.pk)
+        return JsonResponse(
+            {
+                "amount_display": number_format(current.paid_amount, decimal_pos=2),
+                "payment_version": self.payment_version(request, current),
+                "can_change_payment": self.can_change_payment(request, current),
+                "errors": [
+                    str(error) for errors in form.errors.values() for error in errors
+                ],
+                **result,
+            },
+            status=status,
+        )
+
+    def payment_view(self, request, obj):
+        json_request = "application/json" in request.headers.get("Accept", "")
+        form = PaymentForm(request.POST if request.method == "POST" else None)
+        if request.method == "GET":
+            # A read-only refresh also resolves an uncertain network result.
+            return self.payment_response(request, obj, form)
+        if not self.can_change_payment(request, obj):
+            if json_request:
+                return JsonResponse(
+                    {
+                        "errors": ["Изменение оплаты этой анкеты недоступно."],
+                        "can_change_payment": False,
+                    },
+                    status=403,
+                )
+            raise PermissionDenied
+        status = 200
+        try:
+            snapshot = signing.loads(
+                request.POST.get("payment_version"), salt="billing.admin", max_age=3600
+            )
+            if (
+                snapshot["actor"] != request.user.pk
+                or snapshot["application"] != obj.pk
+                or snapshot["festival"] != obj.festival_id
+            ):
+                raise signing.BadSignature
+            answers = None
+            if json_request and request.POST.get("answers_version"):
+                answers = signing.loads(
+                    request.POST["answers_version"],
+                    salt="applications.admin",
+                    max_age=3600,
+                )
+                if (
+                    answers["actor"] != request.user.pk
+                    or answers["application"] != obj.pk
+                    or answers["festival"] != obj.festival_id
+                    or answers["owner"] != obj.owner_id
+                ):
+                    raise signing.BadSignature
+            if form.is_valid():
+                change = change_paid_amount(
+                    festival_id=obj.festival_id,
+                    application_id=obj.pk,
+                    actor=request.user,
+                    action=request.POST.get("payment_action"),
+                    amount=form.cleaned_data["amount"],
+                    expected_audit_id=snapshot["audit_id"],
+                )
+                message = (
+                    "Изменения оплаты сохранены."
+                    if change.changed
+                    else "Сумма не изменилась."
+                )
+                if json_request:
+                    answer_version, warning = None, ""
+                    if answers:
+                        if (
+                            answers["updated_at"]
+                            == change.previous_updated_at.isoformat()
+                        ):
+                            answers["updated_at"] = (
+                                change.application.updated_at.isoformat()
+                            )
+                            answer_version = signing.dumps(
+                                answers, salt="applications.admin"
+                            )
+                        else:
+                            warning = (
+                                "Анкета изменилась в другом окне. Введённые ответы сохранены на странице; "
+                                "перед их сохранением нужно проверить актуальные данные."
+                            )
+                    return self.payment_response(
+                        request,
+                        obj,
+                        form,
+                        message=message,
+                        answer_version=answer_version,
+                        warning=warning,
+                    )
+                messages.success(request, message)
+                return redirect("admin:applications_application_change", obj.pk)
+        except (signing.BadSignature, TypeError, KeyError):
+            form.add_error(
+                None,
+                "Подтверждение оплаты устарело. Проверьте сумму и повторите действие.",
+            )
+            status = 409
+        except ValidationError as exc:
+            form.add_error(None, exc)
+            status = 409
+        except PermissionDenied as exc:
+            if not json_request:
+                raise
+            form.add_error(None, str(exc))
+            status = 403
+        except (Application.DoesNotExist, Festival.DoesNotExist):
+            raise Http404 from None
+        if json_request:
+            return self.payment_response(request, obj, form, status=status)
+        return form, status
+
     def confirmation_response(self, request, obj, version, action, data=None):
         hidden = forms.Form()
         hidden.fields["version"] = forms.CharField(
@@ -275,13 +432,29 @@ class ApplicationAdmin(ModelAdmin):
         token = request.POST.get("version")
         error = None
         status = 200
+        payment_post = (
+            request.method == "POST" and request.POST.get("action") == "payment"
+        )
+        payment_form = PaymentForm(request.POST if payment_post else None)
+        payment_refresh = (
+            request.method == "GET"
+            and request.GET.get("payment_status") == "1"
+            and "application/json" in request.headers.get("Accept", "")
+        )
+        if payment_post or payment_refresh:
+            if obj is None:
+                raise PermissionDenied
+            result = self.payment_view(request, obj)
+            if not isinstance(result, tuple):
+                return result
+            payment_form, status = result
         if not obj and request.method == "GET" and selector.is_valid():
             festival, owner = (
                 selector.cleaned_data["festival"],
                 selector.cleaned_data["owner"],
             )
         snapshot = None
-        if request.method == "POST":
+        if request.method == "POST" and not payment_post:
             if request.POST.get("action") in (
                 "restore",
                 "review_restore",
@@ -325,7 +498,7 @@ class ApplicationAdmin(ModelAdmin):
             else self.has_add_permission(request)
         )
         editable = editable or restoring
-        if request.method == "POST" and snapshot and not error:
+        if request.method == "POST" and not payment_post and snapshot and not error:
             if not editable:
                 raise PermissionDenied
             try:
@@ -416,7 +589,7 @@ class ApplicationAdmin(ModelAdmin):
             except (Application.DoesNotExist, Festival.DoesNotExist):
                 raise Http404 from None
         if obj:
-            obj.refresh_from_db()
+            obj = self.payment_object(request, obj.pk)
             restoring = restoring and self.can_restore(request, obj)
             editable = self.has_change_permission(request, obj) or restoring
         hidden_selections = (
@@ -533,6 +706,9 @@ class ApplicationAdmin(ModelAdmin):
                 "hidden_selections": hidden_selections,
                 "hidden_kopecks": int(hidden_total * 100),
                 "service_total": total,
+                "payment_form": payment_form,
+                "can_change_payment": self.can_change_payment(request, obj),
+                "payment_version": self.payment_version(request, obj) if obj else "",
             },
             status=status,
         )

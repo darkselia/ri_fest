@@ -5,13 +5,13 @@ div:has(> a[x-on\:click^="switchTheme"]) {
     gap: 2px;
 }
 
-div:has(> a[x-on\:click^="switchTheme"])>a {
+div:has(> a[x-on\:click^="switchTheme"]) > a {
     margin: 0;
     min-width: 0;
     justify-content: flex-start;
 }
 
-div:has(> a[x-on\:click^="switchTheme"])>a>span:last-child {
+div:has(> a[x-on\:click^="switchTheme"]) > a > span:last-child {
     display: block;
 }
 
@@ -86,12 +86,12 @@ fieldset.module {
     color: var(--color-base-100);
 }
 
-.publish-control>button:not(:disabled) {
+.publish-control > button:not(:disabled) {
     cursor: pointer;
     opacity: 1;
 }
 
-.publish-control>button:disabled {
+.publish-control > button:disabled {
     pointer-events: none;
     opacity: .5;
     cursor: not-allowed;
@@ -135,7 +135,7 @@ fieldset.module {
 }
 
 @media (max-width: 1023px) {
-    #changelist>.result-list-wrapper {
+    #changelist > .result-list-wrapper {
         flex-direction: column;
     }
 
@@ -178,7 +178,7 @@ fieldset.module {
     padding-bottom: 12px !important;
 }
 
-.admin-list-toolbar>form {
+.admin-list-toolbar > form {
     order: 1;
     min-width: 300px;
 }
@@ -187,32 +187,32 @@ fieldset.module {
     grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.admin-list-toolbar>form .form-field {
+.admin-list-toolbar > form .form-field {
     min-width: 300px;
 }
 
-.admin-list-toolbar>form .select2-container {
+.admin-list-toolbar > form .select2-container {
     min-width: 300px;
     width: 100% !important;
 }
 
-.admin-list-toolbar>#toolbar {
+.admin-list-toolbar > #toolbar {
     order: 2;
     min-width: 0;
 }
 
-.admin-list-toolbar>.filter-open-button {
+.admin-list-toolbar > .filter-open-button {
     order: 3;
     display: none;
 }
 
 @media (max-width: 1023px) {
-    .admin-list-toolbar>.filter-open-button {
+    .admin-list-toolbar > .filter-open-button {
         display: flex;
     }
 }
 
-.application-owner-selector>p {
+.application-owner-selector > p {
     margin: 0 0 24px;
 }
 
@@ -220,7 +220,7 @@ fieldset.module {
     margin-bottom: 0;
 }
 
-.admin-list-toolbar #changelist-search>div {
+.admin-list-toolbar #changelist-search > div {
     width: 100%;
 }
 
@@ -229,15 +229,15 @@ fieldset.module {
         grid-template-columns: minmax(0, 1fr) auto;
     }
 
-    .admin-list-toolbar>#toolbar {
+    .admin-list-toolbar > #toolbar {
         order: 1;
     }
 
-    .admin-list-toolbar>.filter-open-button {
+    .admin-list-toolbar > .filter-open-button {
         order: 2;
     }
 
-    .admin-list-toolbar>form {
+    .admin-list-toolbar > form {
         order: 3;
         grid-column: 1 / -1;
         min-width: 0;
@@ -251,18 +251,18 @@ fieldset.module {
         align-items: stretch;
     }
 
-    .admin-list-toolbar>form .form-field>div {
+    .admin-list-toolbar > form .form-field > div {
         flex-direction: column;
         align-items: stretch;
     }
 
-    .admin-list-toolbar>form .form-field>div>div {
+    .admin-list-toolbar > form .form-field > div > div {
         width: 100%;
         max-width: none;
         min-width: 0;
     }
 
-    .admin-list-toolbar>form .select2-container {
+    .admin-list-toolbar > form .select2-container {
         min-width: 0;
         width: 100%;
         max-width: none !important;
@@ -272,4 +272,114 @@ fieldset.module {
 #result_list tbody a[href*="/change/"]:focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 3px;
+}
+
+[data-payment-form] button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.application-admin-heading {
+    display: grid;
+    gap: 12px;
+}
+
+.admin-disclosure__summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.admin-disclosure__summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-disclosure__summary::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    flex-shrink: 0;
+}
+
+.admin-disclosure[open] > .admin-disclosure__summary::before {
+    transform: rotate(45deg);
+}
+
+.admin-disclosure__summary:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
+    border-radius: 3px;
+}
+
+.admin-disclosure__content {
+    margin-top: 16px;
+}
+
+.admin-payment__summary {
+    margin-left: auto;
+}
+
+.admin-payment__form {
+    display: flex;
+    flex: 1 1 440px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px 12px;
+    min-width: 0;
+}
+
+.admin-payment__amount {
+    display: grid;
+    flex: 0 1 180px;
+    gap: 4px;
+    min-width: 0;
+}
+
+.admin-payment__amount input {
+    width: 100%;
+}
+
+.admin-payment__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.admin-payment__actions button,
+[data-payment-refresh] {
+    min-height: 40px;
+    padding: 5px 10px;
+    font-size: 13px;
+}
+
+.admin-payment__hint,
+.admin-payment__status {
+    flex-basis: 100%;
+    font-size: 13px;
+}
+
+.admin-payment__status:empty {
+    display: none;
+}
+
+@media (max-width: 639px) {
+    .admin-payment__amount,
+    .admin-payment__actions {
+        flex-basis: 100%;
+    }
+
+    .admin-payment__actions button {
+        flex: 1;
+    }
+}
+
+@media (max-width: 1023px) {
+    body.app-applications.model-application.change-form #submit-row > div {
+        padding-top: 16px;
+    }
 }

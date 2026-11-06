@@ -34,12 +34,7 @@
             </form>
         </section>
     {% else %}
-        {{ block.super }}
-    {% endif %}
-{% endblock %}
-{% block field_sets %}
-    <section class="admin-panel p-4 application-form" data-application-form>
-        <div class="application-form__heading">
+        <section class="admin-panel p-4 mb-6 application-admin-heading">
             <div class="flex flex-wrap items-center gap-3">
                 <h2 class="application-form__title">
                 {{ festival.name }}{% if original %} · Анкета {{ original.number }}{% endif %}</h2>
@@ -74,12 +69,25 @@
             {% elif not editable %}
                 <p>Анкета доступна только для просмотра сохранённых данных.</p>
             {% endif %}
+        </section>
+        {% if original %}
+            {% include "admin/applications/payment.html" %}
+        {% endif %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}
+{% block field_sets %}
+    <details class="admin-panel p-4 application-form admin-disclosure"
+             data-application-form
+             open>
+        <summary class="admin-disclosure__summary"><span class="font-semibold">Анкета</span></summary>
+        <div class="admin-disclosure__content">
+            <input type="hidden" name="version" value="{{ version }}">
+            {{ preview_form.non_field_errors }}
+            {% include "components/forms/application_fields.html" %}
+            {% include "components/forms/application_services.html" %}
         </div>
-        <input type="hidden" name="version" value="{{ version }}">
-        {{ preview_form.non_field_errors }}
-        {% include "components/forms/application_fields.html" %}
-        {% include "components/forms/application_services.html" %}
-    </section>
+    </details>
 {% endblock %}
 {% block submit_buttons_bottom %}
     {% if festival and editable %}
@@ -89,6 +97,9 @@
 {% block admin_change_form_document_ready %}{% endblock %}
 {% block extrahead %}
     {{ block.super }}
+    {% if original and can_change_payment %}
+        <script src="{% static 'js/admin_payment.js' %}" defer></script>
+    {% endif %}
     {% if editable %}
         <script src="{% static 'js/application_form.js' %}" defer></script>
     {% endif %}
