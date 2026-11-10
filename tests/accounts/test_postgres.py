@@ -27,6 +27,7 @@ from festivals.services import (
 )
 
 pytestmark = [
+    pytest.mark.postgres,
     pytest.mark.django_db(transaction=True),
     pytest.mark.skipif(
         connection.vendor != "postgresql", reason="Requires isolated PostgreSQL"

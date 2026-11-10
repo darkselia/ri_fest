@@ -475,6 +475,18 @@ class AccountPasswordChangeView(PasswordChangeView):
         "account_tab": "password",
     }
 
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        current = (
+            User.objects.select_for_update()
+            .filter(pk=request.user.pk, is_active=True)
+            .first()
+        )
+        if current is None:
+            raise PermissionDenied
+        request.user = current
+        return super().post(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["password_form"] = context["form"]

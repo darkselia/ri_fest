@@ -13,7 +13,9 @@ def login_data(email="member@example.invalid"):
 def test_shared_login_form(client):
     response = client.get(reverse("accounts:login"))
     assert response.status_code == 200
-    assert "accounts/auth/login.html" in {template.name for template in response.templates}
+    assert "accounts/auth/login.html" in {
+        template.name for template in response.templates
+    }
     assert 'type="email"' in response.text
     assert 'name="csrfmiddlewaretoken"' in response.text
     assert "css/auth.css" in response.text
@@ -131,7 +133,9 @@ def test_staff_login_from_admin_returns_to_requested_page(client, organizer):
         reverse("admin:festivals_festival_changelist") + "?status__exact=draft"
     )
     login_page = client.get(destination, follow=True)
-    assert "accounts/auth/login.html" in {template.name for template in login_page.templates}
+    assert "accounts/auth/login.html" in {
+        template.name for template in login_page.templates
+    }
     response = client.post(
         login_page.request["PATH_INFO"] + "?" + login_page.request["QUERY_STRING"],
         login_data(organizer.email),

@@ -70,14 +70,22 @@ class AccountPasswordResetForm(PasswordResetForm):
         )
 
 
-class AccountSetPasswordForm(SetPasswordForm):
+class PasswordOnlySaveMixin:
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        if commit:
+            user.save(update_fields=["password"])
+        return user
+
+
+class AccountSetPasswordForm(PasswordOnlySaveMixin, SetPasswordForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["new_password2"].help_text = self.fields["new_password1"].help_text
         self.fields["new_password1"].help_text = ""
 
 
-class AccountPasswordChangeForm(PasswordChangeForm):
+class AccountPasswordChangeForm(PasswordOnlySaveMixin, PasswordChangeForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["new_password2"].help_text = self.fields["new_password1"].help_text

@@ -2,10 +2,85 @@ import pytest
 from django.core import mail
 from django.test import Client
 from django.urls import reverse
+from pytest_django.asserts import assertContains
 
 pytestmark = pytest.mark.django_db
 OLD_PASSWORD = "synthetic-account-password-42"
 NEW_PASSWORD = "Changed-synthetic-password-73!"
+
+
+@pytest.mark.parametrize("change", ["block", "delete", "email", "password"])
+def test_password_change_rechecks_concurrent_account_changes(
+    client, member, monkeypatch, change
+):
+    from accounts.models import User
+    from accounts.views import AccountPasswordChangeView
+
+    client.force_login(member)
+    original_dispatch = AccountPasswordChangeView.dispatch
+
+    def change_after_authentication(self, request, *args, **kwargs):
+        user_id = request.user.pk
+        if change == "delete":
+            User.objects.filter(pk=user_id).delete()
+        elif change == "password":
+            current = User.objects.get(pk=user_id)
+            current.set_password("Concurrent-synthetic-password-95!")
+            current.save(update_fields=["password"])
+        else:
+            User.objects.filter(pk=user_id).update(
+                **(
+                    {"is_active": False}
+                    if change == "block"
+                    else {"email": "new@example.invalid"}
+                )
+            )
+        return original_dispatch(self, request, *args, **kwargs)
+
+    monkeypatch.setattr(
+        AccountPasswordChangeView, "dispatch", change_after_authentication
+    )
+    response = client.post(
+        reverse("accounts:password_change"),
+        {
+            "old_password": OLD_PASSWORD,
+            "new_password1": NEW_PASSWORD,
+            "new_password2": NEW_PASSWORD,
+        },
+    )
+    if change == "delete":
+        assert response.status_code == 403
+        assert not User.objects.filter(pk=member.pk).exists()
+        return
+    member.refresh_from_db()
+    if change == "block":
+        assert response.status_code == 403
+        assert not member.is_active and member.check_password(OLD_PASSWORD)
+    elif change == "password":
+        assert response.status_code == 200
+        assert "old_password" in response.context["password_form"].errors
+        assert member.check_password("Concurrent-synthetic-password-95!")
+    else:
+        assert response.status_code == 302
+        assert member.email == "new@example.invalid"
+        assert member.check_password(NEW_PASSWORD)
+
+
+def test_password_reset_does_not_overwrite_concurrent_account_changes(member):
+    from accounts.forms import AccountSetPasswordForm
+    from accounts.models import User
+
+    form = AccountSetPasswordForm(
+        member, {"new_password1": NEW_PASSWORD, "new_password2": NEW_PASSWORD}
+    )
+    assert form.is_valid()
+    User.objects.filter(pk=member.pk).update(
+        is_active=False, email="new@example.invalid"
+    )
+    form.save()
+    member.refresh_from_db()
+    assert not member.is_active and member.email == "new@example.invalid"
+    assert member.check_password(NEW_PASSWORD)
 
 
 def test_profile_saves_and_clears_only_own_names(client, member, django_user_model):
@@ -145,12 +220,13 @@ def test_account_sections_share_shell_navigation_and_community_links(
         )
         assert ("Открыть админку" in response.text) == user.is_staff
         assert "Выйти" in response.text
-        for url in (
-            "https://vk.ru/ri.fest",
-            "https://t.me/+J_oZLtGqPu81OTE6",
-            "https://vk.me/join/AZQ1d9T6Byfbg2LPehxencDr",
+        for url, label in (
+            ("https://vk.ru/ri.fest", "Группа ВКонтакте"),
+            ("https://t.me/+J_oZLtGqPu81OTE6", "Telegram-чат участников"),
+            ("https://vk.me/join/AZQ1d9T6Byfbg2LPehxencDr", "VK-чат участников"),
         ):
-            assert (
-                f'href="{url}" target="_blank" rel="noopener noreferrer"'
-                in response.text
+            assertContains(
+                response,
+                f'<a href="{url}" target="_blank" rel="noopener noreferrer">{label}</a>',
+                html=True,
             )

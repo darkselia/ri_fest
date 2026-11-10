@@ -196,7 +196,9 @@ def test_legacy_confirmation_status_greeting_and_resend_keep_access(
     assert not member.email_verification_pending
     assert client.get(url).status_code == 200
     assert client.post(email_url(mail.outbox[-1])).url == url
-    assert "email-status-confirmed" in client.get(url).text
+    member.refresh_from_db()
+    assert member.email_verified_at is not None
+    assert "Email подтверждён" in client.get(url).text
     member.first_name = " Анна "
     member.save(update_fields=["first_name"])
     assert "Здравствуйте, Анна!" in client.get(reverse("accounts:home")).text
