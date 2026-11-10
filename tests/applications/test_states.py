@@ -178,6 +178,7 @@ def test_numbers_are_local_persistent_and_not_reused(cabinet):
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.postgres
 def test_concurrent_number_allocation(cabinet):
     if connection.vendor != "postgresql":
         pytest.skip("Requires PostgreSQL locks")
@@ -200,6 +201,7 @@ def test_concurrent_number_allocation(cabinet):
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.postgres
 @pytest.mark.parametrize("organizer", [False, True])
 def test_withdraw_races_archive(cabinet, django_user_model, organizer):
     if connection.vendor != "postgresql":
@@ -236,6 +238,7 @@ def test_withdraw_races_archive(cabinet, django_user_model, organizer):
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.postgres
 @pytest.mark.parametrize("remove_owner", [False, True])
 def test_restore_races_archive_or_owner_deletion(
     cabinet, django_user_model, remove_owner

@@ -3,12 +3,44 @@ from datetime import date
 import pytest
 from django.urls import reverse
 
-from applications.models import Application, ApplicationAnswer, FormField
+from applications.models import Application, ApplicationAnswer, FeePeriod, FormField
 from applications.services import save_application
 from applications.views import dashboard_context
 from festivals.models import Festival
 
 pytestmark = pytest.mark.django_db
+
+
+def test_dashboard_query_count_does_not_grow_with_applications(
+    cabinet, django_assert_num_queries
+):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    owner, _, festival, question, _, _ = cabinet
+    for label in ("Взнос", "Программа"):
+        field = FormField.objects.create(
+            festival=festival, field_type="datefee", label=label
+        )
+        FeePeriod.objects.create(field=field, amount="1300.00")
+    first = Application.objects.create(owner=owner, festival=festival, status="active")
+    ApplicationAnswer.objects.create(
+        application=first, field=question, value="Участник"
+    )
+    with CaptureQueriesContext(connection) as queries:
+        cards = dashboard_context(owner, {})["cards"]
+    assert not cards[0]["needs_attention"]
+    query_count = len(queries)
+    for _ in range(9):
+        application = Application.objects.create(
+            owner=owner, festival=festival, status="active"
+        )
+        ApplicationAnswer.objects.create(
+            application=application, field=question, value="Участник"
+        )
+    with django_assert_num_queries(query_count):
+        cards = dashboard_context(owner, {})["cards"]
+    assert len(cards) == 10 and not any(card["needs_attention"] for card in cards)
 
 
 def test_changed_required_question_marks_active_application_until_completed(cabinet):

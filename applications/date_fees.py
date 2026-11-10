@@ -10,6 +10,16 @@ from django.utils import timezone
 from .models import FeePeriod
 
 
+def _next_tariff_date(ends_on):
+    try:
+        return ends_on + timedelta(days=1)
+    except OverflowError:
+        raise ValidationError(
+            "Конечная дата тарифа должна быть раньше 31.12.9999, "
+            "чтобы можно было определить начало следующего тарифа."
+        ) from None
+
+
 def prepare_periods(field, rows):
     if not isinstance(rows, list) or len(rows) > 300:
         raise ValidationError("В блоке допускается не более 300 тарифов.")
@@ -37,6 +47,8 @@ def prepare_periods(field, rows):
             amount=row.get("amount"),
         )
         period.full_clean(exclude=["field"], validate_constraints=False)
+        if period.ends_on is not None:
+            _next_tariff_date(period.ends_on)
         if period.amount < 0:
             raise ValidationError("Сумма тарифа не может быть отрицательной.")
         if period.ends_on in ends:
@@ -67,7 +79,7 @@ def fee_schedule(periods, *, timezone_name="Asia/Krasnoyarsk", at=None):
     for row in rows:
         end = date.fromisoformat(row["ends_on"]) if row["ends_on"] else None
         item = {
-            "starts_on": previous_end + timedelta(days=1) if previous_end else None,
+            "starts_on": _next_tariff_date(previous_end) if previous_end else None,
             "ends_on": end,
             "amount": Decimal(row["amount"]),
         }

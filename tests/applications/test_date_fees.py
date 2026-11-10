@@ -96,6 +96,25 @@ def test_timezone_future_and_invalid_configuration():
         fee_schedule(fee()["fee_periods"], at=datetime(2026, 1, 1))
 
 
+def test_last_calendar_date_is_rejected_without_breaking_existing_form(
+    client, cabinet, admin
+):
+    owner, _, festival, _, _, _ = cabinet
+    rows = export_schema(festival)
+    invalid = fee()
+    invalid["fee_periods"] = [
+        {"id": None, "ends_on": "9999-12-31", "amount": "1.00"},
+        {"id": None, "ends_on": None, "amount": "2.00"},
+    ]
+    with pytest.raises(ValidationError, match="31.12.9999"):
+        save_rows(festival, admin, [*rows, invalid])
+    assert not festival.form_fields.filter(field_type="datefee").exists()
+    with pytest.raises(ValidationError, match="31.12.9999"):
+        fee_schedule(invalid["fee_periods"])
+    client.force_login(owner)
+    assert client.get(reverse("applications:new")).status_code == 200
+
+
 def test_multiple_blocks_no_answers_and_independent_copy(client, cabinet, admin):
     owner, _, festival, question, _, _ = cabinet
     save_rows(

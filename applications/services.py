@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from copy import copy
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -75,6 +76,43 @@ def application_form(festival, application=None, *, data=None, require_complete=
     )
 
 
+def application_form_context(form, application=None):
+    """Prepare displayed subtotals and saved hidden services for both interfaces."""
+    hidden = (
+        list(
+            application.service_selections.filter(
+                option__field__is_active=False
+            ).select_related("option__field")
+        )
+        if application is not None and application.pk
+        else []
+    )
+    hidden_total = sum((item.option.price for item in hidden), Decimal("0.00"))
+    total = hidden_total
+    for entry in form.entries if form is not None else ():
+        if entry["kind"] == "datefee" and "fee" in entry:
+            total += entry["fee"]["amount"]
+        if entry["kind"] not in ("service", "service1"):
+            continue
+        values = entry["field"].value() or []
+        if isinstance(values, str):
+            values = [values]
+        entry["subtotal"] = sum(
+            (
+                Decimal(option["price"])
+                for option in entry["row"]["services"]
+                if str(option["id"]) in values
+            ),
+            Decimal("0.00"),
+        )
+        total += entry["subtotal"]
+    return {
+        "hidden_selections": hidden,
+        "hidden_kopecks": int(hidden_total * 100),
+        "service_total": total,
+    }
+
+
 def save_application_answers(application_id, *, actor, data, require_complete=False):
     try:
         _, form = _save_application(
@@ -119,7 +157,6 @@ def _save_application(
     restoring=False,
 ):
     from datetime import date
-    from decimal import Decimal
 
     from .schema import schema_revision
 

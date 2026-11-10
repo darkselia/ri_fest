@@ -168,6 +168,7 @@ def test_account_deletion_removes_answers_from_retained_history(sample):
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.postgres
 def test_concurrent_answer_and_question_deletion(sample):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Barrier

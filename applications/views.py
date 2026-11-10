@@ -19,6 +19,7 @@ from .models import Application
 from .schema import calculate_existing_services, export_schema, schema_revision
 from .services import (
     application_form,
+    application_form_context,
     delete_application,
     save_application,
     schema_errors,
@@ -83,7 +84,11 @@ def dashboard_context(user, params):
         festival.pk: festival
         for festival in Festival.objects.filter(applications__owner=user)
         .distinct()
-        .prefetch_related("form_fields__options", "form_fields__service_options")
+        .prefetch_related(
+            "form_fields__options",
+            "form_fields__service_options",
+            "form_fields__fee_periods",
+        )
     }
     archived_ids = [
         pk
@@ -264,41 +269,11 @@ def edit_application(request, pk=None):
             status = 409
         except (Application.DoesNotExist, Festival.DoesNotExist):
             raise Http404 from None
-    hidden = (
-        list(
-            application.service_selections.filter(
-                option__field__is_active=False
-            ).select_related("option__field")
-        )
-        if application and application.pk
-        else []
-    )
-    hidden_total = sum((item.option.price for item in hidden), Decimal("0.00"))
-    total = hidden_total
-    for entry in form.entries:
-        if entry["kind"] == "datefee" and "fee" in entry:
-            total += entry["fee"]["amount"]
-        if entry["kind"] not in ("service", "service1"):
-            continue
-        values = entry["field"].value() or []
-        if isinstance(values, str):
-            values = [values]
-        entry["subtotal"] = sum(
-            (
-                Decimal(item["price"])
-                for item in entry["row"]["services"]
-                if str(item["id"]) in values
-            ),
-            Decimal("0.00"),
-        )
-        total += entry["subtotal"]
+    context.update(application_form_context(form, application))
     context.update(
         form=form,
         preview_form=form,
         schema_revision=schema_revision(festival),
-        hidden_selections=hidden,
-        hidden_kopecks=int(hidden_total * 100),
-        service_total=total,
     )
     displayed_revision = (
         snapshot["revision"]

@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import AdminForm
@@ -27,6 +25,7 @@ from .models import Application
 from .schema import schema_revision
 from .services import (
     application_form,
+    application_form_context,
     restore_organizer_application,
     save_organizer_application,
     withdraw_application,
@@ -330,22 +329,14 @@ class ApplicationAdmin(ModelAdmin):
             return self.payment_response(request, obj, form, status=status)
         return form, status
 
-    def confirmation_response(self, request, obj, version, action, data=None):
+    def withdrawal_confirmation(self, request, obj, version):
         hidden = forms.Form()
         hidden.fields["version"] = forms.CharField(
             initial=version, widget=forms.HiddenInput
         )
         hidden.fields["action"] = forms.CharField(
-            initial=action, widget=forms.HiddenInput
+            initial="withdraw", widget=forms.HiddenInput
         )
-        for name in data or {}:
-            values = data.getlist(name)
-            hidden.fields[name] = forms.CharField(
-                initial=values if len(values) > 1 else values[0],
-                widget=forms.MultipleHiddenInput
-                if len(values) > 1
-                else forms.HiddenInput,
-            )
         return TemplateResponse(
             request,
             "admin/festivals/confirm_action.html",
@@ -353,27 +344,12 @@ class ApplicationAdmin(ModelAdmin):
                 **self.admin_site.each_context(request),
                 "opts": self.model._meta,
                 "original": obj,
-                "title": "Отозвать анкету"
-                if action == "withdraw"
-                else "Восстановить анкету",
-                "description": "Анкета будет отозвана и перенесена в архив пользователя. Ответы и выбранные услуги сохранятся. Организатор сможет восстановить участие, пока фестиваль принимает заявки или проходит."
-                if action == "withdraw"
-                else (
-                    "Проверьте ответы по текущему шаблону. Исправления сохранятся вместе с восстановлением участия."
-                    if action == "prepare_restore"
-                    else "Анкета снова станет активной и появится в отправленных анкетах пользователя. Исправленные ответы и выбранные услуги сохранятся."
-                ),
+                "title": "Отозвать анкету",
+                "description": "Анкета будет отозвана и перенесена в архив пользователя. Ответы и выбранные услуги сохранятся. Организатор сможет восстановить участие, пока фестиваль принимает заявки или проходит.",
                 "form": hidden,
-                "confirm_label": "Отозвать анкету"
-                if action == "withdraw"
-                else (
-                    "Перейти к восстановлению"
-                    if action == "prepare_restore"
-                    else "Восстановить анкету"
-                ),
+                "confirm_label": "Отозвать анкету",
                 "confirm_variant": "draft",
-                "cancel_url": request.path
-                + ("?restore=1" if action == "restore" else ""),
+                "cancel_url": request.path,
             },
         )
 
@@ -391,20 +367,7 @@ class ApplicationAdmin(ModelAdmin):
             },
         )
 
-    @transaction.atomic
-    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
-        obj = (
-            get_object_or_404(self.get_queryset(request), pk=object_id)
-            if object_id
-            else None
-        )
-        allowed = (
-            self.has_view_or_change_permission(request, obj)
-            if obj
-            else self.has_add_permission(request)
-        )
-        if not allowed:
-            raise PermissionDenied
+    def owner_selector(self, request):
         festivals = [
             f
             for f in ordered_festivals()
@@ -427,6 +390,23 @@ class ApplicationAdmin(ModelAdmin):
             ("", "Выберите фестиваль"),
             *[(f.pk, f.name) for f in festivals],
         ]
+        return selector
+
+    @transaction.atomic
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        obj = (
+            get_object_or_404(self.get_queryset(request), pk=object_id)
+            if object_id
+            else None
+        )
+        allowed = (
+            self.has_view_or_change_permission(request, obj)
+            if obj
+            else self.has_add_permission(request)
+        )
+        if not allowed:
+            raise PermissionDenied
+        selector = self.owner_selector(request)
         festival = obj.festival if obj else None
         owner = obj.owner if obj else None
         token = request.POST.get("version")
@@ -455,11 +435,10 @@ class ApplicationAdmin(ModelAdmin):
             )
         snapshot = None
         if request.method == "POST" and not payment_post:
-            if request.POST.get("action") in (
-                "restore",
-                "review_restore",
-                "prepare_restore",
-            ) and not self.can_restore(request, obj):
+            action = request.POST.get("action", "")
+            if action not in ("", "restore", "withdraw"):
+                raise PermissionDenied
+            if action == "restore" and not self.can_restore(request, obj):
                 raise PermissionDenied
             try:
                 snapshot = signing.loads(token, salt="applications.admin", max_age=3600)
@@ -467,10 +446,7 @@ class ApplicationAdmin(ModelAdmin):
                     obj.pk if obj else None
                 ):
                     raise signing.BadSignature
-                if request.POST.get("action") in (
-                    "restore",
-                    "review_restore",
-                ) and not snapshot.get("restoring"):
+                if action == "restore" and not snapshot.get("restoring"):
                     raise signing.BadSignature
                 if not obj:
                     festival = get_object_or_404(Festival, pk=snapshot["festival"])
@@ -479,8 +455,6 @@ class ApplicationAdmin(ModelAdmin):
                     )
             except (signing.BadSignature, TypeError, KeyError):
                 error, status = "Подтверждение устарело. Откройте форму заново.", 409
-            if not error and request.POST.get("action") == "prepare_restore":
-                return redirect(request.path + "?restore=1")
         form = (
             application_form(festival, obj, require_complete=True) if festival else None
         )
@@ -489,7 +463,7 @@ class ApplicationAdmin(ModelAdmin):
             and self.can_restore(request, obj)
             and (
                 request.GET.get("restore") == "1"
-                or request.POST.get("action") in ("restore", "review_restore")
+                or request.POST.get("action") == "restore"
             )
         )
         editable = (
@@ -519,24 +493,7 @@ class ApplicationAdmin(ModelAdmin):
                 data = request.POST.copy()
                 for key in ("version", "action", "csrfmiddlewaretoken", "_save"):
                     data.pop(key, None)
-                if request.POST.get("action") == "review_restore":
-                    form = application_form(
-                        festival, obj, data=data, require_complete=True
-                    )
-                    form.is_valid()
-                    if (
-                        snapshot["revision"] != schema_revision(festival)
-                        or snapshot["updated_at"] != obj.updated_at.isoformat()
-                    ):
-                        form.add_error(
-                            None,
-                            "Анкета или шаблон изменились. Проверьте данные и повторите подтверждение.",
-                        )
-                    if form.is_valid():
-                        return self.confirmation_response(
-                            request, obj, token, "restore", data
-                        )
-                elif restoring:
+                if restoring:
                     saved, form = restore_organizer_application(
                         obj.pk,
                         actor=request.user,
@@ -592,17 +549,36 @@ class ApplicationAdmin(ModelAdmin):
             obj = self.payment_object(request, obj.pk)
             restoring = restoring and self.can_restore(request, obj)
             editable = self.has_change_permission(request, obj) or restoring
-        hidden_selections = (
-            list(
-                obj.service_selections.filter(
-                    option__field__is_active=False
-                ).select_related("option__field")
-            )
-            if obj
-            else []
+        return self.render_application_form(
+            request,
+            obj=obj,
+            festival=festival,
+            owner=owner,
+            selector=selector,
+            form=form,
+            restoring=restoring,
+            editable=editable,
+            error=error,
+            status=status,
+            payment_form=payment_form,
         )
-        hidden_total = sum((s.option.price for s in hidden_selections), Decimal(0))
-        total = hidden_total
+
+    def render_application_form(
+        self,
+        request,
+        *,
+        obj,
+        festival,
+        owner,
+        selector,
+        form,
+        restoring,
+        editable,
+        error,
+        status,
+        payment_form,
+    ):
+        form_context = application_form_context(form, obj)
         if form:
             for field in form.fields.values():
                 if not isinstance(
@@ -616,21 +592,6 @@ class ApplicationAdmin(ModelAdmin):
                     field.widget.attrs["class"] = (
                         UnfoldAdminTextInputWidget().attrs.get("class", "")
                     )
-            for entry in form.entries:
-                if entry["kind"] == "datefee" and "fee" in entry:
-                    total += entry["fee"]["amount"]
-                if entry["kind"] in ("service", "service1"):
-                    values = entry["field"].value() or []
-                    values = [values] if isinstance(values, str) else values
-                    entry["subtotal"] = sum(
-                        (
-                            Decimal(o["price"])
-                            for o in entry["row"]["services"]
-                            if str(o["id"]) in values
-                        ),
-                        Decimal(0),
-                    )
-                    total += entry["subtotal"]
             if not editable:
                 for field in form.fields.values():
                     field.disabled = True
@@ -650,31 +611,16 @@ class ApplicationAdmin(ModelAdmin):
             if festival
             else ""
         )
-        if request.method == "GET" and request.GET.get("confirm") in (
-            "withdraw",
-            "restore",
-        ):
-            requested = request.GET["confirm"]
-            if (
-                obj is None
-                or (
-                    requested == "withdraw"
-                    and not self.has_change_permission(request, obj)
-                )
-                or (requested == "restore" and not self.can_restore(request, obj))
-            ):
+        if request.method == "GET" and request.GET.get("confirm") == "withdraw":
+            if obj is None or not self.has_change_permission(request, obj):
                 raise PermissionDenied
-            return self.confirmation_response(
-                request,
-                obj,
-                version,
-                "withdraw" if requested == "withdraw" else "prepare_restore",
-            )
+            return self.withdrawal_confirmation(request, obj, version)
         return TemplateResponse(
             request,
             "admin/applications/edit.html",
             {
                 **self.admin_site.each_context(request),
+                **form_context,
                 "opts": self.model._meta,
                 "adminform": AdminForm(form or selector, [], {}, model_admin=self),
                 "form_classes": {},
@@ -703,9 +649,6 @@ class ApplicationAdmin(ModelAdmin):
                 "editable": editable,
                 "version": version,
                 "error": error,
-                "hidden_selections": hidden_selections,
-                "hidden_kopecks": int(hidden_total * 100),
-                "service_total": total,
                 "payment_form": payment_form,
                 "can_change_payment": self.can_change_payment(request, obj),
                 "payment_version": self.payment_version(request, obj) if obj else "",

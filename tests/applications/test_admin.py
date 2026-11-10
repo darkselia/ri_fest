@@ -18,7 +18,7 @@ from applications.services import (
 pytestmark = pytest.mark.django_db
 
 
-def test_restore_confirmation_preserves_answers_and_multiple_services(
+def test_restore_preserves_answers_and_multiple_services(
     client, cabinet, django_user_model
 ):
     owner, _, festival, field, price, option = cabinet
@@ -31,37 +31,24 @@ def test_restore_confirmation_preserves_answers_and_multiple_services(
     app = Application.objects.create(owner=owner, festival=festival, status="withdrawn")
     client.force_login(staff)
     url = reverse("admin:applications_application_change", args=[app.pk])
-    first = client.get(url, {"confirm": "restore"})
-    assert first.status_code == 200
-    assert first.template_name == "admin/festivals/confirm_action.html"
-    version = first.context["form"]["version"].value()
-    assert (
-        client.post(url, {"version": version, "action": "prepare_restore"}).status_code
-        == 302
-    )
     editing = client.get(url, {"restore": "1"})
-    review = client.post(
-        url,
-        {
-            "version": editing.context["version"],
-            "action": "review_restore",
-            f"field_{field.pk}": "Исправленный ответ",
-            f"field_{price.pk}": [str(option.pk), str(extra.pk)],
-        },
-    )
-    assert (
-        review.status_code == 200
-        and review.template_name == "admin/festivals/confirm_action.html"
-    )
+    assert editing.status_code == 200
     app.refresh_from_db()
     assert (
         app.status == "withdrawn"
         and not app.answers.exists()
         and not app.service_selections.exists()
     )
-    hidden = review.context["form"]
-    payload = {name: hidden[name].value() for name in hidden.fields}
-    assert client.post(url, payload).status_code == 302
+    response = client.post(
+        url,
+        {
+            "version": editing.context["version"],
+            "action": "restore",
+            f"field_{field.pk}": "Исправленный ответ",
+            f"field_{price.pk}": [str(option.pk), str(extra.pk)],
+        },
+    )
+    assert response.status_code == 302
     app.refresh_from_db()
     assert app.status == "active" and app.service_selections.count() == 2
     assert app.answers.get(field=field).value == "Исправленный ответ"

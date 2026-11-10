@@ -25,8 +25,12 @@
             try {
                 payload.schema = JSON.parse(payload.schema || "null");
                 const response = await fetch(publication.dataset.publicationUrl, {
-                    method: "POST", credentials: "same-origin",
-                    headers: {"Content-Type": "application/json", "X-CSRFToken": payload.csrfmiddlewaretoken},
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": payload.csrfmiddlewaretoken
+                    },
                     body: JSON.stringify(payload)
                 });
                 if (!response.ok || response.redirected) throw new Error();
@@ -62,10 +66,20 @@
         const dialog = document.getElementById("schema-preview-dialog");
         const previewFrame = dialog.querySelector("iframe");
         const hidingInput = root.querySelector('[name="schema_hiding"]');
-        let hiding = {counts: {}, option_counts: {}, active: [], active_options: [], confirmed: []};
+        let hiding = {
+            counts: {},
+            option_counts: {},
+            active: [],
+            active_options: [],
+            confirmed: []
+        };
         try {
-            hiding = {...hiding, ...JSON.parse(hidingInput.value || "{}")};
-        } catch { /* Server rechecks confirmation. */
+            hiding = {
+                ...hiding,
+                ...JSON.parse(hidingInput.value || "{}")
+            };
+        } catch {
+            /* Server rechecks confirmation. */
         }
         const message = root.querySelector("[data-schema-message]");
         let rows;
@@ -104,7 +118,10 @@
         const countIn = count => `${count} ${count % 10 === 1 && count % 100 !== 11 ? "анкете" : "анкетах"}`;
         const closeConfirmation = (restore = true) => {
             if (!confirmation) return;
-            const {panel, trigger} = confirmation;
+            const {
+                panel,
+                trigger
+            } = confirmation;
             confirmation = null;
             panel.remove();
             trigger.setAttribute("aria-expanded", "false");
@@ -134,7 +151,10 @@
             panel.append(actions);
             trigger.parentElement.append(panel);
             trigger.setAttribute("aria-expanded", "true");
-            confirmation = {panel, trigger};
+            confirmation = {
+                panel,
+                trigger
+            };
             cancel.focus();
         };
         document.addEventListener("pointerdown", event => {
@@ -233,8 +253,7 @@
             if (editable && row) reorder(["service", "service1"].includes(row.field_type) ? row.services : row.options, id, position);
         };
         const handle = (list, object) => {
-            const el = iconButton("Переместить: перетащите или нажмите Alt + ↑ / ↓", "drag_indicator", () => {
-            });
+            const el = iconButton("Переместить: перетащите или нажмите Alt + ↑ / ↓", "drag_indicator", () => {});
             el.classList.add("schema-drag");
             el.setAttribute("data-drag-handle", "");
             el.addEventListener("keydown", event => {
@@ -288,7 +307,8 @@
                             acknowledge(String(row.id));
                             row.field_type = nextKind;
                             row.fee_periods = [];
-                            sync(); render();
+                            sync();
+                            render();
                         });
                         return;
                     }
@@ -313,17 +333,31 @@
                         if (period.ends_on !== null) control(line, period, "ends_on", "До включительно", "date");
                         control(line, period, "amount", "Сумма, ₽", "number");
                         if (editable) line.append(iconButton("Удалить тариф", "delete", () => {
-                            row.fee_periods.splice(index, 1); sync(); render();
+                            row.fee_periods.splice(index, 1);
+                            sync();
+                            render();
                         }));
                         periods.append(line);
                     });
                     if (editable) {
                         if (!row.fee_periods.some(p => p.ends_on === null)) periods.append(button("Добавить последний тариф", () => {
-                            row.fee_periods.push({id: null, ends_on: null, amount: "0.00"}); sync(); render();
+                            row.fee_periods.push({
+                                id: null,
+                                ends_on: null,
+                                amount: "0.00"
+                            });
+                            sync();
+                            render();
                         }));
                         periods.append(button("Добавить тариф до даты", () => {
                             const last = row.fee_periods.findIndex(p => p.ends_on === null);
-                            row.fee_periods.splice(last < 0 ? row.fee_periods.length : last, 0, {id: null, ends_on: "", amount: "0.00"}); sync(); render();
+                            row.fee_periods.splice(last < 0 ? row.fee_periods.length : last, 0, {
+                                id: null,
+                                ends_on: "",
+                                amount: "0.00"
+                            });
+                            sync();
+                            render();
                         }));
                     }
                     card.append(periods);
@@ -363,9 +397,9 @@
                             const tools = node("div", undefined, "schema-option__actions");
                             const key = `${priced ? "s" : "a"}:${option.id}`;
                             const hideOption = trigger => confirmAction(trigger,
-                                `Вариант выбран в ${countIn(optionCount)}. ` + (priced
-                                    ? "Сохранённые выборы и их стоимость останутся в анкетах. Для нового выбора услуга будет скрыта."
-                                    : "Сохранённый выбор останется в ответах; при следующей полной проверке анкеты потребуется выбрать доступный вариант."),
+                                `Вариант выбран в ${countIn(optionCount)}. ` + (priced ?
+                                    "Сохранённые выборы и их стоимость останутся в анкетах. Для нового выбора услуга будет скрыта." :
+                                    "Сохранённый выбор останется в ответах; при следующей полной проверке анкеты потребуется выбрать доступный вариант."),
                                 "Скрыть вариант", () => {
                                     if (option.id) acknowledge(key);
                                     option.is_active = false;
@@ -401,7 +435,11 @@
                             service_date: null,
                             price: "0.00",
                             is_active: true
-                        } : {id: null, label: "", is_active: true});
+                        } : {
+                            id: null,
+                            label: "",
+                            is_active: true
+                        });
                         sync();
                         render();
                     }));
@@ -440,7 +478,9 @@
                             if (row.field_type === "datefee") {
                                 confirmAction(event.currentTarget, feeCancelText(), "Удалить блок и отменить плату", () => {
                                     if (row.id) acknowledge(String(row.id));
-                                    rows.splice(rows.indexOf(row), 1); sync(); render();
+                                    rows.splice(rows.indexOf(row), 1);
+                                    sync();
+                                    render();
                                 });
                                 return;
                             }
@@ -487,7 +527,9 @@
             try {
                 const response = await fetch(root.dataset.sourceUrl.replace("/0/", `/${source}/`), {
                     credentials: "same-origin",
-                    headers: {Accept: "application/json"}
+                    headers: {
+                        Accept: "application/json"
+                    }
                 });
                 if (!response.ok) throw new Error("Шаблон недоступен. Текущие изменения сохранены в редакторе.");
                 const data = await response.json();
@@ -504,12 +546,16 @@
         const showPreview = async (validate = false) => {
             const requestVersion = version;
             const requestPreviewVersion = ++previewVersion;
-            const payload = {schema: rows, festival_id: Number(root.dataset.festival) || null, timezone: festivalForm.querySelector('[name="timezone"]').value};
+            const payload = {
+                schema: rows,
+                festival_id: Number(root.dataset.festival) || null,
+                timezone: festivalForm.querySelector('[name="timezone"]').value
+            };
             if (validate) {
                 const answers = {};
                 previewFrame.contentDocument.querySelectorAll("input, select, textarea").forEach(el => {
                     if (!el.name || ((el.type === "checkbox" || el.type === "radio") && !el.checked)) return;
-                    if (el.type === "checkbox") (answers[el.name] ||= []).push(el.value);
+                    if (el.type === "checkbox")(answers[el.name] ||= []).push(el.value);
                     else answers[el.name] = el.value;
                 });
                 payload.answers = answers;
@@ -570,7 +616,10 @@
             for (const row of rows) {
                 const pending = [];
                 if (!row.is_active && hiding.active.includes(row.id) && !hiding.confirmed.includes(String(row.id))) pending.push(String(row.id));
-                for (const [options, prefix] of [[row.options || [], "a"], [row.services || [], "s"]]) {
+                for (const [options, prefix] of [
+                        [row.options || [], "a"],
+                        [row.services || [], "s"]
+                    ]) {
                     for (const option of options) {
                         const key = `${prefix}:${option.id}`;
                         if (!option.is_active && hiding.active_options.includes(key) && !hiding.confirmed.includes(key)) pending.push(key);
@@ -594,5 +643,6 @@
         render();
         checkPublication();
     };
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+    else init();
 })();
