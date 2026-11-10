@@ -203,6 +203,9 @@ class Application(models.Model):
     paid_amount = models.DecimalField(
         "Внесено", max_digits=12, decimal_places=2, default=0, editable=False
     )
+    was_submitted = models.BooleanField(default=False, editable=False)
+    financial_snapshot = models.JSONField(null=True, editable=False)
+    financial_snapshot_current = models.BooleanField(default=False, editable=False)
     anonymized_at = models.DateTimeField(
         "Обезличена", null=True, blank=True, editable=False
     )

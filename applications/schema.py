@@ -535,6 +535,16 @@ def check_schema_permissions(festival, prepared, actor):
 
 def write_schema(festival, prepared, actor):
     check_schema_permissions(festival, prepared, actor)
+    from billing.models import FeeLock
+
+    active_fee_ids = [
+        field.pk
+        for field, _, _ in prepared
+        if field.pk and field.field_type == "datefee" and field.is_active
+    ]
+    FeeLock.objects.filter(application__festival=festival).exclude(
+        field_id__in=active_fee_ids
+    ).delete()
     kept = [f.pk for f, _, _ in prepared if f.pk]
     festival.form_fields.exclude(pk__in=kept).delete()
     for field, options, services in prepared:
@@ -589,16 +599,10 @@ def calculate_services(festival, selections, *, require_complete=True):
 
 def calculate_existing_services(application):
     """Include saved selections even when their field or option is hidden."""
-    total = Decimal("0.00")
-    subtotals = {}
-    for selection in application.service_selections.select_related("option__field"):
-        option = selection.option
-        if option.field.festival_id != application.festival_id:
-            raise ValidationError("Услуга относится к другому фестивалю.")
-        key = str(option.field_id)
-        subtotals[key] = subtotals.get(key, Decimal("0.00")) + option.price
-        total += option.price
-    return {"total": total, "fields": subtotals}
+    from billing.calculator import selected_services
+
+    _, subtotals = selected_services(application)
+    return {"total": sum(subtotals.values(), Decimal("0.00")), "fields": subtotals}
 
 
 def calculate_rows(rows, selections, *, require_complete=False):

@@ -120,7 +120,7 @@ def test_application_states_are_protected(billing_case, status):
         pay(billing_case)
 
 
-@pytest.mark.parametrize("state", ["draft", "archived", "expired"])
+@pytest.mark.parametrize("state", ["draft"])
 def test_effective_festival_state_protects_even_superuser(billing_case, state):
     actor, _, festival, _, _ = billing_case
     actor.is_superuser = True

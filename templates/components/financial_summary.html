@@ -1,0 +1,44 @@
+<section class="{% if opts %}admin-panel p-4{% else %}application-card{% endif %}">
+    <h3>Услуги и платы</h3>
+    {% if financial_totals.source == "snapshot" %}
+        <p class="application-note">Стоимость участия сохранена при закрытии фестиваля. Последующие изменения тарифов её
+            не меняют.</p>
+        {% if financial_totals.reconstructed %}
+            <p class="application-note">Снимок восстановлен из доступных данных. Исторические цены услуг могли
+                отличаться.</p>
+        {% endif %}
+    {% endif %}
+    {% regroup financial_totals.services|dictsort:"field_id" by field_id as service_groups %}
+    <dl class="financial-summary__groups">
+        {% for group in service_groups %}
+            <div>
+                <dt>{{ group.list.0.field_label }}:</dt>
+                <dd>
+                    <ul class="financial-summary__items">
+                        {% for item in group.list %}
+                            <li>{{ item.label }}{% if item.service_date %} —
+                                {{ item.service_date|date:"d.m.Y" }}{% endif %} — {{ item.amount|floatformat:2 }} ₽
+                                {% if item.hidden %} (сохранённая скрытая услуга){% endif %}</li>
+                        {% endfor %}
+                    </ul>
+                </dd>
+            </div>
+        {% endfor %}
+        {% if financial_totals.fees %}
+            <div>
+                <dt>Фиксированные оплаты:</dt>
+                <dd>
+                    <ul class="financial-summary__items">
+                        {% for item in financial_totals.fees %}
+                            <li>{{ item.label }} — {{ item.amount|floatformat:2 }} ₽{% if item.locked_at %} (тариф
+                                зафиксирован){% endif %}</li>
+                        {% endfor %}
+                    </ul>
+                </dd>
+            </div>
+        {% endif %}
+    </dl>
+
+    <p class="application-total"><span>Сумма к оплате</span><strong>{{ financial_totals.total|floatformat:2 }}
+        ₽</strong></p>
+</section>

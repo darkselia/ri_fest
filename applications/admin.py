@@ -17,7 +17,7 @@ from unfold.widgets import UnfoldAdminSelectWidget, UnfoldAdminTextInputWidget
 
 from billing.forms import PaymentForm
 from billing.models import AuditEvent
-from billing.services import change_paid_amount
+from billing.services import change_paid_amount, payment_allowed
 from festivals.models import Festival
 from festivals.services import get_effective_status
 
@@ -178,13 +178,7 @@ class ApplicationAdmin(ModelAdmin):
 
     def can_change_payment(self, request, obj):
         return bool(
-            obj
-            and obj.status in ("active", "withdrawn")
-            and obj.owner_id
-            and obj.owner.is_active
-            and obj.anonymized_at is None
-            and get_effective_status(obj.festival) in ("open", "running")
-            and super().has_change_permission(request, obj)
+            obj and payment_allowed(obj) and super().has_change_permission(request, obj)
         )
 
     def payment_object(self, request, pk):

@@ -4,12 +4,12 @@
     <h3>{{ entry.row.label }}</h3>
     {% if entry.row.help_text %}<div class="application-field__help">{{ entry.row.help_text|urlize|linebreaksbr }}</div>{% endif %}
     {% if entry.fee_error %}<p class="form-errors">{{ entry.fee_error }}</p>{% else %}
-        <p class="application-subtotal"><span>Если оплатить сейчас</span><strong>{{ entry.fee.amount|floatformat:2 }} ₽</strong></p>
+        <p class="application-subtotal"><span>{% if entry.fee.locked %}Тариф зафиксирован{% else %}Если оплатить сейчас{% endif %}</span><strong>{{ entry.fee.amount|floatformat:2 }} ₽</strong></p>
         <ul>
             {% for period in entry.fee.display %}
                 <li>{{ period.amount|floatformat:2 }} ₽ — {% if period.ends_on %}до {{ period.ends_on|date:'j E' }} включительно{% elif period.starts_on %}с {{ period.starts_on|date:'j E' }} и на месте{% else %}в любую дату{% endif %}</li>
             {% endfor %}
         </ul>
-        <p class="application-field__help">Заполнение анкеты не фиксирует цену. Оплату подтверждает организатор.</p>
+        {% if not entry.fee.locked %}<p class="application-field__help">Заполнение анкеты не фиксирует цену. Оплату подтверждает организатор.</p>{% endif %}
     {% endif %}
 </section>

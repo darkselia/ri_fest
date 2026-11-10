@@ -66,7 +66,7 @@ def application_form(festival, application=None, *, data=None, require_complete=
             answers.setdefault(selection.option.field_id, []).append(
                 str(selection.option_id)
             )
-    return TemplatePreviewForm(
+    form = TemplatePreviewForm(
         export_schema(festival),
         data=data,
         answers=answers,
@@ -74,10 +74,37 @@ def application_form(festival, application=None, *, data=None, require_complete=
         preview=False,
         timezone_name=festival.timezone,
     )
+    if application is not None and application.pk:
+        locks = {lock.field_id: lock for lock in application.fee_locks.all()}
+        for entry in form.entries:
+            lock = locks.get(entry["row"]["id"])
+            if entry["kind"] == "datefee" and lock:
+                entry["fee"] = {
+                    "amount": lock.amount,
+                    "kopecks": int(lock.amount * 100),
+                    "display": [],
+                    "locked": True,
+                }
+    return form
 
 
 def application_form_context(form, application=None):
     """Prepare displayed subtotals and saved hidden services for both interfaces."""
+    if (
+        application is not None
+        and application.pk
+        and (application.was_submitted or application.status != "draft")
+        and get_effective_status(application.festival) == "archived"
+    ):
+        from billing.calculator import calc_application_total
+
+        if form is not None:
+            form.entries = [
+                entry
+                for entry in form.entries
+                if entry["kind"] not in ("service", "service1", "datefee")
+            ]
+        return {"financial_totals": calc_application_total(application)}
     hidden = (
         list(
             application.service_selections.filter(
@@ -306,7 +333,8 @@ def _save_application(
             )
         if submit:
             application.status = Application.Status.ACTIVE
-        application.save(update_fields=["status", "updated_at"])
+            application.was_submitted = True
+        application.save(update_fields=["status", "was_submitted", "updated_at"])
         return application, form
 
 

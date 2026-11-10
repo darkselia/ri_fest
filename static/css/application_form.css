@@ -28,11 +28,10 @@
     counter-reset: question;
 }
 
-.application-form .application-field {
+.application-field {
     min-width: 0;
     counter-increment: question;
-    padding: 18px 0;
-    margin: 0;
+    padding: 16px 0;
     border: 0;
     border-radius: 0;
 }
@@ -150,7 +149,6 @@
     padding: 10px 12px;
     border-radius: 6px;
     background: var(--form-paper, var(--color-paper));
-    margin: 14px 0 0;
     font-size: 13px;
 }
 
@@ -163,7 +161,7 @@
     justify-content: space-between;
     gap: 16px;
     border-top: 1px solid var(--form-line, var(--color-line));
-    padding: 16px 0;
+    padding: 24px 0;
     margin: 0;
     font-size: 15px;
     font-weight: 400;
@@ -198,10 +196,6 @@
 
 .application-field + .application-field {
     border-top: 1px solid var(--form-line, var(--color-line));
-}
-
-.application-form .application-field:has(+ .application-total) {
-    padding-bottom: 24px;
 }
 
 .application-form__heading {
@@ -262,6 +256,16 @@
     --form-error: var(--color-red-400);
     --form-error-bg: color-mix(in srgb, var(--color-red-400) 10%, var(--admin-panel-bg));
     --form-danger: var(--color-red-400);
+}
+
+.financial-summary__groups dd {
+    margin: 0;
+}
+
+.financial-summary__items {
+    margin: 4px 0 12px;
+    padding-inline-start: 24px;
+    list-style: disc;
 }
 
 .application-preview {

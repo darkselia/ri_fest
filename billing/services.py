@@ -8,12 +8,24 @@ from django.db import transaction
 
 from applications.models import Application
 from festivals.models import Festival
-from festivals.services import get_effective_status
+from festivals.services import get_effective_status, synchronize_locked_festival
 
 from .models import AuditEvent
 
 MISSING_VERSION = object()
 MAX_AMOUNT = Decimal("9999999999.99")
+
+
+def payment_allowed(application):
+    state = get_effective_status(application.festival)
+    return (
+        application.status in ("active", "withdrawn", "archived")
+        and state in ("open", "running", "archived")
+        and (application.status != "archived" or state == "archived")
+        and application.owner_id is not None
+        and application.owner.is_active
+        and application.anonymized_at is None
+    )
 
 
 @dataclass(frozen=True)
@@ -64,6 +76,9 @@ def change_paid_amount(
         }
         employee = users.get(actor.pk)
         owner = users.get(owner_id)
+        from django.utils import timezone
+
+        synchronize_locked_festival(festival, at=timezone.now())
         application = Application.objects.select_for_update().get(
             pk=application_id, festival_id=festival.pk
         )
@@ -76,8 +91,7 @@ def change_paid_amount(
             or not owner.is_active
             or application.owner_id != owner.pk
             or application.anonymized_at is not None
-            or application.status not in ("active", "withdrawn")
-            or get_effective_status(festival) not in ("open", "running")
+            or not payment_allowed(application)
         ):
             raise PermissionDenied("Изменение оплаты этой анкеты недоступно.")
         latest = (

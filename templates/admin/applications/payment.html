@@ -8,6 +8,9 @@
         <span class="admin-payment__summary">Внесено: <strong data-payment-amount>{{ original.paid_amount|floatformat:2 }}</strong> ₽</span>
     </summary>
     <div class="admin-disclosure__content">
+        {% if financial_totals %}
+            <p class="admin-payment__hint">Стоимость участия зафиксирована при закрытии. Изменение оплаты сохраняется отдельно и влияет только на внесённую сумму и текущий баланс.</p>
+        {% endif %}
         {% if can_change_payment %}
             <form method="post" data-payment-form class="admin-payment__form">
                 {% csrf_token %}

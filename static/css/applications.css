@@ -173,7 +173,6 @@
 .application-answers {
     display: grid;
     gap: 0;
-    margin: 16px 0;
 }
 
 .application-answers > div {

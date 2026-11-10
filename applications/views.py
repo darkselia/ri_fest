@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core import signing
@@ -11,12 +9,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
+from billing.calculator import calc_application_total
 from festivals.models import Festival
 from festivals.services import get_effective_status
 
 from .forms import TemplatePreviewForm, display_date
 from .models import Application
-from .schema import calculate_existing_services, export_schema, schema_revision
+from .schema import export_schema, schema_revision
 from .services import (
     application_form,
     application_form_context,
@@ -114,7 +113,7 @@ def dashboard_context(user, params):
             if tab == "drafts"
             else query.filter(submitted_filter)
         )
-    query = query.prefetch_related("answers", "service_selections__option")
+    query = query.prefetch_related("answers", "service_selections__option", "fee_locks")
     page = Paginator(query, 20).get_page(params.get("page"))
     cards = []
     for application in page:
@@ -333,21 +332,22 @@ def detail(request, pk):
                 "value": value if value not in (None, "") else "Не заполнено",
             }
         )
-    fee_entries = [
-        entry
-        for entry in application_form(application.festival, application).entries
-        if entry["kind"] == "datefee"
-    ]
-    totals = calculate_existing_services(application)
-    totals["total"] += sum(
-        (entry["fee"]["amount"] for entry in fee_entries if "fee" in entry),
-        Decimal("0.00"),
+    fee_entries = (
+        []
+        if get_effective_status(application.festival) == "archived"
+        else [
+            entry
+            for entry in application_form(application.festival, application).entries
+            if entry["kind"] == "datefee"
+        ]
     )
+    totals = calc_application_total(application)
     context.update(
         entries=entries,
         fee_entries=fee_entries,
         selections=application.service_selections.select_related("option__field"),
         totals=totals,
+        financial_totals=totals,
     )
     return render(request, "applications/detail.html", context)
 

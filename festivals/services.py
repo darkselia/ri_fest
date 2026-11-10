@@ -154,12 +154,31 @@ def _return_to_drafts(applications, at):
     ]
     if ids:
         Application.objects.filter(pk__in=ids).update(
-            status=Application.Status.DRAFT, updated_at=at
+            status=Application.Status.DRAFT, was_submitted=True, updated_at=at
         )
     return len(ids)
 
 
-def _archive_applications(applications, at):
+def _archive_applications(festival, applications, at, *, evaluated_at):
+    from billing.calculator import make_snapshot
+
+    for application in applications:
+        if (
+            application.was_submitted or application.status != Application.Status.DRAFT
+        ) and not application.financial_snapshot_current:
+            application.festival = festival
+            application.financial_snapshot = make_snapshot(
+                application, at=evaluated_at, saved_at=at
+            )
+            application.financial_snapshot_current = True
+            application.was_submitted = True
+            application.save(
+                update_fields=[
+                    "financial_snapshot",
+                    "financial_snapshot_current",
+                    "was_submitted",
+                ]
+            )
     ids = [
         item.pk
         for item in applications
@@ -176,7 +195,14 @@ def synchronize_locked_festival(festival, *, at):
     """Caller holds the parent lock; account deletion uses this same transition."""
     status = get_effective_status(festival, at=at)
     if status == Festival.Status.ARCHIVED:
-        _archive_applications(_applications(festival), at)
+        from billing.calculator import calendar_cutoff
+
+        _archive_applications(
+            festival,
+            _applications(festival),
+            at,
+            evaluated_at=calendar_cutoff(festival),
+        )
     changed = festival.status != status
     if changed:
         festival.status = status
@@ -320,7 +346,6 @@ def save_festival(festival_id, *, actor, changes, at=None, confirmation=None):
                 _check_confirmation(
                     confirmation, festival, applications, actor, "save", changes, now
                 )
-                _archive_applications(applications, now)
         if prepared_schema is not None:
             from applications.schema import write_schema
 
@@ -328,6 +353,8 @@ def save_festival(festival_id, *, actor, changes, at=None, confirmation=None):
                 candidate.save()
                 festival.pk = candidate.pk
             write_schema(festival, prepared_schema, actor)
+        if candidate.status == Festival.Status.ARCHIVED:
+            _archive_applications(candidate, applications, now, evaluated_at=now)
         candidate.save()
         return candidate
 
@@ -350,6 +377,9 @@ def publish_festival(festival_id, *, actor, at=None):
         festival.status = status
         festival.published_at = festival.published_at or now
         festival.save(update_fields=["status", "published_at"])
+        Application.objects.filter(festival=festival).update(
+            financial_snapshot_current=False
+        )
         return festival
 
 
@@ -370,7 +400,17 @@ def _confirmed_action(festival_id, *, actor, action, confirmation, at):
             festival.delete()
         else:
             if action == "archive":
-                _archive_applications(applications, now)
+                from billing.calculator import calendar_cutoff
+
+                evaluated_at = (
+                    calendar_cutoff(festival)
+                    if get_effective_status(festival, at=now)
+                    == Festival.Status.ARCHIVED
+                    else now
+                )
+                _archive_applications(
+                    festival, applications, now, evaluated_at=evaluated_at
+                )
             else:
                 _return_to_drafts(applications, now)
             target = (
