@@ -16,7 +16,7 @@ from festivals.services import (
     festival_action_preview,
 )
 
-pytestmark = [pytest.mark.django_db(transaction=True)]
+pytestmark = [pytest.mark.postgres, pytest.mark.django_db(transaction=True)]
 
 
 @pytest.mark.parametrize("operation", ["archive", "festival", "account", "draft"])

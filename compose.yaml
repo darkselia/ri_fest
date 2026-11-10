@@ -101,7 +101,7 @@ services:
   tests:
     <<: *app
     profiles: ["test"]
-    command: ["python", "-m", "pytest", "-q", "tests/festivals/test_postgres.py", "tests/accounts/test_postgres.py", "--ds=ri_fest.settings_test_postgres", "--reuse-db"]
+    command: ["python", "-m", "pytest", "-q", "-m", "postgres", "--ds=ri_fest.settings_test_postgres", "--reuse-db"]
     environment:
       <<: *app-env
       DB_TEST_NAME: ri_fest_test

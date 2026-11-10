@@ -4,6 +4,7 @@ DJANGO_SETTINGS_MODULE = "ri_fest.settings_test"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--strict-config --strict-markers --import-mode=importlib"
+markers = ["postgres: integration scenarios requiring isolated PostgreSQL"]
 
 [tool.ruff]
 target-version = "py313"

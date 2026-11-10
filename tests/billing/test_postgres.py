@@ -12,6 +12,7 @@ from billing.services import change_paid_amount
 from festivals.services import archive_festival, festival_action_preview
 
 pytestmark = [
+    pytest.mark.postgres,
     pytest.mark.django_db(transaction=True),
     pytest.mark.skipif(
         connection.vendor != "postgresql", reason="Requires isolated PostgreSQL"

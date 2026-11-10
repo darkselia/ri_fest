@@ -90,7 +90,7 @@ docker compose -f compose.yaml -f compose.dev.yaml exec web python manage.py mak
 ```
 
 - `check.py`: Django check, pytest на SQLite в памяти, Ruff и проверка форматирования без перезаписи.
-- Сервис `tests`: настроенный в Compose интеграционный набор `tests/festivals/test_postgres.py` и `tests/accounts/test_postgres.py` на отдельной PostgreSQL-базе `ri_fest_test`, Redis и SMTP через Mailpit. Профиль `test` сам подключает нужные зависимости.
+- Сервис `tests`: все сценарии с маркером `pytest.mark.postgres` на отдельной PostgreSQL-базе `ri_fest_test`, Redis и SMTP через Mailpit. Набор охватывает аккаунты, фестивали, оплату и конкурентные операции с анкетами. Новые сценарии, которым нужен PostgreSQL, также помечайте этим маркером: профиль `test` подхватит их автоматически и подключит нужные зависимости.
 - `makemigrations --check --dry-run`: проверка соответствия моделей и миграций без создания файлов.
 
 Проверки выбираются по изменению согласно [AGENTS.md](AGENTS.md). Для правки документации приложение запускать не требуется; полный набор нужен при завершении контрольной точки и перед выпуском.
