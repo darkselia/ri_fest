@@ -6,10 +6,11 @@ import pytest
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, close_old_connections, connection, transaction
 
-from applications.models import Application
-from billing.models import AuditEvent
+from applications.models import Application, FeePeriod, FormField
+from applications.schema import export_schema, hiding_state, schema_revision
+from billing.models import AuditEvent, FeeLock
 from billing.services import change_paid_amount
-from festivals.services import archive_festival, festival_action_preview
+from festivals.services import archive_festival, festival_action_preview, save_festival
 
 pytestmark = [
     pytest.mark.postgres,
@@ -113,10 +114,91 @@ def test_payment_racing_archive_is_serialized(billing_case):
     festival.refresh_from_db()
     assert festival.status == "archived"
     assert app.paid_amount == (100 if results[0] == "ok" else 0)
-    with pytest.raises(PermissionDenied):
-        command(billing_case, "add", "1")
+    app.refresh_from_db()
+    snapshot = app.financial_snapshot
+    before = app.paid_amount
+    command(billing_case, "add", "1")
+    app.refresh_from_db()
+    assert app.paid_amount == before + 1
+    assert app.financial_snapshot == snapshot
 
 
 def test_postgres_enforces_nonnegative_amount(billing_case):
     with pytest.raises(IntegrityError), transaction.atomic():
         Application.objects.filter(pk=billing_case[3].pk).update(paid_amount=-1)
+
+
+def test_cancelled_fee_and_payment_are_serialized(billing_case):
+    from django.utils import timezone
+
+    actor, _, festival, app, _ = billing_case
+    fee = FormField.objects.create(
+        festival=festival, field_type="datefee", label="Взнос"
+    )
+    FeePeriod.objects.create(field=fee, amount=1300)
+    FeeLock.objects.create(
+        application=app, field=fee, amount=1200, locked_at=timezone.now()
+    )
+
+    def cancel():
+        rows = export_schema(festival)
+        next(row for row in rows if row["id"] == fee.pk)["is_active"] = False
+        confirmation = hiding_state(festival)
+        confirmation["confirmed"] = [str(fee.pk)]
+        save_festival(
+            festival.pk,
+            actor=actor,
+            changes={
+                "_schema": rows,
+                "_schema_revision": schema_revision(festival),
+                "_schema_hiding": confirmation,
+            },
+        )
+
+    results = race([lambda: command(billing_case, "add", "500"), cancel])
+    assert results[0] == "ok"
+    if results[1] == "rejected":
+        cancel()
+    app.refresh_from_db()
+    assert app.paid_amount == 500 and not app.fee_locks.exists()
+
+
+def test_fee_lock_constraints_on_postgres(billing_case):
+    from django.utils import timezone
+
+    app = billing_case[3]
+    field = FormField.objects.create(
+        festival=billing_case[2], field_type="datefee", label="Взнос"
+    )
+    values = {"application": app, "field": field, "locked_at": timezone.now()}
+    with pytest.raises(IntegrityError), transaction.atomic():
+        FeeLock.objects.create(**values, amount=-1)
+    FeeLock.objects.create(**values, amount=0)
+    with pytest.raises(IntegrityError), transaction.atomic():
+        FeeLock.objects.create(**values, amount=0)
+
+
+def test_archived_payment_and_owner_deletion_are_serialized(billing_case):
+    from accounts.services import delete_account
+
+    actor, owner, festival, app, _ = billing_case
+    token = festival_action_preview(festival.pk, actor=actor, action="archive")[
+        "confirmation"
+    ]
+    archive_festival(festival.pk, actor=actor, confirmation=token)
+    app.refresh_from_db()
+    snapshot = app.financial_snapshot
+    results = race(
+        [
+            lambda: command(billing_case, "add", "100"),
+            lambda: delete_account(
+                owner.pk, actor=owner, password="synthetic-billing-password-42"
+            ),
+        ]
+    )
+    assert results[1] == "ok"
+    app.refresh_from_db()
+    assert app.owner_id is None and app.financial_snapshot == snapshot
+    assert app.paid_amount == (100 if results[0] == "ok" else 0)
+    with pytest.raises(PermissionDenied):
+        command(billing_case, "add", "1")
