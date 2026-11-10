@@ -75,7 +75,7 @@
     gap: 14px;
 }
 
-.account-form>.button {
+.account-form > .button {
     justify-self: start;
 }
 

@@ -4,7 +4,10 @@
         <div class="profile-editor__column">
             {% if account_tab == "profile" %}<h2>Как к вам обращаться</h2>{% endif %}
             {% if description %}<p class="account-description muted">{{ description }}</p>{% endif %}
-            <form method="post" class="account-form" aria-label="{{ title }}">
+            <form method="post"
+                  action="{% url 'accounts:profile' %}"
+                  class="account-form"
+                  aria-label="{{ title }}">
                 {% csrf_token %}
                 {% if form.non_field_errors %}
                     <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>

@@ -37,26 +37,26 @@
     border-radius: 0;
 }
 
-.application-field>label,
-.application-field>legend {
+.application-field > label,
+.application-field > legend {
     display: block;
     font-weight: 700;
     overflow-wrap: anywhere;
 }
 
-.application-field>label::before,
-.application-field>legend::before {
+.application-field > label::before,
+.application-field > legend::before {
     content: counter(question) ". ";
 }
 
-.application-field>legend {
+.application-field > legend {
     float: left;
     width: 100%;
     padding: 0;
     margin-bottom: 10px;
 }
 
-.application-field>legend+* {
+.application-field > legend + * {
     clear: both;
 }
 
@@ -73,9 +73,9 @@
     font: inherit;
 }
 
-.application-field>label:not(.application-field__boolean)+input,
-.application-field>label:not(.application-field__boolean)+textarea,
-.application-field>label:not(.application-field__boolean)+select {
+.application-field > label:not(.application-field__boolean) + input,
+.application-field > label:not(.application-field__boolean) + textarea,
+.application-field > label:not(.application-field__boolean) + select {
     margin-top: 3px;
 }
 
@@ -94,13 +94,13 @@
     margin: 0;
 }
 
-.application-field>.application-field__boolean {
+.application-field > .application-field__boolean {
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
-.application-field>.application-field__boolean input {
+.application-field > .application-field__boolean input {
     margin-left: 5px;
 }
 
@@ -111,7 +111,7 @@
     margin: 9px 0;
 }
 
-.application-field__choices>div>div:has(input[data-opt-out]) {
+.application-field__choices > div > div:has(input[data-opt-out]) {
     border-top: 1px dashed var(--form-line, var(--color-line));
 }
 
@@ -185,18 +185,18 @@
     gap: 12px;
 }
 
-.application-date-fee> :is(h3, p, ul) {
+.application-date-fee > :is(h3, p, ul) {
     margin: 0;
 }
 
-.application-date-fee>ul {
+.application-date-fee > ul {
     display: grid;
     gap: 6px;
     padding-inline-start: 20px;
     line-height: 1.6;
 }
 
-.application-field+.application-field {
+.application-field + .application-field {
     border-top: 1px solid var(--form-line, var(--color-line));
 }
 

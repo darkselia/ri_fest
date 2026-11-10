@@ -368,6 +368,7 @@ fieldset.module {
 }
 
 @media (max-width: 639px) {
+
     .admin-payment__amount,
     .admin-payment__actions {
         flex-basis: 100%;

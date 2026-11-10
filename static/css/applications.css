@@ -17,11 +17,11 @@
     overflow-wrap: anywhere;
 }
 
-.application-heading>.button {
+.application-heading > .button {
     width: auto;
 }
 
-.application-heading>.button span {
+.application-heading > .button span {
     font-size: 15px;
 }
 
@@ -176,7 +176,7 @@
     margin: 16px 0;
 }
 
-.application-answers>div {
+.application-answers > div {
     padding-block: 18px;
     border-bottom: 1px solid var(--color-line);
 }

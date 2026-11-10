@@ -49,7 +49,7 @@
     color: var(--admin-subtle-text);
 }
 
-.schema-copy-tool>label {
+.schema-copy-tool > label {
     flex: 1 1 200px;
     min-width: 0;
 }
@@ -73,13 +73,13 @@
     border: 1px dashed var(--admin-panel-border);
 }
 
-.schema-option.schema-option--hidden>.schema-control:first-of-type input {
+.schema-option.schema-option--hidden > .schema-control:first-of-type input {
     text-decoration: line-through;
 }
 
-.schema-card.schema-card--hidden>.schema-card__head .schema-control,
-.schema-card.schema-card--hidden>.schema-control,
-.schema-card.schema-card--hidden>.schema-options .schema-control {
+.schema-card.schema-card--hidden > .schema-card__head .schema-control,
+.schema-card.schema-card--hidden > .schema-control,
+.schema-card.schema-card--hidden > .schema-options .schema-control {
     opacity: .6;
     filter: blur(.6px);
 }
@@ -95,7 +95,7 @@
     padding: 2px 8px;
 }
 
-.schema-options>button {
+.schema-options > button {
     margin: 12px 8px 0 0;
 }
 
@@ -169,16 +169,16 @@
     min-width: 0;
 }
 
-.schema-card__head>.schema-control {
+.schema-card__head > .schema-control {
     flex: 1 1 180px;
 }
 
-.schema-card>.schema-control {
+.schema-card > .schema-control {
     width: 100%;
     margin-top: 12px;
 }
 
-.schema-card>.schema-control textarea {
+.schema-card > .schema-control textarea {
     width: 100%;
     max-width: none;
     min-height: 44px;
@@ -211,16 +211,16 @@
     align-items: end;
 }
 
-.schema-fee-period>span {
+.schema-fee-period > span {
     flex-basis: 100%;
 }
 
-.schema-fee-period>.schema-control {
+.schema-fee-period > .schema-control {
     flex: 0 1 150px;
     min-width: 0;
 }
 
-.schema-fee-period>.schema-editor-icon {
+.schema-fee-period > .schema-editor-icon {
     margin-left: auto;
 }
 
@@ -237,7 +237,7 @@
     grid-row: 1;
 }
 
-.schema-option.schema-option--refusal>[data-control=label] {
+.schema-option.schema-option--refusal > [data-control=label] {
     grid-column: 1;
     grid-row: 2;
 }
@@ -247,7 +247,7 @@
     grid-row: 2;
 }
 
-.schema-option>.schema-hidden-note {
+.schema-option > .schema-hidden-note {
     grid-column: 1 / -1;
     justify-self: start;
 }
@@ -302,7 +302,7 @@
     white-space: normal;
 }
 
-#schema-editor>div:last-child {
+#schema-editor > div:last-child {
     padding-bottom: 16px;
 }
 
@@ -316,16 +316,16 @@
         grid-template-columns: 32px minmax(0, 1fr) minmax(90px, 1fr);
     }
 
-    .schema-option>[data-control=label] {
+    .schema-option > [data-control=label] {
         grid-column: 2 / -1;
     }
 
-    .schema-option>[data-control=service_date] {
+    .schema-option > [data-control=service_date] {
         grid-column: 2;
         width: min(150px, 100%);
     }
 
-    .schema-option>[data-control=price] {
+    .schema-option > [data-control=price] {
         grid-column: 3;
     }
 
@@ -336,7 +336,7 @@
         flex-wrap: wrap;
     }
 
-    .schema-option--refusal>[data-control=label],
+    .schema-option--refusal > [data-control=label],
     .schema-option--refusal .schema-refusal-note {
         grid-column: 1 / -1;
     }
@@ -364,21 +364,21 @@
         grid-template-columns: 28px minmax(0, 1fr);
     }
 
-    .schema-option>[data-control=service_date],
-    .schema-option>[data-control=price] {
+    .schema-option > [data-control=service_date],
+    .schema-option > [data-control=price] {
         grid-column: 2;
     }
 }
 
 /* Без ручки перетаскивания подпись остаётся во второй колонке сетки. */
 @media (min-width: 1000px) {
-    [data-editable="false"] .schema-option:not(.schema-option--refusal)>[data-control=label] {
+    [data-editable="false"] .schema-option:not(.schema-option--refusal) > [data-control=label] {
         grid-column: 2;
     }
 }
 
-.schema-card__head .schema-control>div,
-.schema-option .schema-control>div {
+.schema-card__head .schema-control > div,
+.schema-option .schema-control > div {
     width: 100%;
     min-width: 0;
 }
@@ -430,14 +430,14 @@
 
 @media (max-width: 600px) {
 
-    .schema-option>[data-control=label],
-    .schema-option>[data-control=service_date],
-    .schema-option>[data-control=price] {
+    .schema-option > [data-control=label],
+    .schema-option > [data-control=service_date],
+    .schema-option > [data-control=price] {
         grid-column: 1 / -1;
         width: 100%;
     }
 
-    .schema-option.schema-option--refusal>[data-control=label] {
+    .schema-option.schema-option--refusal > [data-control=label] {
         grid-column: 1 / -1;
     }
 
@@ -446,7 +446,7 @@
         grid-row: auto;
     }
 
-    .schema-fee-period>.schema-control {
+    .schema-fee-period > .schema-control {
         flex-basis: 100%;
     }
 
@@ -462,7 +462,7 @@
         padding: 12px;
     }
 
-    .schema-card__head>.schema-control {
+    .schema-card__head > .schema-control {
         flex-basis: 100%;
     }
 
@@ -470,11 +470,11 @@
         margin-left: auto;
     }
 
-    .schema-toolbar__section>label {
+    .schema-toolbar__section > label {
         width: 100%;
     }
 
-    .schema-card>.schema-control textarea {
+    .schema-card > .schema-control textarea {
         min-height: 60px;
     }
 }
