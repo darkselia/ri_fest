@@ -6,7 +6,13 @@ import pytest
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, close_old_connections, connection, transaction
 
-from applications.models import Application, FeePeriod, FormField
+from applications.models import (
+    Application,
+    ApplicationServiceSelection,
+    FeePeriod,
+    FormField,
+    ServiceOption,
+)
 from applications.schema import export_schema, hiding_state, schema_revision
 from billing.models import AuditEvent, FeeLock
 from billing.services import change_paid_amount
@@ -126,6 +132,57 @@ def test_payment_racing_archive_is_serialized(billing_case):
 def test_postgres_enforces_nonnegative_amount(billing_case):
     with pytest.raises(IntegrityError), transaction.atomic():
         Application.objects.filter(pk=billing_case[3].pk).update(paid_amount=-1)
+
+
+def test_price_update_racing_archive_freezes_serialized_price(billing_case):
+    from billing.calculator import calc_application_total
+
+    actor, _, festival, app, _ = billing_case
+    field = FormField.objects.create(
+        festival=festival, field_type="service", label="Ночь"
+    )
+    option = ServiceOption.objects.create(field=field, label="Первая", price=2070)
+    ApplicationServiceSelection.objects.create(application=app, option=option)
+    rows = export_schema(festival)
+    next(row for row in rows if row["id"] == field.pk)["services"][0]["price"] = "2200"
+    revision = schema_revision(festival)
+    token = festival_action_preview(festival.pk, actor=actor, action="archive")[
+        "confirmation"
+    ]
+    results = race(
+        [
+            lambda: save_festival(
+                festival.pk,
+                actor=actor,
+                changes={
+                    "_schema": rows,
+                    "_schema_revision": revision,
+                },
+            ),
+            lambda: archive_festival(festival.pk, actor=actor, confirmation=token),
+        ]
+    )
+    if results[1] == "rejected":
+        assert results[0] == "ok"
+        token = festival_action_preview(festival.pk, actor=actor, action="archive")[
+            "confirmation"
+        ]
+        archive_festival(festival.pk, actor=actor, confirmation=token)
+    app.refresh_from_db()
+    option.refresh_from_db()
+    expected = 2200 if results[0] == "ok" else 2070
+    assert option.price == expected
+    assert calc_application_total(app)["total"] == expected
+    assert Decimal(app.financial_snapshot["services"][0]["amount"]) == expected
+    with pytest.raises(PermissionDenied):
+        save_festival(
+            festival.pk,
+            actor=actor,
+            changes={
+                "_schema": rows,
+                "_schema_revision": schema_revision(festival),
+            },
+        )
 
 
 def test_cancelled_fee_and_payment_are_serialized(billing_case):

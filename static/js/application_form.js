@@ -57,6 +57,7 @@
     });
     if (!form) return;
     const output = form.querySelector("[data-application-total]");
+    if (!output) return;
     const money = value => `${(value / 100n).toLocaleString("ru-RU")},${(value % 100n).toString().padStart(2, "0")} ₽`;
     const update = () => {
         let total = BigInt(output.dataset.fixedKopecks || "0");
