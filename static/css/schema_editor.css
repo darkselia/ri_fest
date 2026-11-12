@@ -272,7 +272,7 @@
 
 .schema-confirm {
     position: absolute;
-    top: calc(100% + 8px);
+    bottom: calc(100% + 8px);
     right: 0;
     z-index: 40;
     width: min(340px, 80vw);

@@ -1,5 +1,6 @@
 /* Общая палитра. Основной акцент меняется одной переменной. */
-:root {
+/* html keeps these tokens ahead of Unfold's default :root palette. */
+html:root {
     --color-accent: #c52117;
     --color-ink: #202020;
     --color-muted: #686359;
@@ -7,7 +8,7 @@
     --color-surface: #fffdf7;
     --color-line: #d7d1c3;
     --color-line-soft: rgb(215 209 195 / 70%);
-    --color-white: #fff;
+    --color-white: var(--color-surface);
     --color-yellow: #f9de6d;
     --color-accent-hover: color-mix(in srgb, var(--color-accent), black 14%);
     --color-cabinet-input-border: #a69e8d;
@@ -29,11 +30,12 @@
     --color-success-bg: #e4efe0;
     --color-warning: #684a0c;
     --color-warning-bg: #fff0c2;
+    --color-balance-due: #992c25;
+    --color-balance-due-bg: #fbe8e4;
+    --color-balance-overpaid: #235fa3;
+    --color-balance-overpaid-bg: #e2ebf7;
     --shadow-panel: 0 18px 50px rgb(70 49 20 / 5%);
     --shadow-art: 0 24px 40px rgb(70 49 20 / 12%);
-}
-
-html:root:has(#page) {
     --admin-tooltip-bg: var(--color-base-900);
     --admin-tooltip-fg: var(--color-base-50);
     --admin-focus: var(--color-primary-600);
@@ -43,7 +45,6 @@ html:root:has(#page) {
     --admin-panel-muted: var(--color-base-50);
     --admin-subtle-text: var(--color-base-600);
     /* Оттенки и нейтральные цвета Unfold. */
-    --color-white: var(--color-surface);
     --color-primary-50: color-mix(in srgb, var(--color-accent) 5%, white);
     --color-primary-100: color-mix(in srgb, var(--color-accent) 12%, white);
     --color-primary-200: color-mix(in srgb, var(--color-accent) 25%, white);
@@ -60,19 +61,56 @@ html:root:has(#page) {
     --color-base-200: #e2ddd0;
     --color-base-300: var(--color-line);
     --color-base-400: #a49d8f;
-    --color-base-500: #817a6d;
-    --color-base-600: var(--color-muted);
+    --color-base-500: var(--color-muted);
+    --color-base-600: var(--color-ink);
     --color-base-700: #4d4942;
     --color-base-800: #302d29;
     --color-base-900: var(--color-ink);
     --color-base-950: #151411;
 }
 
-html.dark:has(#page) {
+:root.dark {
+    --color-ink: #f9f7f0;
+    --color-muted: #c7bfb0;
+    --color-paper: #151411;
+    --color-surface: #202020;
+    --color-line: #4d4942;
+    --color-line-soft: rgb(77 73 66 / 70%);
+    --color-white: #fffdf7;
+    --color-cabinet-input-border: #a49d8f;
+    --color-cabinet-draft: #ffe39a;
+    --color-cabinet-draft-bg: #3b3018;
+    --color-cabinet-sent-bg: #283828;
+    --color-cabinet-archive-bg: #24354d;
+    --color-action-archive: #85c7e4;
+    --color-cabinet-withdrawn: #e2c5f2;
+    --color-cabinet-withdrawn-bg: #392b43;
+    --color-cabinet-danger-line: #794b47;
+    --color-error: #ffb4a9;
+    --color-error-bg: #402522;
+    --color-action-draft: #4d4942;
+    --color-success: #bce0b1;
+    --color-success-bg: #283828;
+    --color-warning: #ffe39a;
+    --color-warning-bg: #3b3018;
+    --color-balance-due: #ffaaa2;
+    --color-balance-due-bg: #492724;
+    --color-balance-overpaid: #a8ccff;
+    --color-balance-overpaid-bg: #24354d;
+    --shadow-panel: 0 18px 50px rgb(0 0 0 / 18%);
+    --shadow-art: 0 24px 40px rgb(0 0 0 / 25%);
+    /* Unfold использует обе стороны нейтральной шкалы в одной теме. */
+    --color-base-50: #f9f7f0;
+    --color-base-100: #f0ece0;
+    --color-base-200: #e2ddd0;
+    --color-base-300: #d7d1c3;
+    --color-base-500: #686359;
+    --color-base-600: #686359;
+    --color-base-900: #202020;
     --admin-tooltip-bg: var(--color-base-100);
     --admin-tooltip-fg: var(--color-base-900);
     --admin-focus: var(--color-primary-400);
-    --admin-subtle-text: #c7bfb0;
+    --admin-subtle-text: var(--color-muted);
     --admin-panel-bg: var(--color-base-900);
     --admin-panel-border: var(--color-base-700);
     --admin-page-bg: var(--color-base-950);

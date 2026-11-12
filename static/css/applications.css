@@ -1,9 +1,27 @@
 .application-heading,
 .application-actions {
     display: flex;
-    flex-wrap: wrap;
+    /*flex-wrap: wrap;*/
     align-items: center;
     gap: 12px;
+}
+
+.application-submit-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+    margin-inline: -16px;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-line);
+}
+
+.application-errors a {
+    text-decoration: underline;
+}
+
+.application-field {
+    scroll-margin-top: 80px;
 }
 
 .application-heading {
@@ -23,6 +41,26 @@
 
 .application-heading > .button span {
     font-size: 15px;
+}
+
+.application-add {
+    gap: 4px;
+}
+
+@media (max-width: 600px) {
+    .application-add .application-add__text {
+        display: none;
+    }
+
+    .application-heading > .application-add {
+        min-width: 40px;
+        padding-inline: 10px;
+    }
+
+    .application-heading > .application-add > span:first-child {
+        font-size: 20px;
+        line-height: 1;
+    }
 }
 
 .application-back {
@@ -64,16 +102,32 @@
 
 .application-list {
     display: grid;
-    gap: 0;
+    gap: 12px;
 }
 
 .application-row {
-    display: grid;
-    grid-template-columns: 80px 1fr 34px;
+    position: relative;
+    padding: 16px;
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    background: var(--color-surface);
+}
+
+.application-row:has(.application-row__delete) {
+    padding-inline-end: 60px;
+}
+
+.application-row__heading {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 14px;
-    padding: 17px 0;
-    border-bottom: 1px solid var(--color-line);
+    justify-content: flex-start;
+    gap: 8px 16px;
+}
+
+.application-row > .application-actions {
+    position: absolute;
+    inset: 16px 16px auto auto;
 }
 
 .application-row h3 {
@@ -206,17 +260,6 @@
     .application-card {
         padding: 12px;
     }
-
-    .application-actions .button {
-        max-width: 100%;
-        white-space: normal;
-    }
-
-    .application-actions:not(.application-row .application-actions) {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        align-items: stretch;
-    }
 }
 
 .application-switch-confirm {
@@ -233,4 +276,40 @@
 
 .application-switch-confirm button {
     margin: 0 8px 4px 0;
+}
+.application-row__finance {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+    font-variant-numeric: tabular-nums;
+    margin-top: 12px;
+}
+
+.application-row__balance {
+    margin-inline-start: auto;
+    padding: 2px 8px;
+    border-radius: 5px;
+    color: var(--color-success);
+    background: var(--color-success-bg);
+}
+
+.application-row__finance strong {
+    white-space: nowrap;
+}
+
+@media (width < 600px) {
+    .application-row__balance {
+        margin-inline-start: 0;
+    }
+}
+
+.application-row__balance--due {
+    color: var(--color-balance-due);
+    background: var(--color-balance-due-bg);
+}
+
+.application-row__balance--overpaid {
+    color: var(--color-balance-overpaid);
+    background: var(--color-balance-overpaid-bg);
 }

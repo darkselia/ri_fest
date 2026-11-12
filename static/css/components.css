@@ -170,7 +170,7 @@
     align-items: center;
     gap: 9px;
     min-height: 36px;
-    color: var(--color-muted);
+    color: var(--color-ink);
     font-size: 13px;
     font-weight: 600;
     text-decoration: none;

@@ -23,6 +23,70 @@ html.dark .text-subtle {
     background-color: var(--admin-page-bg);
 }
 
+.admin-table-scroll-hint {
+    margin: 0 0 8px;
+    color: var(--admin-subtle-text);
+    font-size: 13px;
+}
+
+@media (max-width: 1023px) {
+    #submit-row {
+        position: sticky;
+        bottom: 0;
+    }
+
+    #submit-row > div {
+        padding-block: 12px max(12px, env(safe-area-inset-bottom));
+        border-top: 1px solid var(--admin-panel-border);
+    }
+
+    #header-inner h1 > span.font-medium {
+        display: none;
+    }
+
+    #result_list :is(th, td) {
+        padding-inline: 8px;
+    }
+
+    .addlink .addlink__text {
+        display: none;
+    }
+
+    .addlink {
+        min-width: 40px;
+        min-height: 40px;
+        padding: 8px;
+    }
+}
+
+#main > div:has(#header-inner) {
+    position: sticky;
+    top: 0;
+    z-index: 45;
+}
+
+@media (min-width: 800px) {
+    #page > div:has(#nav-sidebar) > div:has(#nav-sidebar) {
+        position: relative;
+    }
+}
+
+@media (width < 1024px) {
+    #header-inner [x-data*="showActions"] {
+        position: relative;
+    }
+
+    #header-inner [x-data*="showActions"] > ul {
+        inset: calc(100% + 6px) 0 auto auto;
+        width: max-content;
+        max-width: calc(100vw - 32px);
+        padding: 4px;
+        border: 1px solid var(--admin-panel-border);
+        border-radius: 8px 0 8px 8px;
+        background: var(--admin-panel-bg);
+    }
+}
+
 .admin-panel,
 fieldset.module {
     min-width: 0;
@@ -128,9 +192,19 @@ fieldset.module {
     margin-bottom: 16px;
 }
 
+#result_list :is(.column-paid_display, .column-cost_display, .field-paid_display, .field-cost_display) {
+    text-align: end;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
 @media (min-width: 1024px) {
     .admin-filter-panel {
         display: block !important;
+    }
+
+    .app-applications .admin-filter-panel {
+        flex-basis: 164px;
     }
 }
 
@@ -320,8 +394,151 @@ fieldset.module {
     margin-top: 16px;
 }
 
+.admin-fees__row {
+    display: grid;
+    gap: 8px;
+    padding-top: 12px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.admin-fees__form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.admin-fees__check:not([hidden]) {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.admin-fees__check input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.admin-fees__tariff-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.admin-fees__tariff {
+    display: grid;
+    gap: 4px;
+    flex: 0 1 320px;
+    min-width: 0;
+}
+
+.admin-fees__tariff select {
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+}
+
+.admin-payment [data-fees-container] {
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--admin-panel-border);
+}
+
+.admin-fees__heading,
+.admin-fees__secondary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 8px 20px;
+}
+
+.admin-fees__heading h3 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.admin-fees__state,
+.admin-fees__price span,
+.admin-fees__secondary {
+    color: var(--admin-subtle-text);
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.admin-fees__state--locked,
+.admin-fees__state--unlocked {
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.admin-fees__state--locked {
+    color: var(--color-success);
+    background: var(--color-success-bg);
+}
+
+.admin-fees__state--unlocked {
+    color: var(--color-warning);
+    background: var(--color-warning-bg);
+}
+
+.admin-fees__price {
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.admin-fees__price span {
+    display: inline-block;
+    margin-left: 8px;
+}
+
+.admin-fees__secondary {
+    margin-top: 8px;
+}
+
+.admin-fees__row .admin-fees__form > button {
+    min-height: 40px;
+}
+
+.admin-payment {
+    margin-top: 16px;
+}
+
 .admin-payment__summary {
     margin-left: auto;
+}
+
+.admin-payment [data-balance],
+.admin-payment .financial-summary {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 16px;
+    max-width: 640px;
+}
+
+.admin-payment [data-balance] .application-total,
+.admin-payment .financial-summary .application-total {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 16px;
+    font-weight: 600;
+    border-top: 1px solid var(--admin-panel-border);
+    padding-top: 10px;
 }
 
 .admin-payment__form {

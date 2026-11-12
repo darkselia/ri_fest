@@ -47,7 +47,7 @@ UNFOLD = {
     "STYLES": [
         lambda request: static("css/theme.css"),
         lambda request: static("css/components.css"),
-        lambda request: static("css/admin_theme.css"),
+        lambda request: static("css/admin.css"),
     ],
     "SIDEBAR": {
         "navigation": [
