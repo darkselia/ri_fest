@@ -10,17 +10,32 @@
             <a href="?tab=submitted"{% if tab == 'submitted' %} aria-current="page"{% endif %}>Отправленные · {{ application_counts.submitted }}</a>
             <a href="?tab=archive"{% if tab == 'archive' %} aria-current="page"{% endif %}>Архив · {{ application_counts.archive }}</a>
         </nav>
-        <a class="button"
-           href="{% url 'applications:new' %}"><span aria-hidden="true">＋</span> Добавить</a>
+        <a class="button application-add"
+           href="{% url 'applications:new' %}"
+           aria-label="Добавить анкету"
+           title="Добавить анкету"><span aria-hidden="true">＋</span><span class="application-add__text">Добавить</span></a>
     </div>
     <div class="application-list">
         {% for card in cards %}
             <article class="application-row">
-                <span class="application-badge{% if card.application.status == 'withdrawn' %} application-badge--withdrawn{% elif card.archived %} application-badge--archive{% elif card.application.status == 'active' %} application-badge--active{% endif %}">{{ card.status_label }}</span>
-                <div><h3><a class="application-row__title"
+                <div class="application-row__heading">
+                    <span class="application-badge{% if card.application.status == 'withdrawn' %} application-badge--withdrawn{% elif card.archived %} application-badge--archive{% elif card.application.status == 'active' %} application-badge--active{% endif %}">{{ card.status_label }}</span>
+                    <h3><a class="application-row__title"
                             href="{% if card.can_edit %}{% url 'applications:edit' card.application.pk %}{% else %}{% url 'applications:detail' card.application.pk %}{% endif %}">{{ card.festival.name }} <small>Анкета {{ card.application.number }}</small></a></h3>
-                {% if card.needs_attention %}<p class="application-row__attention"
-                                                role="status">{{ card.attention_message }}</p>{% endif %}</div>
+                </div>
+                    {% if card.needs_attention %}<p class="application-row__attention"
+                                                    role="status">{{ card.attention_message }}</p>{% endif %}
+                    {% if card.financial_totals %}
+                        <div class="application-row__finance" aria-label="Стоимость и оплата">
+                            <span>Стоимость <strong>{{ card.financial_totals.total|floatformat:"2g" }} ₽</strong></span>
+                            <span>Внесено <strong>{{ card.financial_totals.paid|floatformat:"2g" }} ₽</strong></span>
+                            <strong class="application-row__balance{% if card.financial_totals.due %} application-row__balance--due{% elif card.financial_totals.overpaid %} application-row__balance--overpaid{% endif %}">{% if card.financial_totals.due %}К доплате {{ card.financial_totals.due|floatformat:"2g" }} ₽{% elif card.financial_totals.overpaid %}Переплата {{ card.financial_totals.overpaid|floatformat:"2g" }} ₽{% else %}Полностью оплачено{% endif %}</strong>
+                        </div>
+                    {% elif card.draft_total != None %}
+                        <div class="application-row__finance">
+                            <span>Предварительная стоимость <strong>{{ card.draft_total|floatformat:"2g" }} ₽</strong></span>
+                        </div>
+                    {% endif %}
                 <div class="application-actions">
                     {% if card.is_draft %}
                         <a class="application-row__delete"

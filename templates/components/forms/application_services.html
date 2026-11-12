@@ -1,15 +1,9 @@
 {% if financial_totals %}
-    {% include "components/financial_summary.html" %}
-{% else %}
-    {% if hidden_selections %}
-        <section class="application-card">
-            <h3>Сохранённые услуги</h3>
-            <p>Эти поля скрыты организатором. Выбор и его стоимость сохранены.</p>
-            <ul>{% for selection in hidden_selections %}<li>{{ selection.option.field.label }}: {{ selection.option.label }} — {{ selection.option.price }} ₽</li>{% endfor %}</ul></section>
+    {% if not opts %}
+        {% include "components/financial_summary.html" %}
     {% endif %}
-    <p class="application-total">
-        <span>Сумма услуг</span><output data-application-total
-                                        data-fixed-kopecks="{{ hidden_kopecks }}"
-                                        aria-live="polite">{{ service_total }} ₽</output>
-    </p>
+{% else %}
+    {% if not opts %}
+        {% include "components/balance_form.html" %}
+    {% endif %}
 {% endif %}

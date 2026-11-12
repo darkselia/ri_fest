@@ -56,24 +56,48 @@
         });
     });
     if (!form) return;
-    const output = form.querySelector("[data-application-total]");
+    const output = document.querySelector("[data-application-total]");
     if (!output) return;
+    const balance = output.closest("[data-balance]");
+    const costGroups = new Map([...(balance?.querySelectorAll("[data-cost-group]") ?? [])]
+        .map(group => [group.dataset.costGroup, group]));
+    const costFees = new Map([...(balance?.querySelectorAll("[data-cost-fee]") ?? [])]
+        .map(fee => [fee.dataset.costFee, fee]));
     const money = value => `${(value / 100n).toLocaleString("ru-RU")},${(value % 100n).toString().padStart(2, "0")} ₽`;
     const update = () => {
         let total = BigInt(output.dataset.fixedKopecks || "0");
         form.querySelectorAll("[data-date-fee-kopecks]").forEach(block => {
-            total += BigInt(block.dataset.dateFeeKopecks);
+            const amount = BigInt(block.dataset.dateFeeKopecks);
+            total += amount;
+            const fee = costFees.get(block.dataset.feeField);
+            if (fee) fee.textContent = money(amount);
         });
         form.querySelectorAll("[data-service-group]").forEach(group => {
             let subtotal = 0n;
+            const selected = new Set();
             group.querySelectorAll("input[data-kopecks]:checked").forEach(box => {
                 subtotal += BigInt(box.dataset.kopecks);
+                selected.add(box.value);
             });
+            const costGroup = costGroups.get(group.dataset.serviceGroup);
+            if (costGroup) {
+                const rows = [...costGroup.querySelectorAll("[data-cost-option]")];
+                rows.forEach(row => { row.hidden = !selected.has(row.dataset.costOption); });
+                costGroup.hidden = rows.every(row => row.hidden);
+            }
             const target = group.querySelector("[data-group-total]");
             if (target) target.textContent = money(subtotal);
             total += subtotal;
         });
         output.textContent = money(total);
+        const result = balance?.querySelector("[data-balance-result]");
+        if (result) {
+            const paid = BigInt(balance.dataset.paidKopecks || "0");
+            result.dataset.balanceState = total > paid ? "due" : paid > total ? "overpaid" : "paid";
+            balance.querySelector("[data-balance-paid]").textContent = money(paid);
+            result.querySelector("span").textContent = total > paid ? "К доплате" : paid > total ? "Переплата" : "Полностью оплачено";
+            result.querySelector("strong").textContent = total > paid ? money(total - paid) : paid > total ? money(paid - total) : "";
+        }
     };
     const refusal = group => {
         const boxes = [...group.querySelectorAll('input[type="checkbox"][data-kopecks]')];
@@ -91,5 +115,6 @@
         if (group) refusal(group);
         update();
     });
+    form.addEventListener("fees-updated", update);
     update();
 })();

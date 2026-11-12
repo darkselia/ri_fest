@@ -5,7 +5,8 @@
     <div class="application-heading">
         <h2>{% if application.pk %}{{ festival.name }}{% else %}Добавить анкету{% endif %}</h2>
         {% if application.pk %}
-            <span class="application-badge{% if application.status == 'active' %} application-badge--active {% endif %}">{{ application.get_status_display }}</span>
+            <span
+                class="application-badge{% if application.status == 'active' %} application-badge--active {% endif %}">{{ application.get_status_display }}</span>
         {% endif %}
     </div>
     {% if application.pk %}
@@ -21,7 +22,8 @@
                 <select name="festival" id="festival" required>
                     <option value="">Выберите фестиваль</option>
                     {% for item in festivals %}
-                        <option value="{{ item.pk }}"{% if festival.pk == item.pk %} selected {% endif %}>{{ item.name }}</option>
+                        <option value="{{ item.pk }}"{% if festival.pk == item.pk %}
+                                selected {% endif %}>{{ item.name }}</option>
                     {% endfor %}
                 </select>
                 <noscript>
@@ -33,7 +35,10 @@
         {% endif %}
     {% endif %}
     {% if form %}
-        <p class="muted">{% if is_draft or not application.pk %}Сохраните черновик, чтобы продолжить заполнение позже. Для отправки заполните обязательные вопросы, отмеченные звёздочкой.{% else %}Анкета отправлена организаторам. Сохранённые изменения сразу появятся в ней; для отмены участия воспользуйтесь действием «Отозвать анкету».{% endif %}</p>
+        <p class="muted">{% if is_draft or not application.pk %}Сохраните черновик, чтобы продолжить заполнение позже.
+            Для отправки заполните обязательные вопросы, отмеченные звёздочкой.{% else %}Анкета отправлена
+            организаторам. Сохранённые изменения сразу появятся в ней; для отмены участия воспользуйтесь действием
+            «Отозвать анкету».{% endif %}</p>
         <form method="post" class="application-form" data-application-form>
             {% csrf_token %}
             <input type="hidden" name="festival" value="{{ festival.pk }}">
@@ -41,28 +46,43 @@
             <input type="hidden" name="form_snapshot" value="{{ form_snapshot }}">
             {% if form.non_field_errors %}
                 <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+            {% if answer_errors %}
+                <div class="form-errors application-errors" role="alert">
+                    <p>Проверьте ответы в следующих вопросах:</p>
+                    <ul>
+                        {% for entry in answer_errors %}
+                            <li><a href="#question-{{ entry.key }}">{{ entry.row.label }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
             {% include "components/forms/application_fields.html" %}
             {% include "components/forms/application_services.html" %}
-            <div class="application-actions">
+
+            <div class="application-actions application-submit-bar">
                 {% if application.status == "active" %}
                     <button type="submit"
                             name="action"
                             value="update"
-                            class="button">Сохранить изменения</button>
-                    {% if can_withdraw %}
-                        <a class="button button--secondary"
-                           href="{% url 'applications:withdraw' application.pk %}">Отозвать анкету</a>{% endif %}
+                            class="button">Сохранить
+                    </button>
+                    <a class="button button--secondary"
+                       href="{% url 'applications:withdraw' application.pk %}">
+                        Отозвать анкету</a>
                 {% else %}
                     <button type="submit"
                             name="action"
                             value="submit"
-                            class="button">Отправить анкету</button>
+                            class="button">
+                        Отправить анкету
+                    </button>
                     <button type="submit"
                             name="action"
                             value="draft"
-                            class="button button--secondary">Сохранить черновик</button>
+                            class="button button--secondary">
+                        Сохранить черновик
+                    </button>
                 {% endif %}
-                <a href="{% url 'accounts:home' %}">Отмена</a>
             </div>
         </form>
     {% endif %}

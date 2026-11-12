@@ -161,7 +161,9 @@
     justify-content: space-between;
     gap: 16px;
     border-top: 1px solid var(--form-line, var(--color-line));
-    padding: 24px 0;
+    padding-top: 24px;
+    padding-bottom: 15px;
+
     margin: 0;
     font-size: 15px;
     font-weight: 400;
@@ -260,6 +262,38 @@
 
 .financial-summary__groups dd {
     margin: 0;
+}
+
+.financial-summary__groups > div + div {
+    margin-top: 8px;
+}
+
+.financial-summary__paid,
+.financial-summary__balance {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.financial-summary__balance {
+    font-weight: 700;
+}
+
+.financial-summary__balance[data-balance-state=due] {
+    color: var(--color-balance-due);
+}
+
+.financial-summary__balance[data-balance-state=overpaid] {
+    color: var(--color-balance-overpaid);
+}
+
+.financial-summary__balance[data-balance-state=paid] {
+    color: var(--color-success);
+}
+
+.application-form .application-date-fee > h3::before {
+    content: counter(question) ". ";
 }
 
 .financial-summary__items {

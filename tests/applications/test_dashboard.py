@@ -43,7 +43,9 @@ def test_dashboard_query_count_does_not_grow_with_applications(
     assert len(cards) == 10 and not any(card["needs_attention"] for card in cards)
 
 
-def test_changed_required_question_marks_active_application_until_completed(cabinet):
+def test_changed_required_question_marks_active_application_until_completed(
+    client, cabinet
+):
     owner, _, festival, field, _, _ = cabinet
     app, form = save_application(
         actor=owner,
@@ -66,6 +68,15 @@ def test_changed_required_question_marks_active_application_until_completed(cabi
     }
     assert cards[app.pk]["needs_attention"]
     assert not cards[draft.pk]["needs_attention"]
+    client.force_login(owner)
+    response = client.get(reverse("applications:edit", args=[app.pk]))
+    assert response.status_code == 200
+    assert f'href="#question-{added.pk}"' in response.text
+    assert f'id="question-{added.pk}"' in response.text
+    assert response.context["form"][f"field_{field.pk}"].value() == "Участник"
+    assert not client.get(reverse("applications:edit", args=[draft.pk])).context[
+        "answer_errors"
+    ]
     _, form = save_application(
         actor=owner,
         application_id=app.pk,
