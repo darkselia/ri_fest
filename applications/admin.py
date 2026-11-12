@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core import signing
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import OuterRef, Q, Subquery
+from django.db.models import OuterRef, Prefetch, Q, Subquery
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
@@ -15,13 +15,15 @@ from unfold.admin import ModelAdmin
 from unfold.contrib.filters.admin import DropdownFilter
 from unfold.widgets import UnfoldAdminSelectWidget, UnfoldAdminTextInputWidget
 
+from billing.admin_fees import FeeLockAdminMixin
+from billing.calculator import calc_application_total
 from billing.forms import PaymentForm
 from billing.models import AuditEvent
 from billing.services import change_paid_amount, payment_allowed
 from festivals.models import Festival
 from festivals.services import get_effective_status
 
-from .models import Application
+from .models import Application, ApplicationServiceSelection
 from .schema import schema_revision
 from .services import (
     application_form,
@@ -86,36 +88,58 @@ class ApplicationStateFilter(admin.SimpleListFilter):
 
 
 @admin.register(Application)
-class ApplicationAdmin(ModelAdmin):
+class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
     list_display = (
         "author_label",
-        "owner_label",
         "festival",
         "application_status",
-        "created_at",
-        "updated_at",
+        "paid_display",
+        "cost_display",
     )
     list_display_links = ("author_label",)
     list_filter = (FestivalFilter, ApplicationStateFilter)
     list_filter_options = {"festival__id__exact": {"horizontal": True}}
     search_fields = ("owner__email", "owner__first_name", "owner__last_name")
-    ordering = ("-updated_at", "-pk")
+    ordering = ("status", "-updated_at", "-pk")
     list_per_page = 25
     show_full_result_count = False
     actions = None
     warn_unsaved_form = False
 
-    @admin.display(description="Email")
-    def owner_label(self, obj):
-        return (
-            format_html(
-                '<span class="admin-email" title="{}">{}</span>',
-                obj.owner.email,
-                obj.owner.email,
-            )
-            if obj.owner_id
-            else "Владелец удалён"
+    @admin.display(description="Внесено", ordering="paid_amount")
+    def paid_display(self, obj):
+        return f"{number_format(obj.paid_amount, decimal_pos=2, force_grouping=True)} ₽"
+
+    @admin.display(description="Стоимость")
+    def cost_display(self, obj):
+        if (
+            obj.status == "withdrawn"
+            and get_effective_status(obj.festival) != "archived"
+        ):
+            return "—"
+        total = calc_application_total(obj)["total"]
+        return f"{number_format(total, decimal_pos=2, force_grouping=True)} ₽"
+
+    def get_queryset(self, request):
+        queryset = (
+            super()
+            .get_queryset(request)
+            .exclude(status="draft")
+            .select_related("owner", "festival")
         )
+        match = request.resolver_match
+        if match and match.url_name == "applications_application_changelist":
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    "service_selections",
+                    queryset=ApplicationServiceSelection.objects.select_related(
+                        "option__field"
+                    ),
+                ),
+                "fee_locks__field",
+                "festival__form_fields__fee_periods",
+            )
+        return queryset
 
     @admin.display(description="Автор анкеты", ordering="owner__last_name")
     def author_label(self, obj):
@@ -137,14 +161,6 @@ class ApplicationAdmin(ModelAdmin):
             '<span class="application-badge application-badge--{}">{}</span>',
             modifier,
             Application.Status(state).label,
-        )
-
-    def get_queryset(self, request):
-        return (
-            super()
-            .get_queryset(request)
-            .exclude(status="draft")
-            .select_related("owner", "festival")
         )
 
     def has_delete_permission(self, request, obj=None):
@@ -207,9 +223,21 @@ class ApplicationAdmin(ModelAdmin):
 
     def payment_response(self, request, obj, form, *, status=200, **result):
         current = self.payment_object(request, obj.pk)
+        totals = calc_application_total(current)
+        balance = (
+            f"К доплате: {number_format(totals['due'], decimal_pos=2, force_grouping=True)} ₽"
+            if totals["due"]
+            else f"Переплата: {number_format(totals['overpaid'], decimal_pos=2, force_grouping=True)} ₽"
+            if totals["overpaid"]
+            else "Полностью оплачено"
+        )
         return JsonResponse(
             {
-                "amount_display": number_format(current.paid_amount, decimal_pos=2),
+                "amount_display": number_format(
+                    current.paid_amount, decimal_pos=2, force_grouping=True
+                ),
+                "paid_kopecks": str(int(current.paid_amount * 100)),
+                "balance_display": balance,
                 "payment_version": self.payment_version(request, current),
                 "can_change_payment": self.can_change_payment(request, current),
                 "errors": [
@@ -400,6 +428,16 @@ class ApplicationAdmin(ModelAdmin):
         )
         if not allowed:
             raise PermissionDenied
+        fee_post = request.method == "POST" and request.POST.get("action") == "fee_lock"
+        fee_refresh = (
+            request.method == "GET"
+            and request.GET.get("fee_status") == "1"
+            and "application/json" in request.headers.get("Accept", "")
+        )
+        if fee_post or fee_refresh:
+            if obj is None:
+                raise PermissionDenied
+            return self.fee_view(request, obj)
         selector = self.owner_selector(request)
         festival = obj.festival if obj else None
         owner = obj.owner if obj else None
@@ -573,6 +611,7 @@ class ApplicationAdmin(ModelAdmin):
         payment_form,
     ):
         form_context = application_form_context(form, obj)
+        fee_context = self.fee_context(request, obj)
         if form:
             for field in form.fields.values():
                 if not isinstance(
@@ -615,6 +654,7 @@ class ApplicationAdmin(ModelAdmin):
             {
                 **self.admin_site.each_context(request),
                 **form_context,
+                **fee_context,
                 "opts": self.model._meta,
                 "adminform": AdminForm(form or selector, [], {}, model_admin=self),
                 "form_classes": {},

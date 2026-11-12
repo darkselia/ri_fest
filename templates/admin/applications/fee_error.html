@@ -1,0 +1,10 @@
+{% extends "admin/base_site.html" %}
+{% block extrahead %}
+    {{ block.super }}
+    <noscript><style>html[x-cloak] { display: block !important; }</style></noscript>
+{% endblock %}
+{% block content %}
+    {% for error in errors %}<p class="form-errors" role="alert">{{ error }}</p>{% endfor %}
+    {% include "admin/applications/fees.html" %}
+    <a href="{% url 'admin:applications_application_change' original.pk %}">Вернуться к анкете</a>
+{% endblock %}

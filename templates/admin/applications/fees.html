@@ -1,0 +1,14 @@
+{% load unfold %}
+{% for row in fee_rows %}
+    {% if can_change_fee %}
+        <form method="post" id="{{ row.form_id }}" data-fee-form>
+            {% csrf_token %}
+            <input type="hidden" name="action" value="fee_lock">
+            <input type="hidden" name="field_id" value="{{ row.id }}">
+            <input type="hidden" name="fee_version" value="{{ row.version }}">
+        </form>
+    {% endif %}
+    {% include "admin/applications/fee_control.html" %}
+{% endfor %}
+<div role="status" aria-live="polite" data-fee-status></div>
+<button type="button" data-fee-refresh hidden>Обновить отметки</button>

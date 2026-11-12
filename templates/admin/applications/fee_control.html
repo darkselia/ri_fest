@@ -1,0 +1,36 @@
+{% load unfold tz %}
+<div class="admin-fees__row" data-fee-row="{{ row.id }}">
+    <div class="admin-fees__heading">
+        <h3>{% if row.number %}{{ row.number }}. {% endif %}{{ row.label }}</h3>
+        <span class="admin-fees__state admin-fees__state--{% if row.locked %}locked{% else %}unlocked{% endif %}">{% if row.locked %}Зафиксирован{% else %}Не зафиксирован{% endif %}</span>
+        {% if row.locked_at %}
+            {% timezone original.festival.timezone %}
+                <span class="admin-fees__state">{{ row.locked_at|date:'d.m.Y H:i' }}</span>
+            {% endtimezone %}
+        {% endif %}
+    </div>
+    {% if help_text %}
+        <div class="application-field__help">{{ help_text|urlize|linebreaksbr }}</div>{% endif %}
+    {% if can_change_fee %}
+        <div class="admin-fees__form">
+            <label class="admin-fees__check" hidden>
+                <input type="checkbox"
+                       data-fee-toggle
+                       {% if row.locked %}checked{% endif %}>
+                Зафиксировать
+            </label>
+            <div class="admin-fees__tariff">
+                <label class="admin-fees__tariff-label" for="fee-period-{{ row.id }}">Тариф</label>
+                {{ row.period_select }}
+            </div>
+            <noscript>
+                {% if row.locked %}
+                    {% component "unfold/components/button.html" with type="submit" form=row.form_id name="fee_action" value="replace" variant="default" size="sm" %}Сохранить тариф{% endcomponent %}
+                    {% component "unfold/components/button.html" with type="submit" form=row.form_id name="fee_action" value="unlock" variant="default" size="sm" %}Снять фиксацию{% endcomponent %}
+                {% else %}
+                    {% component "unfold/components/button.html" with type="submit" form=row.form_id name="fee_action" value="lock" variant="default" size="sm" %}Зафиксировать тариф{% endcomponent %}
+                {% endif %}
+            </noscript>
+        </div>
+    {% endif %}
+</div>
