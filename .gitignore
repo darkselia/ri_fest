@@ -21,3 +21,4 @@ staticfiles/
 /docs/
 /.playwright-cli/
 /output/
+/static/design-review/
