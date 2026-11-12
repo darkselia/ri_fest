@@ -113,12 +113,25 @@ def dashboard_context(user, params):
             if tab == "drafts"
             else query.filter(submitted_filter)
         )
-    query = query.prefetch_related("answers", "service_selections__option", "fee_locks")
+    query = query.prefetch_related(
+        "answers", "service_selections__option__field", "fee_locks__field"
+    )
     page = Paginator(query, 20).get_page(params.get("page"))
     cards = []
     for application in page:
         application.festival = festivals[application.festival_id]
         card = application_context(application)
+        card["draft_total"] = None
+        if application.was_submitted or application.status != "draft":
+            from billing.calculator import calc_application_total
+
+            card["financial_totals"] = calc_application_total(application)
+        else:
+            draft_form = application_form(application.festival, application)
+            if not any(entry.get("fee_error") for entry in draft_form.entries):
+                card["draft_total"] = application_form_context(draft_form, application)[
+                    "service_total"
+                ]
         card["needs_attention"] = False
         if application.status == "active" and not card["archived"]:
             saved = application_form(application.festival, application)
@@ -210,6 +223,12 @@ def edit_application(request, pk=None):
         return redirect("applications:detail", pk=pk)
     form = application_form(festival, application)
     status = 200
+    if request.method == "GET" and application and application.status == "active":
+        checked = application_form(
+            festival, application, data=form.initial, require_complete=True
+        )
+        if not checked.is_valid():
+            form = checked
     if request.method == "POST":
         data = request.POST.copy()
         action = data.pop("action", [""])[0]
@@ -239,7 +258,7 @@ def edit_application(request, pk=None):
                     if action == "update"
                     else "Анкета отправлена. Участие зарегистрировано."
                     if action == "submit"
-                    else "Черновик сохранён. Он ещё не отправлен.",
+                    else "Черновик сохранён.",
                 )
                 if action == "submit":
                     return redirect("accounts:home")
@@ -269,6 +288,9 @@ def edit_application(request, pk=None):
         except (Application.DoesNotExist, Festival.DoesNotExist):
             raise Http404 from None
     context.update(application_form_context(form, application))
+    context["answer_errors"] = [
+        entry for entry in form.entries if entry.get("field") and entry["field"].errors
+    ]
     context.update(
         form=form,
         preview_form=form,
@@ -348,6 +370,7 @@ def detail(request, pk):
         selections=application.service_selections.select_related("option__field"),
         totals=totals,
         financial_totals=totals,
+        show_balance=application.was_submitted or application.status != "draft",
     )
     return render(request, "applications/detail.html", context)
 

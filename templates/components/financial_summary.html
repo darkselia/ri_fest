@@ -1,11 +1,14 @@
-<section class="{% if opts %}admin-panel p-4{% else %}application-card{% endif %}">
-    <h3>Услуги и платы</h3>
+<section class="{% if opts %}financial-summary{% else %}application-card{% endif %}">
+    {% if not hide_finance_heading %}<h3>Стоимость и оплата</h3>{% endif %}
     {% if financial_totals.source == "snapshot" %}
-        <p class="application-note">Стоимость участия сохранена при закрытии фестиваля. Последующие изменения тарифов её
-            не меняют.</p>
+        <p class="application-note">
+            Стоимость участия сохранена при закрытии фестиваля. Последующие изменения тарифов её не меняют.
+        </p>
         {% if financial_totals.reconstructed %}
-            <p class="application-note">Снимок восстановлен из доступных данных. Исторические цены услуг могли
-                отличаться.</p>
+            <p class="application-note">
+                Снимок восстановлен из доступных данных. Исторические цены услуг могли
+                отличаться.
+            </p>
         {% endif %}
     {% endif %}
     {% regroup financial_totals.services|dictsort:"field_id" by field_id as service_groups %}
@@ -17,8 +20,8 @@
                     <ul class="financial-summary__items">
                         {% for item in group.list %}
                             <li>{{ item.label }}{% if item.service_date %} —
-                                {{ item.service_date|date:"d.m.Y" }}{% endif %} — {{ item.amount|floatformat:2 }} ₽
-                                {% if item.hidden %} (сохранённая скрытая услуга){% endif %}</li>
+                                {{ item.service_date|date:"d.m.Y" }}{% endif %} — {{ item.amount|floatformat:"2g" }} ₽
+                                {% if item.hidden %}(сохранённая скрытая услуга){% endif %}</li>
                         {% endfor %}
                     </ul>
                 </dd>
@@ -26,19 +29,37 @@
         {% endfor %}
         {% if financial_totals.fees %}
             <div>
-                <dt>Фиксированные оплаты:</dt>
+                <dt>Платы по дате:</dt>
                 <dd>
                     <ul class="financial-summary__items">
                         {% for item in financial_totals.fees %}
-                            <li>{{ item.label }} — {{ item.amount|floatformat:2 }} ₽{% if item.locked_at %} (тариф
-                                зафиксирован){% endif %}</li>
+                            <li>{{ item.label }} — {{ item.amount|floatformat:"2g" }} ₽
+                                {% if item.locked_at %}
+                                    (тариф зафиксирован)
+                                {% endif %}</li>
                         {% endfor %}
                     </ul>
                 </dd>
             </div>
         {% endif %}
     </dl>
-
-    <p class="application-total"><span>Сумма к оплате</span><strong>{{ financial_totals.total|floatformat:2 }}
-        ₽</strong></p>
+    <p class="application-total">
+        <span>{% if show_balance %}Стоимость участия{% else %}Предварительная
+            стоимость{% endif %}</span><strong>{{ financial_totals.total|floatformat:"2g" }}
+        ₽</strong>
+    </p>
+    {% if show_balance %}
+        <p class="financial-summary__paid"><span>Внесено</span>
+            <strong data-snapshot-paid>{{ financial_totals.paid|floatformat:"2g" }} ₽</strong>
+        </p>
+        <p class="financial-summary__balance" data-snapshot-result
+           data-balance-state="{% if financial_totals.due %}due{% elif financial_totals.overpaid %}overpaid{% else %}paid{% endif %}"
+           aria-live="polite">
+            <span>{% if financial_totals.due %}К доплате{% elif financial_totals.overpaid %}Переплата{% else %}Полностью
+                оплачено{% endif %}</span>
+            <strong>{% if financial_totals.due %}{{ financial_totals.due|floatformat:"2g" }} ₽
+                {% elif financial_totals.overpaid %}{{ financial_totals.overpaid|floatformat:"2g" }}
+                ₽{% endif %}</strong>
+        </p>
+    {% endif %}
 </section>

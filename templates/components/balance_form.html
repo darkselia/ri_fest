@@ -1,0 +1,48 @@
+<div data-balance data-paid-kopecks="{{ balance_paid_kopecks|default:0 }}">
+    {% if not hide_finance_heading %}<h3>Стоимость и оплата</h3>{% endif %}
+    <dl class="financial-summary__groups">
+        {% for entry in preview_form.entries %}
+            {% if entry.cost_options %}
+                <div data-cost-group="{{ entry.key }}"{% if not entry.has_cost_selection %} hidden{% endif %}>
+                    <dt>{{ entry.row.label }}</dt>
+                    <dd><ul class="financial-summary__items">
+                        {% for option in entry.cost_options %}
+                            <li data-cost-option="{{ option.id }}"{% if not option.selected %} hidden{% endif %}>
+                                {{ option.label }}{% if option.display_date %} — {{ option.display_date }}{% endif %} — {{ option.price|floatformat:"2g" }} ₽{% if not option.is_active %} (сохранённая скрытая услуга){% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul></dd>
+                </div>
+            {% endif %}
+        {% endfor %}
+        {% if hidden_selections %}
+            <div>
+                <dt>Сохранённые услуги</dt>
+                <dd><ul class="financial-summary__items">
+                    {% for selection in hidden_selections %}
+                        <li>{{ selection.option.field.label }} — {{ selection.option.label }} — {{ selection.option.price|floatformat:"2g" }} ₽</li>
+                    {% endfor %}
+                </ul></dd>
+            </div>
+        {% endif %}
+        {% if fee_items %}
+            <div>
+                <dt>Платы по дате</dt>
+                <dd><ul class="financial-summary__items">
+                    {% for entry in fee_items %}
+                        <li>{{ entry.row.label }} — <span data-cost-fee="{{ entry.row.id }}">{{ entry.fee.amount|floatformat:"2g" }} ₽</span></li>
+                    {% endfor %}
+                </ul></dd>
+            </div>
+        {% endif %}
+    </dl>
+    <p class="application-total"><span>{% if show_balance %}Стоимость участия{% else %}Предварительная стоимость{% endif %}</span><output data-application-total
+                                                                                                                                          data-fixed-kopecks="{{ hidden_kopecks|default:0 }}">{{ service_total|floatformat:"2g" }} ₽</output></p>
+    {% if show_balance %}
+        <p class="financial-summary__paid"><span>Внесено</span><strong data-balance-paid>{{ balance_paid|floatformat:"2g" }} ₽</strong></p>
+        <p class="financial-summary__balance" data-balance-result data-balance-state="{% if balance_due %}due{% elif balance_overpaid %}overpaid{% else %}paid{% endif %}" aria-live="polite">
+            <span>{% if balance_due %}К доплате{% elif balance_overpaid %}Переплата{% else %}Полностью оплачено{% endif %}</span>
+            <strong>{% if balance_due %}{{ balance_due|floatformat:"2g" }} ₽{% elif balance_overpaid %}{{ balance_overpaid|floatformat:"2g" }} ₽{% endif %}</strong>
+        </p>
+    {% endif %}
+</div>

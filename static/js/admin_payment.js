@@ -9,8 +9,6 @@
     const amount = payment.elements.amount;
     const buttons = payment.querySelectorAll("button[type='submit']");
     const answerVersion = document.querySelector("[data-application-form] input[name='version']");
-    const answerButtons = document.querySelectorAll("button[form='application_form']");
-    const answerDisabled = Array.from(answerButtons, button => button.disabled);
     let busy = false;
     let uncertain = false;
     let canChange = true;
@@ -20,9 +18,7 @@
         buttons.forEach(button => {
             button.disabled = busy || uncertain || !canChange;
         });
-        answerButtons.forEach((button, index) => {
-            button.disabled = busy || answerDisabled[index];
-        });
+        payment.dataset.readonly = String(!canChange);
         refresh.hidden = !uncertain;
         refresh.disabled = busy;
     };
@@ -34,6 +30,7 @@
         }));
     };
     const send = async (url, options) => {
+        if (!window.adminFinance.begin("payment")) return;
         busy = true;
         update();
         try {
@@ -56,6 +53,20 @@
             if (data.amount_display !== undefined) {
                 panel.querySelector("[data-payment-amount]").textContent = data.amount_display;
                 payment.elements.payment_version.value = data.payment_version;
+                const balance = document.querySelector("[data-balance]");
+                if (balance && data.paid_kopecks !== undefined) {
+                    balance.dataset.paidKopecks = data.paid_kopecks;
+                    document.querySelector("[data-application-form]")?.dispatchEvent(new Event("fees-updated"));
+                }
+                const snapshotPaid = document.querySelector("[data-snapshot-paid]");
+                const snapshotResult = document.querySelector("[data-snapshot-result]");
+                if (snapshotPaid && snapshotResult) {
+                    snapshotPaid.textContent = `${data.amount_display} ₽`;
+                    const [label, amount = ""] = data.balance_display.split(": ");
+                    snapshotResult.dataset.balanceState = label === "К доплате" ? "due" : label === "Переплата" ? "overpaid" : "paid";
+                    snapshotResult.querySelector("span").textContent = label;
+                    snapshotResult.querySelector("strong").textContent = amount;
+                }
             }
             if (data.answer_version && answerVersion) answerVersion.value = data.answer_version;
             canChange = data.can_change_payment;
@@ -80,6 +91,7 @@
         } finally {
             busy = false;
             update();
+            window.adminFinance.end(uncertain, "payment");
             if (!uncertain && canChange) amount.focus({
                 preventScroll: true
             });
@@ -87,7 +99,7 @@
     };
     payment.addEventListener("submit", event => {
         event.preventDefault();
-        if (busy || uncertain || !canChange) return;
+        if (busy || uncertain || !canChange || window.adminFinance.blocked) return;
         const data = new FormData(payment);
         data.set("payment_action", event.submitter?.value || "set");
         if (answerVersion) data.set("answers_version", answerVersion.value);

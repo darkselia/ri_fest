@@ -4,13 +4,20 @@
          data-payment-panel
          open>
     <summary class="admin-disclosure__summary">
-        <span id="payment-heading" class="font-semibold">Оплата</span>
-        <span class="admin-payment__summary">Внесено: <strong data-payment-amount>{{ original.paid_amount|floatformat:2 }}</strong> ₽</span>
+        <span id="payment-heading" class="font-semibold">Стоимость и оплата</span>
     </summary>
     <div class="admin-disclosure__content">
         {% if financial_totals %}
-            <p class="admin-payment__hint">Стоимость участия зафиксирована при закрытии. Изменение оплаты сохраняется отдельно и влияет только на внесённую сумму и текущий баланс.</p>
+            {% include "components/financial_summary.html" with hide_finance_heading=True %}
+        {% else %}
+            {% if fee_rows %}
+                <div data-fees-container>
+                    {% include "admin/applications/fees.html" %}
+                </div>
+            {% endif %}
+            {% include "components/balance_form.html" with hide_finance_heading=True %}
         {% endif %}
+        <span hidden data-payment-amount>{{ original.paid_amount|floatformat:2 }}</span>
         {% if can_change_payment %}
             <form method="post" data-payment-form class="admin-payment__form">
                 {% csrf_token %}

@@ -9,6 +9,7 @@ from django.db import transaction
 from festivals.models import Festival
 from festivals.services import assert_festival_mutable, get_effective_status, moment
 
+from .forms import display_date
 from .models import (
     Application,
     ApplicationAnswer,
@@ -104,7 +105,10 @@ def application_form_context(form, application=None):
                 for entry in form.entries
                 if entry["kind"] not in ("service", "service1", "datefee")
             ]
-        return {"financial_totals": calc_application_total(application)}
+        return {
+            "financial_totals": calc_application_total(application),
+            "show_balance": True,
+        }
     hidden = (
         list(
             application.service_selections.filter(
@@ -116,14 +120,31 @@ def application_form_context(form, application=None):
     )
     hidden_total = sum((item.option.price for item in hidden), Decimal("0.00"))
     total = hidden_total
+    fee_total = Decimal("0.00")
+    fee_items = []
     for entry in form.entries if form is not None else ():
         if entry["kind"] == "datefee" and "fee" in entry:
+            fee_items.append(entry)
             total += entry["fee"]["amount"]
+            fee_total += entry["fee"]["amount"]
         if entry["kind"] not in ("service", "service1"):
             continue
         values = entry["field"].value() or []
         if isinstance(values, str):
             values = [values]
+        entry["cost_options"] = [
+            {
+                **option,
+                "display_date": display_date(option.get("service_date")),
+                "selected": str(option["id"]) in values,
+            }
+            for option in entry["row"]["services"]
+            if not option.get("is_opt_out")
+            and (option["is_active"] or str(option["id"]) in values)
+        ]
+        entry["has_cost_selection"] = any(
+            option["selected"] for option in entry["cost_options"]
+        )
         entry["subtotal"] = sum(
             (
                 Decimal(option["price"])
@@ -133,10 +154,23 @@ def application_form_context(form, application=None):
             Decimal("0.00"),
         )
         total += entry["subtotal"]
+    paid = application.paid_amount if application and application.pk else Decimal("0")
     return {
         "hidden_selections": hidden,
         "hidden_kopecks": int(hidden_total * 100),
         "service_total": total,
+        "fee_total": fee_total,
+        "fee_items": fee_items,
+        "services_subtotal": total - fee_total,
+        "balance_paid": paid,
+        "balance_paid_kopecks": int(paid * 100),
+        "balance_due": max(total - paid, Decimal("0")),
+        "balance_overpaid": max(paid - total, Decimal("0")),
+        "show_balance": bool(
+            application
+            and application.pk
+            and (application.was_submitted or application.status != "draft")
+        ),
     }
 
 

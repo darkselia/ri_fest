@@ -20,7 +20,12 @@ def calendar_cutoff(festival):
 def selected_services(application):
     services = []
     fields = {}
-    for selection in application.service_selections.select_related("option__field"):
+    selections = application.service_selections.all()
+    if "service_selections" not in getattr(
+        application, "_prefetched_objects_cache", {}
+    ):
+        selections = selections.select_related("option__field")
+    for selection in selections:
         option = selection.option
         if option.field.festival_id != application.festival_id:
             raise ValidationError("Услуга относится к другому фестивалю.")
@@ -46,14 +51,24 @@ def current_cost(application, *, at):
     """Only call with a deliberate evaluation time, including when closing."""
     services, fields = selected_services(application)
     locks = {}
-    for lock in application.fee_locks.select_related("field"):
+    locks_query = application.fee_locks.all()
+    if "fee_locks" not in getattr(application, "_prefetched_objects_cache", {}):
+        locks_query = locks_query.select_related("field")
+    for lock in locks_query:
         if lock.field.festival_id != application.festival_id:
             raise ValidationError("Фиксация относится к другому фестивалю.")
         locks[lock.field_id] = lock
     fees = []
-    for field in application.festival.form_fields.filter(
-        field_type="datefee", is_active=True
-    ).prefetch_related("fee_periods"):
+    fields_query = application.festival.form_fields.all()
+    if "form_fields" not in getattr(
+        application.festival, "_prefetched_objects_cache", {}
+    ):
+        fields_query = fields_query.filter(
+            field_type="datefee", is_active=True
+        ).prefetch_related("fee_periods")
+    for field in fields_query:
+        if field.field_type != "datefee" or not field.is_active:
+            continue
         field.festival = application.festival
         lock = locks.get(field.pk)
         amount = lock.amount if lock else get_current_fee(field, at=at)
