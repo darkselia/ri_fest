@@ -5,7 +5,7 @@
         <div class="flex flex-wrap gap-3 w-full"
              role="group"
              aria-label="Сохранение фестиваля">
-            {% component "unfold/components/button.html" with submit=1 form="festival_form" name="_save" value="1" variant="default" %}{% if festival_is_draft %}Сохранить черновик{% else %}Сохранить изменения{% endif %}{% endcomponent %}
+            {% component "unfold/components/button.html" with submit=1 form="festival_form" name="_save" value="1" variant="default" %}{% if festival_is_draft %}Сохранить черновик{% else %}Сохранить{% endif %}{% endcomponent %}
             {% if can_publish_festival %}
                 <span class="publish-control"
                       tabindex="0"

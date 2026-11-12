@@ -3,7 +3,8 @@
     {% url cl.opts|admin_urlname:"add" as add_url %}
     <a href="{% add_preserved_filters add_url is_popup to_field %}"
        class="addlink border border-primary-700 bg-primary-600 flex items-center justify-center rounded-default px-3 py-2 text-white"
-       title="Добавить">
-        <span class="material-symbols-outlined">add</span><span>Добавить</span>
+       title="Добавить"
+       aria-label="Добавить">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span><span class="addlink__text">Добавить</span>
     </a>
 {% endif %}

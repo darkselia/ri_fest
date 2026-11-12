@@ -172,8 +172,8 @@ def test_return_links_are_in_history_toolbar_without_duplicates(
 
     for action, visible in [
         (
-            "archive",
-            role != "viewer" and state in {"open", "running"},
+                "archive",
+                role != "viewer" and state in {"open", "running"},
         ),
         ("unpublish", role != "viewer" and state != "draft"),
     ]:
@@ -183,7 +183,7 @@ def test_return_links_are_in_history_toolbar_without_duplicates(
     assert "Управление фестивалем" not in html
     assert ('name="_publish"' in html) == can_publish
     assert ("Сохранить черновик" in html) == can_publish
-    assert ("Сохранить изменения" in html) == (
+    assert ("Сохранить" in html) == (
         role != "viewer" and state in {"open", "running"}
     )
     assert 'name="_continue"' not in html
@@ -296,13 +296,13 @@ def test_group_has_expected_festival_permissions():
             "codename", flat=True
         )
     ) == {
-        "add_festival",
-        "view_festival",
-        "change_festival",
-        "publish_festival",
-        "restore_festival",
-        "delete_festival",
-    }
+               "add_festival",
+               "view_festival",
+               "change_festival",
+               "publish_festival",
+               "restore_festival",
+               "delete_festival",
+           }
 
 
 def test_removed_bulk_publication_does_nothing(client, organizer, draft, now):
