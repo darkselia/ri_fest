@@ -2,7 +2,7 @@
 {% if cl.has_filters and cl|unfold_vertical_filters %}
     <button type="button"
             class="filter-open-button admin-border rounded-default px-3 py-2 lg:hidden"
-            x-on:click="filterOpen = !filterOpen"
+            {% if cl.opts.app_label == "applications" and cl.opts.model_name == "application" %} x-on:click="(() => { filterOpen = !filterOpen; try { sessionStorage.setItem('ri-fest:application-filter-panel', filterOpen ? 'open' : 'closed'); } catch {} })()" {% else %} x-on:click="filterOpen = !filterOpen" {% endif %}
             x-bind:aria-expanded="filterOpen"
             aria-controls="changelist-filter">
         Фильтры <span class="material-symbols-outlined">filter_list</span>

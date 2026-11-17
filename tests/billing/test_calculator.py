@@ -82,6 +82,251 @@ def test_total_independent_blocks_locks_and_hidden_services(priced):
     assert calc_application_total(app)["total"] == Decimal("6540")
 
 
+def test_registry_totals_match_calculator_for_current_and_snapshot(priced):
+    from billing.registry import annotate_registry
+
+    case, fee = priced
+    app = case[3]
+    FeeLock.objects.create(
+        application=app,
+        field=fee,
+        amount="1200",
+        locked_at=datetime(2029, 12, 1, tzinfo=timezone.utc),
+    )
+    app.paid_amount = Decimal("7000")
+    app.save(update_fields=["paid_amount"])
+    row = annotate_registry(Application.objects.filter(pk=app.pk)).get()
+    expected = calc_application_total(app)
+    assert (
+        row.registry_services,
+        row.registry_total,
+        row.registry_due,
+        row.registry_overpaid,
+    ) == (
+        expected["service_total"],
+        expected["total"],
+        expected["due"],
+        expected["overpaid"],
+    )
+    close(case)
+    app.refresh_from_db()
+    ServiceOption.objects.filter(field__festival=case[2]).update(price=999)
+    row = annotate_registry(Application.objects.filter(pk=app.pk)).get()
+    expected = calc_application_total(app)
+    assert (
+        row.registry_services,
+        row.registry_total,
+        row.registry_due,
+        row.registry_overpaid,
+    ) == (
+        expected["service_total"],
+        expected["total"],
+        expected["due"],
+        expected["overpaid"],
+    )
+
+
+def test_registry_fee_filter_and_financial_filters(priced, client, django_user_model):
+    case, fee = priced
+    _, owner, festival, app, _ = case
+    staff = django_user_model.objects.create_superuser(
+        "registry@example.invalid", "test-password"
+    )
+    FeeLock.objects.create(
+        application=app,
+        field=fee,
+        amount="1200",
+        locked_at=datetime(2029, 12, 1, tzinfo=timezone.utc),
+    )
+    other = Application.objects.create(
+        owner=owner, festival=festival, status="active", paid_amount=5000
+    )
+    client.force_login(staff)
+    url = reverse("admin:applications_application_changelist")
+    params = {
+        "festival__id__exact": festival.pk,
+        "fee_status": f"{fee.pk}:yes",
+        "balance": "due",
+    }
+    assert list(client.get(url, params).context["cl"].queryset) == [app]
+    params["fee_status"] = f"{fee.pk}:no"
+    params["balance"] = "overpaid"
+    assert list(client.get(url, params).context["cl"].queryset) == [other]
+    close(case)
+    FeeLock.objects.filter(application=app, field=fee).delete()
+    params["fee_status"] = f"{fee.pk}:yes"
+    params["balance"] = "due"
+    assert list(client.get(url, params).context["cl"].queryset) == [app]
+
+
+def test_registry_service_filter_uses_archived_snapshot(
+    priced, client, django_user_model
+):
+    case, _ = priced
+    _, _, festival, app, _ = case
+    option_id = app.service_selections.first().option_id
+    staff = django_user_model.objects.create_superuser(
+        "snapshot@example.invalid", "test-password"
+    )
+    client.force_login(staff)
+    close(case)
+    app.service_selections.all().delete()
+    response = client.get(
+        reverse("admin:applications_application_changelist"),
+        {"festival__id__exact": festival.pk, "service": option_id},
+    )
+    assert list(response.context["cl"].queryset) == [app]
+
+
+def test_registry_sorting_and_combined_filters_with_archive(
+    priced, client, django_user_model
+):
+    case, fee = priced
+    _, owner, festival, app, _ = case
+    staff = django_user_model.objects.create_superuser(
+        "sort@example.invalid", "test-password"
+    )
+    option = app.service_selections.first().option
+    second = Application.objects.create(
+        owner=owner, festival=festival, status="active", paid_amount=100
+    )
+    ApplicationServiceSelection.objects.create(application=second, option=option)
+    FeeLock.objects.create(
+        application=app,
+        field=fee,
+        amount=1200,
+        locked_at=datetime(2029, 12, 1, tzinfo=timezone.utc),
+    )
+    FeeLock.objects.create(
+        application=second,
+        field=fee,
+        amount=1200,
+        locked_at=datetime(2029, 12, 1, tzinfo=timezone.utc),
+    )
+    draft = Application.objects.create(owner=owner, festival=festival, status="draft")
+    client.force_login(staff)
+    url = reverse("admin:applications_application_changelist")
+    params = {
+        "festival__id__exact": festival.pk,
+        "service": option.pk,
+        "fee_status": f"{fee.pk}:yes",
+        "balance": "due",
+        "q": owner.email,
+    }
+    orderings = (
+        ("4", [second, app]),
+        ("-4", [app, second]),
+        ("5", [app, second]),
+        ("-5", [second, app]),
+        ("6", [second, app]),
+        ("-6", [app, second]),
+    )
+    for order, expected in orderings:
+        response = client.get(url, {**params, "o": order})
+        assert list(response.context["cl"].queryset) == expected
+        assert draft not in response.context["cl"].queryset
+    close(case)
+    ServiceOption.objects.filter(pk=option.pk).update(price=1)
+    ApplicationServiceSelection.objects.filter(application=app, option=option).delete()
+    FeeLock.objects.filter(application=app, field=fee).delete()
+    for order, expected in orderings:
+        response = client.get(
+            url, {**params, "application_status": "archived", "o": order}
+        )
+        assert list(response.context["cl"].queryset) == expected
+    app.refresh_from_db()
+    second.refresh_from_db()
+    assert app.financial_snapshot["total"] == "6040.00"
+    assert second.financial_snapshot["total"] == "3270.00"
+
+
+def test_service_filter_only_uses_selected_festival(priced, client, django_user_model):
+    case, _ = priced
+    _, _, festival, app, _ = case
+    option = app.service_selections.first().option
+    staff = django_user_model.objects.create_superuser(
+        "festival-filter@example.invalid", "test-password"
+    )
+    client.force_login(staff)
+    url = reverse("admin:applications_application_changelist")
+    all_festivals = client.get(url)
+    assert "Услуга" not in [
+        spec.title for spec in all_festivals.context["cl"].filter_specs
+    ]
+    filtered = client.get(url, {"festival__id__exact": festival.pk})
+    spec = next(
+        spec for spec in filtered.context["cl"].filter_specs if spec.title == "Услуга"
+    )
+    assert all(festival.name not in label for _, label in spec.lookup_choices)
+    assert any(str(value) == str(option.pk) for value, _ in spec.lookup_choices)
+
+
+def test_registry_archive_balances_and_readonly_history(
+    priced, client, django_user_model
+):
+    case, _ = priced
+    _, owner, festival, app, _ = case
+    staff = django_user_model.objects.create_superuser(
+        "history-registry@example.invalid", "test-password"
+    )
+    withdrawn = Application.objects.create(
+        owner=owner, festival=festival, status="withdrawn", paid_amount=1300
+    )
+    history = Application.objects.create(
+        owner=None,
+        anonymized_at=datetime(2030, 1, 1, tzinfo=timezone.utc),
+        festival=festival,
+        status="withdrawn",
+        paid_amount=2000,
+    )
+    close(case)
+    Application.objects.filter(pk=app.pk).update(paid_amount=8000)
+    client.force_login(staff)
+    url = reverse("admin:applications_application_changelist")
+    params = {"festival__id__exact": festival.pk}
+    overpaid = client.get(url, {**params, "balance": "overpaid", "o": "6"})
+    assert list(overpaid.context["cl"].queryset) == [app, history]
+    settled = client.get(url, {**params, "balance": "settled"})
+    assert list(settled.context["cl"].queryset) == [withdrawn]
+    assert "Обезличенная анкета" in overpaid.content.decode()
+    detail = reverse("admin:applications_application_change", args=[history.pk])
+    assert client.get(detail).status_code == 200
+    assert client.post(detail, {}).status_code in (403, 409)
+
+
+def test_registry_search_and_query_count_do_not_depend_on_rows(
+    priced, client, django_user_model
+):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from applications.models import ApplicationAnswer
+
+    case, _ = priced
+    _, owner, festival, app, field = case
+    field.in_application_name = True
+    field.save()
+    ApplicationAnswer.objects.create(application=app, field=field, value="Мира")
+    staff = django_user_model.objects.create_superuser(
+        "search@example.invalid", "test-password"
+    )
+    client.force_login(staff)
+    url = reverse("admin:applications_application_changelist")
+    params = {"festival__id__exact": festival.pk}
+    with CaptureQueriesContext(connection) as before:
+        response = client.get(url, params)
+        assert response.status_code == 200
+    for index in range(12):
+        Application.objects.create(owner=owner, festival=festival, status="active")
+    with CaptureQueriesContext(connection) as after:
+        response = client.get(url, params)
+        assert response.status_code == 200
+    assert len(after) <= len(before) + 1
+    assert list(client.get(url, {**params, "q": "Мира"}).context["cl"].queryset) == [
+        app
+    ]
+
+
 def test_snapshot_freezes_components_but_payment_remains_live(priced, client):
     case, fee = priced
     actor, owner, festival, app, _ = case

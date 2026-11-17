@@ -5,12 +5,25 @@ from django.contrib.auth import get_user_model
 from django.core import signing
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import OuterRef, Prefetch, Q, Subquery
+from django.db.models import (
+    BooleanField,
+    Case,
+    Exists,
+    F,
+    Func,
+    OuterRef,
+    Prefetch,
+    Q,
+    Subquery,
+    TextField,
+    When,
+)
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.utils.formats import number_format
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
+from django.utils.text import smart_split, unescape_string_literal
 from unfold.admin import ModelAdmin
 from unfold.contrib.filters.admin import DropdownFilter
 from unfold.widgets import UnfoldAdminSelectWidget, UnfoldAdminTextInputWidget
@@ -18,12 +31,23 @@ from unfold.widgets import UnfoldAdminSelectWidget, UnfoldAdminTextInputWidget
 from billing.admin_fees import FeeLockAdminMixin
 from billing.calculator import calc_application_total
 from billing.forms import PaymentForm
-from billing.models import AuditEvent
+from billing.models import AuditEvent, FeeLock
+from billing.registry import (
+    SnapshotFeeLocked,
+    SnapshotServiceSelected,
+    annotate_registry,
+)
 from billing.services import change_paid_amount, payment_allowed
 from festivals.models import Festival
 from festivals.services import get_effective_status
 
-from .models import Application, ApplicationServiceSelection
+from .models import (
+    Application,
+    ApplicationAnswer,
+    ApplicationServiceSelection,
+    FormField,
+    ServiceOption,
+)
 from .schema import schema_revision
 from .services import (
     application_form,
@@ -46,6 +70,18 @@ def ordered_festivals():
     )
 
 
+class AnswerText(Func):
+    output_field = TextField()
+
+    def as_sql(self, compiler, connection, **extra_context):
+        source, params = compiler.compile(self.source_expressions[0])
+        if connection.vendor == "postgresql":
+            return f"({source} #>> '{{}}')", params
+        if connection.vendor == "sqlite":
+            return f"json_extract({source}, '$')", params
+        raise NotImplementedError("Поиск ответов поддерживает PostgreSQL и SQLite.")
+
+
 class FestivalFilter(DropdownFilter):
     title = "Фестиваль"
     parameter_name = "festival__id__exact"
@@ -61,7 +97,7 @@ class FestivalFilter(DropdownFilter):
         return queryset.filter(festival_id=self.value()) if self.value() else queryset
 
 
-class ApplicationStateFilter(admin.SimpleListFilter):
+class ApplicationStateFilter(DropdownFilter):
     title = "Статус анкеты"
     parameter_name = "application_status"
 
@@ -87,18 +123,152 @@ class ApplicationStateFilter(admin.SimpleListFilter):
         return queryset
 
 
+class BalanceFilter(DropdownFilter):
+    title = "Баланс"
+    parameter_name = "balance"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("due", "Есть долг"),
+            ("overpaid", "Есть переплата"),
+            ("settled", "Полный расчёт"),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == "due":
+            return queryset.filter(registry_due__gt=0)
+        if self.value() == "overpaid":
+            return queryset.filter(registry_overpaid__gt=0)
+        if self.value() == "settled":
+            return queryset.filter(registry_due=0, registry_overpaid=0)
+        return queryset
+
+
+class ServiceFilter(DropdownFilter):
+    title = "Услуга"
+    parameter_name = "service"
+
+    def lookups(self, request, model_admin):
+        selected = request.GET.get("festival__id__exact", "")
+        if not selected.isdecimal():
+            return []
+        options = (
+            ServiceOption.objects.filter(field__festival_id=int(selected))
+            .select_related("field")
+            .order_by("field__order", "order", "pk")
+        )
+        return [
+            (option.pk, f"{option.field.label} · {option.label}") for option in options
+        ]
+
+    def queryset(self, request, queryset):
+        selected = request.GET.get("festival__id__exact", "")
+        if selected.isdecimal() and self.value() and self.value().isdecimal():
+            option_id = int(self.value())
+            if not ServiceOption.objects.filter(
+                pk=option_id, field__festival_id=int(selected)
+            ).exists():
+                return queryset.none()
+            archived = [
+                f.pk
+                for f in ordered_festivals()
+                if get_effective_status(f) == "archived"
+            ]
+            snapshot = Q(
+                festival_id__in=archived,
+                financial_snapshot_current=True,
+                financial_snapshot__isnull=False,
+            )
+            return queryset.annotate(
+                registry_service_selected=Case(
+                    When(snapshot, then=SnapshotServiceSelected(option_id)),
+                    default=Exists(
+                        ApplicationServiceSelection.objects.filter(
+                            application_id=OuterRef("pk"), option_id=option_id
+                        )
+                    ),
+                    output_field=BooleanField(),
+                )
+            ).filter(registry_service_selected=True)
+        return queryset
+
+
+class FeeStatusFilter(DropdownFilter):
+    title = "Фиксация платы"
+    parameter_name = "fee_status"
+
+    def lookups(self, request, model_admin):
+        selected = request.GET.get("festival__id__exact", "")
+        if not selected.isdecimal():
+            return []
+        fields = FormField.objects.filter(
+            festival_id=int(selected), field_type="datefee", is_active=True
+        )
+        return [
+            (f"{field.pk}:{state}", f"{field.label}: {label}")
+            for field in fields
+            for state, label in (("yes", "зафиксирован"), ("no", "не зафиксирован"))
+        ]
+
+    def queryset(self, request, queryset):
+        value = self.value() or ""
+        parts = value.split(":")
+        selected = request.GET.get("festival__id__exact", "")
+        if (
+            len(parts) != 2
+            or not parts[0].isdecimal()
+            or parts[1] not in ("yes", "no")
+            or not selected.isdecimal()
+        ):
+            return queryset
+        field_id = int(parts[0])
+        if not FormField.objects.filter(
+            pk=field_id, festival_id=int(selected), field_type="datefee", is_active=True
+        ).exists():
+            return queryset.none()
+        archived = [
+            f.pk for f in ordered_festivals() if get_effective_status(f) == "archived"
+        ]
+        snapshot = Q(
+            festival_id__in=archived,
+            financial_snapshot_current=True,
+            financial_snapshot__isnull=False,
+        )
+        return queryset.annotate(
+            registry_fee_locked=Case(
+                When(snapshot, then=SnapshotFeeLocked(field_id)),
+                default=Exists(
+                    FeeLock.objects.filter(
+                        application_id=OuterRef("pk"), field_id=field_id
+                    )
+                ),
+                output_field=BooleanField(),
+            )
+        ).filter(registry_fee_locked=parts[1] == "yes")
+
+
 @admin.register(Application)
 class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
     list_display = (
-        "author_label",
         "festival",
-        "application_status",
+        "owner_label",
+        "participant_label",
+        "fees_display",
+        "total_display",
         "paid_display",
-        "cost_display",
+        "balance_display",
+        "modified_display",
     )
-    list_display_links = ("author_label",)
-    list_filter = (FestivalFilter, ApplicationStateFilter)
+    list_display_links = ("participant_label",)
+    list_filter = (
+        FestivalFilter,
+        ApplicationStateFilter,
+        ServiceFilter,
+        BalanceFilter,
+        FeeStatusFilter,
+    )
     list_filter_options = {"festival__id__exact": {"horizontal": True}}
+    list_filter_submit = True
     search_fields = ("owner__email", "owner__first_name", "owner__last_name")
     ordering = ("status", "-updated_at", "-pk")
     list_per_page = 25
@@ -106,19 +276,28 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
     actions = None
     warn_unsaved_form = False
 
+    def get_search_results(self, request, queryset, search_term):
+        for term in smart_split(search_term):
+            if term.startswith(('"', "'")) and term[0] == term[-1]:
+                term = unescape_string_literal(term)
+            answers = (
+                ApplicationAnswer.objects.filter(
+                    application_id=OuterRef("pk"), field__field_type="text"
+                )
+                .annotate(answer_text=AnswerText(F("value")))
+                .filter(answer_text__icontains=term)
+            )
+            queryset = queryset.filter(
+                Q(owner__email__icontains=term)
+                | Q(owner__first_name__icontains=term)
+                | Q(owner__last_name__icontains=term)
+                | Q(Exists(answers))
+            )
+        return queryset, False
+
     @admin.display(description="Внесено", ordering="paid_amount")
     def paid_display(self, obj):
         return f"{number_format(obj.paid_amount, decimal_pos=2, force_grouping=True)} ₽"
-
-    @admin.display(description="Стоимость")
-    def cost_display(self, obj):
-        if (
-            obj.status == "withdrawn"
-            and get_effective_status(obj.festival) != "archived"
-        ):
-            return "—"
-        total = calc_application_total(obj)["total"]
-        return f"{number_format(total, decimal_pos=2, force_grouping=True)} ₽"
 
     def get_queryset(self, request):
         queryset = (
@@ -129,27 +308,97 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
         )
         match = request.resolver_match
         if match and match.url_name == "applications_application_changelist":
+            queryset = annotate_registry(queryset)
             queryset = queryset.prefetch_related(
                 Prefetch(
-                    "service_selections",
-                    queryset=ApplicationServiceSelection.objects.select_related(
-                        "option__field"
-                    ),
+                    "answers",
+                    queryset=ApplicationAnswer.objects.select_related("field"),
                 ),
                 "fee_locks__field",
-                "festival__form_fields__fee_periods",
+                "festival__form_fields",
             )
         return queryset
 
-    @admin.display(description="Автор анкеты", ordering="owner__last_name")
-    def author_label(self, obj):
+    @admin.display(description="Участник")
+    def participant_label(self, obj):
         return format_html(
-            '{}<small class="block">Анкета {}</small>',
-            (obj.owner.get_full_name() or "Имя не указано")
-            if obj.owner_id
-            else "Владелец удалён",
-            obj.number or "—",
+            '{}<small class="block mt-1">{}</small>',
+            obj.display_name,
+            self.application_status(obj),
         )
+
+    @admin.display(description="Владелец", ordering="owner__last_name")
+    def owner_label(self, obj):
+        if not obj.owner_id:
+            return "Владелец удалён"
+        return format_html(
+            '{}<small class="block">{}</small>',
+            obj.owner.get_full_name() or "Имя не указано",
+            obj.owner.email,
+        )
+
+    def registry_fees(self, obj):
+        if (
+            get_effective_status(obj.festival) == "archived"
+            and obj.financial_snapshot_current
+            and obj.financial_snapshot
+        ):
+            return obj.financial_snapshot["fees"]
+        locks = {lock.field_id: lock for lock in obj.fee_locks.all()}
+        return [
+            {"label": field.label, "locked_at": locks.get(field.pk)}
+            for field in obj.festival.form_fields.all()
+            if field.field_type == "datefee" and field.is_active
+        ]
+
+    @staticmethod
+    def money(value):
+        return f"{number_format(value, decimal_pos=2, force_grouping=True)} ₽"
+
+    @admin.display(description="Платы по дате")
+    def fees_display(self, obj):
+        fees = self.registry_fees(obj)
+        return (
+            format_html_join(
+                "",
+                '<span class="registry-fee">{} <span class="material-symbols-outlined registry-fee__icon registry-fee__icon--{}" role="img" aria-label="{}" title="{}">{}</span></span>',
+                (
+                    (
+                        fee["label"],
+                        "locked" if fee.get("locked_at") else "unlocked",
+                        "Зафиксирована" if fee.get("locked_at") else "Не зафиксирована",
+                        "Зафиксирована" if fee.get("locked_at") else "Не зафиксирована",
+                        "check_circle" if fee.get("locked_at") else "cancel",
+                    )
+                    for fee in fees
+                ),
+            )
+            or "—"
+        )
+
+    @admin.display(description="Сумма", ordering="registry_total")
+    def total_display(self, obj):
+        return self.money(obj.registry_total)
+
+    @admin.display(description="Итого", ordering="registry_balance")
+    def balance_display(self, obj):
+        if obj.registry_due:
+            return format_html(
+                '<span class="application-balance application-balance--due">Долг<br>{}</span>',
+                self.money(obj.registry_due),
+            )
+        if obj.registry_overpaid:
+            return format_html(
+                '<span class="application-balance application-balance--overpaid">Переплата<br>{}</span>',
+                self.money(obj.registry_overpaid),
+            )
+        return "Полный расчёт"
+
+    @admin.display(description="Изменена", ordering="updated_at")
+    def modified_display(self, obj):
+        from django.utils import timezone
+
+        return timezone.localtime(obj.updated_at).strftime("%d.%m.%Y %H:%M")
 
     @admin.display(description="Статус", ordering="status")
     def application_status(self, obj):
