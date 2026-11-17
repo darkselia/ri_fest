@@ -14,9 +14,7 @@
     {% if can_change_fee %}
         <div class="admin-fees__form">
             <label class="admin-fees__check" hidden>
-                <input type="checkbox"
-                       data-fee-toggle
-                       {% if row.locked %}checked{% endif %}>
+                <input type="checkbox" data-fee-toggle {% if row.locked %}checked{% endif %}>
                 Зафиксировать
             </label>
             <div class="admin-fees__tariff">

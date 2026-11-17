@@ -29,62 +29,10 @@ html.dark .text-subtle {
     font-size: 13px;
 }
 
-@media (max-width: 1023px) {
-    #submit-row {
-        position: sticky;
-        bottom: 0;
-    }
-
-    #submit-row > div {
-        padding-block: 12px max(12px, env(safe-area-inset-bottom));
-        border-top: 1px solid var(--admin-panel-border);
-    }
-
-    #header-inner h1 > span.font-medium {
-        display: none;
-    }
-
-    #result_list :is(th, td) {
-        padding-inline: 8px;
-    }
-
-    .addlink .addlink__text {
-        display: none;
-    }
-
-    .addlink {
-        min-width: 40px;
-        min-height: 40px;
-        padding: 8px;
-    }
-}
-
 #main > div:has(#header-inner) {
     position: sticky;
     top: 0;
     z-index: 45;
-}
-
-@media (min-width: 800px) {
-    #page > div:has(#nav-sidebar) > div:has(#nav-sidebar) {
-        position: relative;
-    }
-}
-
-@media (width < 1024px) {
-    #header-inner [x-data*="showActions"] {
-        position: relative;
-    }
-
-    #header-inner [x-data*="showActions"] > ul {
-        inset: calc(100% + 6px) 0 auto auto;
-        width: max-content;
-        max-width: calc(100vw - 32px);
-        padding: 4px;
-        border: 1px solid var(--admin-panel-border);
-        border-radius: 8px 0 8px 8px;
-        background: var(--admin-panel-bg);
-    }
 }
 
 .admin-panel,
@@ -185,11 +133,45 @@ fieldset.module {
 }
 
 .admin-filter-panel {
+    display: block !important;
     flex: 0 0 220px;
+    min-width: 0;
     position: sticky;
     top: 16px;
     align-self: flex-start;
     margin-bottom: 16px;
+}
+
+body.app-applications.model-application.change-list #header-inner h1 > span.font-medium {
+    display: none;
+}
+
+body.app-applications.model-application.change-list #changelist-filter .form-field,
+body.app-applications.model-application.change-list #changelist-filter .select2-container {
+    min-width: 0;
+    max-width: 100%;
+}
+
+body.app-applications.model-application.change-list #changelist-filter .select2-container {
+    width: 100% !important;
+}
+
+body.app-applications.model-application.change-list #changelist-filter .select2-selection--single {
+    height: auto;
+    min-height: 38px;
+}
+
+body.app-applications.model-application.change-list #changelist-filter .select2-selection__rendered {
+    height: auto;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+}
+
+body.app-applications.model-application.change-list #changelist-filter .select2-selection__arrow {
+    top: 50%;
+    transform: translateY(-50%);
 }
 
 #result_list :is(.column-paid_display, .column-cost_display, .field-paid_display, .field-cost_display) {
@@ -198,36 +180,17 @@ fieldset.module {
     font-variant-numeric: tabular-nums;
 }
 
-@media (min-width: 1024px) {
-    .admin-filter-panel {
-        display: block !important;
-    }
-
-    .app-applications .admin-filter-panel {
-        flex-basis: 164px;
-    }
-}
-
-@media (max-width: 1023px) {
-    #changelist > .result-list-wrapper {
-        flex-direction: column;
-    }
-
-    .admin-filter-panel {
-        position: static;
-        flex-basis: auto;
-        width: 100%;
-        order: 0;
-    }
-
-}
-
 #result_list tbody a[href*="/change/"] {
     font-weight: 650;
     text-decoration: none;
     color: inherit;
     display: inline-block;
     padding: 6px;
+}
+
+body.app-applications.model-application.change-list #result_list .field-participant_label a:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
 }
 
 #result_list tbody a[href*="/change/"]:hover {
@@ -280,12 +243,6 @@ fieldset.module {
     display: none;
 }
 
-@media (max-width: 1023px) {
-    .admin-list-toolbar > .filter-open-button {
-        display: flex;
-    }
-}
-
 .application-owner-selector > p {
     margin: 0 0 24px;
 }
@@ -296,51 +253,6 @@ fieldset.module {
 
 .admin-list-toolbar #changelist-search > div {
     width: 100%;
-}
-
-@media (max-width: 799px) {
-    .admin-list-toolbar {
-        grid-template-columns: minmax(0, 1fr) auto;
-    }
-
-    .admin-list-toolbar > #toolbar {
-        order: 1;
-    }
-
-    .admin-list-toolbar > .filter-open-button {
-        order: 2;
-    }
-
-    .admin-list-toolbar > form {
-        order: 3;
-        grid-column: 1 / -1;
-        min-width: 0;
-        width: 100%;
-    }
-
-    .admin-list-toolbar .form-field {
-        min-width: 0 !important;
-        width: 100%;
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .admin-list-toolbar > form .form-field > div {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .admin-list-toolbar > form .form-field > div > div {
-        width: 100%;
-        max-width: none;
-        min-width: 0;
-    }
-
-    .admin-list-toolbar > form .select2-container {
-        min-width: 0;
-        width: 100%;
-        max-width: none !important;
-    }
 }
 
 #result_list tbody a[href*="/change/"]:focus-visible {
@@ -356,6 +268,54 @@ fieldset.module {
 .application-admin-heading {
     display: grid;
     gap: 12px;
+}
+
+.application-balance--due {
+    color: var(--color-balance-due);
+    font-weight: 600;
+}
+
+.application-balance--overpaid {
+    color: var(--color-balance-overpaid);
+    font-weight: 600;
+}
+
+.registry-fee {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.registry-fee__icon {
+    flex: none;
+    font-size: 18px;
+}
+
+.registry-fee__icon--locked {
+    color: var(--color-success);
+}
+
+.registry-fee__icon--unlocked {
+    color: var(--color-balance-due);
+}
+
+.app-applications.model-application #result_list {
+    min-width: 900px;
+}
+
+.app-applications.model-application #result_list :is(th, td) {
+    padding-inline: 8px;
+}
+
+.app-applications.model-application #result_list .field-fees_display {
+    min-width: 160px;
+}
+
+.app-applications.model-application #result_list .field-total_display,
+.app-applications.model-application #result_list .field-paid_display,
+.app-applications.model-application #result_list .field-balance_display,
+.app-applications.model-application #result_list .field-modified_display {
+    white-space: nowrap;
 }
 
 .admin-disclosure__summary {
@@ -584,7 +544,151 @@ fieldset.module {
     display: none;
 }
 
-@media (max-width: 639px) {
+.app-applications .admin-filter-panel {
+    width: 164px;
+    min-width: 164px;
+    max-width: 164px;
+    flex: 0 0 164px;
+}
+
+#page > div:has(#nav-sidebar) > div:has(#nav-sidebar) {
+    position: relative;
+}
+
+@media (width < 1024px) {
+
+    body.change-list #content {
+        max-width: none;
+    }
+
+    #submit-row {
+        position: sticky;
+        bottom: 0;
+    }
+
+    #submit-row > div {
+        padding-block: 12px max(12px, env(safe-area-inset-bottom));
+        border-top: 1px solid var(--admin-panel-border);
+    }
+
+    #header-inner h1 > span.font-medium {
+        display: none;
+    }
+
+    #result_list :is(th, td) {
+        padding-inline: 8px;
+    }
+
+    .addlink .addlink__text {
+        display: none;
+    }
+
+    .addlink {
+        min-width: 40px;
+        min-height: 40px;
+        padding: 8px;
+    }
+
+    #header-inner [x-data*="showActions"] {
+        position: relative;
+    }
+
+    #header-inner [x-data*="showActions"] > ul {
+        inset: calc(100% + 6px) 0 auto auto;
+        width: max-content;
+        max-width: calc(100vw - 32px);
+        padding: 4px;
+        border: 1px solid var(--admin-panel-border);
+        border-radius: 8px 0 8px 8px;
+        background: var(--admin-panel-bg);
+    }
+
+    #changelist > .result-list-wrapper {
+        flex-direction: column;
+    }
+
+    .admin-filter-panel,
+    .app-applications .admin-filter-panel {
+        position: static;
+        flex-basis: auto;
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        order: 0;
+    }
+
+    .admin-filter-panel[style*="display: none"] {
+        display: none !important;
+    }
+
+    .admin-filter-panel .grow.relative {
+        max-width: none;
+    }
+
+    body.app-applications.model-application.change-form #submit-row > div {
+        padding-top: 16px;
+    }
+
+    .admin-list-toolbar > .filter-open-button {
+        display: flex;
+    }
+
+    .admin-list-toolbar {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .admin-list-toolbar > #toolbar {
+        order: 1;
+    }
+
+    .admin-list-toolbar > .filter-open-button {
+        order: 2;
+    }
+
+    .admin-list-toolbar > form {
+        order: 3;
+        grid-column: 1 / -1;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .admin-list-toolbar .form-field {
+        min-width: 0 !important;
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-list-toolbar > form .form-field > div {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-list-toolbar > form .form-field > div > div {
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+    }
+
+    .admin-list-toolbar > form .select2-container {
+        min-width: 0;
+        width: 100%;
+        max-width: none !important;
+    }
+}
+
+@media (width < 800px) {
+    #page > div:has(#nav-sidebar) > div:has(#nav-sidebar) {
+        position: static;
+    }
+
+    #result_list tbody a[href*="/change/"] {
+        background: var(--admin-panel-border);
+        border-radius: 3px;
+    }
+}
+
+@media (width < 640px) {
 
     .admin-payment__amount,
     .admin-payment__actions {
@@ -593,11 +697,5 @@ fieldset.module {
 
     .admin-payment__actions button {
         flex: 1;
-    }
-}
-
-@media (max-width: 1023px) {
-    body.app-applications.model-application.change-form #submit-row > div {
-        padding-top: 16px;
     }
 }

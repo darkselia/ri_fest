@@ -300,6 +300,7 @@
                         row.field_type = originalKind;
                     }
                     if (["info", "datefee"].includes(row.field_type)) row.is_required = false;
+                    if (row.field_type !== "text") row.in_application_name = false;
                     if (originalKind === "datefee" && row.field_type !== originalKind && row.id) {
                         const nextKind = row.field_type;
                         row.field_type = originalKind;
@@ -320,6 +321,7 @@
                 control(card, row, "help_text", row.field_type === "info" ? "Текст и ссылки" : "Пояснение", "textarea");
                 const settings = node("div", undefined, "schema-flags");
                 if (!["info", "datefee"].includes(row.field_type)) control(settings, row, "is_required", "Обязательно", "checkbox");
+                if (row.field_type === "text") control(settings, row, "in_application_name", "Использовать для идентификации участника", "checkbox");
                 if (!row.is_active) settings.append(node("span", "Скрыт от участников", "schema-hidden-note"));
                 const priced = ["service", "service1"].includes(row.field_type);
                 if (row.field_type === "datefee") {
@@ -508,6 +510,7 @@
                 label: "",
                 help_text: "",
                 is_required: false,
+                in_application_name: false,
                 is_active: true,
                 options: [],
                 services: []

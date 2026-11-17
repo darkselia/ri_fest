@@ -11,9 +11,7 @@
             {% include "components/financial_summary.html" with hide_finance_heading=True %}
         {% else %}
             {% if fee_rows %}
-                <div data-fees-container>
-                    {% include "admin/applications/fees.html" %}
-                </div>
+                <div data-fees-container>{% include "admin/applications/fees.html" %}</div>
             {% endif %}
             {% include "components/balance_form.html" with hide_finance_heading=True %}
         {% endif %}

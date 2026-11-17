@@ -91,7 +91,10 @@
         const action = control === checkbox ? (checkbox.checked ? "lock" : "unlock") : "replace";
         data.set("fee_action", action);
         if (answerVersion) data.set("answers_version", answerVersion.value);
-        send(endpoint, { method: "POST", body: data }, data.get("field_id"),
+        send(endpoint, {
+                method: "POST",
+                body: data
+            }, data.get("field_id"),
             control === select ? "select" : "[data-fee-toggle]");
     });
     container.addEventListener("submit", event => {

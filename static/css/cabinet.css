@@ -234,7 +234,36 @@
     margin: 0;
 }
 
-@media (max-width: 650px) {
+/* Интервал задаёт следующий блок, поэтому отступы не складываются. */
+.profile-editor p {
+    margin: 6px 0 12px;
+}
+
+.profile-editor .account-form {
+    gap: 12px 14px;
+    margin-top: 12px;
+}
+
+.account-description {
+    margin-bottom: 16px;
+}
+
+.profile-editor summary::after {
+    content: "▶";
+    font-size: 12px;
+    line-height: 1;
+    transition: transform 160ms ease;
+}
+
+.profile-editor summary:hover {
+    background: var(--color-paper);
+}
+
+.profile-editor details[open] summary::after {
+    transform: rotate(90deg);
+}
+
+@media (width < 640px) {
     .account-heading {
         align-items: flex-start;
     }
@@ -292,33 +321,4 @@
         width: 100%;
         justify-self: stretch;
     }
-}
-
-/* Интервал задаёт следующий блок, поэтому отступы не складываются. */
-.profile-editor p {
-    margin: 6px 0 12px;
-}
-
-.profile-editor .account-form {
-    gap: 12px 14px;
-    margin-top: 12px;
-}
-
-.account-description {
-    margin-bottom: 16px;
-}
-
-.profile-editor summary::after {
-    content: "▶";
-    font-size: 12px;
-    line-height: 1;
-    transition: transform 160ms ease;
-}
-
-.profile-editor summary:hover {
-    background: var(--color-paper);
-}
-
-.profile-editor details[open] summary::after {
-    transform: rotate(90deg);
 }

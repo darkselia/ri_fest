@@ -311,71 +311,7 @@
     margin-bottom: 4px;
 }
 
-@media (max-width: 999px) {
-    .schema-option {
-        grid-template-columns: 32px minmax(0, 1fr) minmax(90px, 1fr);
-    }
-
-    .schema-option > [data-control=label] {
-        grid-column: 2 / -1;
-    }
-
-    .schema-option > [data-control=service_date] {
-        grid-column: 2;
-        width: min(150px, 100%);
-    }
-
-    .schema-option > [data-control=price] {
-        grid-column: 3;
-    }
-
-    .schema-option__actions {
-        grid-column: 1 / -1;
-        grid-row: auto;
-        justify-content: flex-end;
-        flex-wrap: wrap;
-    }
-
-    .schema-option--refusal > [data-control=label],
-    .schema-option--refusal .schema-refusal-note {
-        grid-column: 1 / -1;
-    }
-
-    .schema-confirm {
-        position: static;
-        width: 100%;
-        flex-basis: 100%;
-        margin-top: 8px;
-    }
-
-    .schema-card__tools {
-        flex-wrap: wrap;
-    }
-
-    [aria-label="Сохранение фестиваля"] {
-        padding: 16px;
-        padding-bottom: max(16px, env(safe-area-inset-bottom));
-        gap: 12px;
-    }
-}
-
-@media (max-width: 480px) {
-    .schema-option {
-        grid-template-columns: 28px minmax(0, 1fr);
-    }
-
-    .schema-option > [data-control=service_date],
-    .schema-option > [data-control=price] {
-        grid-column: 2;
-    }
-}
-
 /* Без ручки перетаскивания подпись остаётся во второй колонке сетки. */
-@media (min-width: 1000px) {
-    [data-editable="false"] .schema-option:not(.schema-option--refusal) > [data-control=label] {
-        grid-column: 2;
-    }
-}
 
 .schema-card__head .schema-control > div,
 .schema-option .schema-control > div {
@@ -428,11 +364,72 @@
     opacity: .35;
 }
 
-@media (max-width: 600px) {
+[data-editable="false"] .schema-option:not(.schema-option--refusal) > [data-control=label] {
+    grid-column: 2;
+}
+
+@media (width < 1024px) {
+    .schema-option {
+        grid-template-columns: 32px minmax(0, 1fr) minmax(90px, 1fr);
+    }
+
+    .schema-option > [data-control=label] {
+        grid-column: 2 / -1;
+    }
+
+    [data-editable="false"] .schema-option:not(.schema-option--refusal) > [data-control=label] {
+        grid-column: 2 / -1;
+    }
+
+    .schema-option > [data-control=service_date] {
+        grid-column: 2;
+        width: min(150px, 100%);
+    }
+
+    .schema-option > [data-control=price] {
+        grid-column: 3;
+    }
+
+    .schema-option__actions {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .schema-option--refusal > [data-control=label],
+    .schema-option--refusal .schema-refusal-note {
+        grid-column: 1 / -1;
+    }
+
+    .schema-confirm {
+        position: static;
+        width: 100%;
+        flex-basis: 100%;
+        margin-top: 8px;
+    }
+
+    .schema-card__tools {
+        flex-wrap: wrap;
+    }
+
+    [aria-label="Сохранение фестиваля"] {
+        padding: 16px;
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+        gap: 12px;
+    }
+}
+
+@media (width < 640px) {
+
+    .schema-option {
+        grid-template-columns: 28px minmax(0, 1fr);
+    }
 
     .schema-option > [data-control=label],
     .schema-option > [data-control=service_date],
-    .schema-option > [data-control=price] {
+    .schema-option > [data-control=price],
+    [data-editable="false"] .schema-option:not(.schema-option--refusal) > [data-control=label] {
         grid-column: 1 / -1;
         width: 100%;
     }

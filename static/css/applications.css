@@ -47,22 +47,6 @@
     gap: 4px;
 }
 
-@media (max-width: 600px) {
-    .application-add .application-add__text {
-        display: none;
-    }
-
-    .application-heading > .application-add {
-        min-width: 40px;
-        padding-inline: 10px;
-    }
-
-    .application-heading > .application-add > span:first-child {
-        font-size: 20px;
-        line-height: 1;
-    }
-}
-
 .application-back {
     background: transparent;
     border: 0;
@@ -166,8 +150,6 @@
     margin-top: 3px;
 }
 
-
-
 .application-row__delete {
     display: inline-flex;
     flex-shrink: 0;
@@ -244,24 +226,6 @@
     white-space: normal;
 }
 
-@media (max-width: 650px) {
-    .application-row {
-        gap: 9px;
-    }
-
-    .application-row h3 {
-        min-width: min(160px, 100%);
-    }
-
-    .application-row .application-actions {
-        margin-left: auto;
-    }
-
-    .application-card {
-        padding: 12px;
-    }
-}
-
 .application-switch-confirm {
     grid-column: 1 / -1;
     padding: 16px;
@@ -277,6 +241,7 @@
 .application-switch-confirm button {
     margin: 0 8px 4px 0;
 }
+
 .application-row__finance {
     display: flex;
     flex-wrap: wrap;
@@ -298,12 +263,6 @@
     white-space: nowrap;
 }
 
-@media (width < 600px) {
-    .application-row__balance {
-        margin-inline-start: 0;
-    }
-}
-
 .application-row__balance--due {
     color: var(--color-balance-due);
     background: var(--color-balance-due-bg);
@@ -312,4 +271,40 @@
 .application-row__balance--overpaid {
     color: var(--color-balance-overpaid);
     background: var(--color-balance-overpaid-bg);
+}
+
+@media (width < 640px) {
+    .application-add .application-add__text {
+        display: none;
+    }
+
+    .application-heading > .application-add {
+        min-width: 40px;
+        padding-inline: 10px;
+    }
+
+    .application-heading > .application-add > span:first-child {
+        font-size: 20px;
+        line-height: 1;
+    }
+
+    .application-row {
+        gap: 9px;
+    }
+
+    .application-row h3 {
+        min-width: min(160px, 100%);
+    }
+
+    .application-row .application-actions {
+        margin-left: auto;
+    }
+
+    .application-card {
+        padding: 12px;
+    }
+
+    .application-row__balance {
+        margin-inline-start: 0;
+    }
 }

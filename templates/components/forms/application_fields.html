@@ -14,7 +14,7 @@
                 <legend>{{ entry.row.label }}{% if entry.row.is_required %}<span class="application-field__required" aria-hidden="true"> *</span>{% endif %}</legend>
         {% elif entry.kind == "boolean" %}
             <div class="application-field" id="question-{{ entry.key }}"><label class="application-field__boolean"
-                                                  for="{{ entry.field.id_for_label }}">{{ entry.row.label }}{% if entry.row.is_required %}<span class="application-field__required" aria-hidden="true"> *</span>{% endif %} {{ entry.field }}</label>
+                                                                                for="{{ entry.field.id_for_label }}">{{ entry.row.label }}{% if entry.row.is_required %}<span class="application-field__required" aria-hidden="true"> *</span>{% endif %} {{ entry.field }}</label>
         {% else %}
             <div class="application-field" id="question-{{ entry.key }}"><label for="{{ entry.field.id_for_label }}">{{ entry.row.label }}{% if entry.row.is_required %}<span class="application-field__required" aria-hidden="true"> *</span>{% endif %}</label>
         {% endif %}

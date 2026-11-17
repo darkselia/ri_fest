@@ -174,7 +174,7 @@ h2 {
     transform: translateY(0);
 }
 
-@media (max-width: 480px) {
+@media (width < 640px) {
     .container {
         width: calc(100% - 24px);
     }
@@ -203,9 +203,7 @@ h2 {
     .site-footer {
         font-size: 12px;
     }
-}
 
-@media (max-width: 650px) {
     .site-nav.container {
         padding-inline: 20px;
     }

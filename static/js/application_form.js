@@ -82,7 +82,9 @@
             const costGroup = costGroups.get(group.dataset.serviceGroup);
             if (costGroup) {
                 const rows = [...costGroup.querySelectorAll("[data-cost-option]")];
-                rows.forEach(row => { row.hidden = !selected.has(row.dataset.costOption); });
+                rows.forEach(row => {
+                    row.hidden = !selected.has(row.dataset.costOption);
+                });
                 costGroup.hidden = rows.every(row => row.hidden);
             }
             const target = group.querySelector("[data-group-total]");
