@@ -1,4 +1,4 @@
-"""Read-only formatting check for Python, Django templates, and frontend sources."""
+"""Format or check Python, Django templates, and frontend sources."""
 
 import difflib
 import subprocess
@@ -10,7 +10,9 @@ import jsbeautifier
 
 
 def main():
-    paths = [Path(p) for p in sys.argv[1:]] or [
+    write = "--write" in sys.argv[1:]
+    args = [arg for arg in sys.argv[1:] if arg != "--write"]
+    paths = [Path(p) for p in args] or [
         Path("templates"),
         Path("static/js"),
         Path("static/css"),
@@ -24,18 +26,19 @@ def main():
         }
     )
     html = [str(p) for p in files if p.suffix == ".html"]
-    failed = (
-        subprocess.run(["djlint", *html, "--check"], check=False).returncode
-        if html
-        else 0
-    )
+    failed = 0
+    if html:
+        failed |= subprocess.run(
+            ["djlint", *html, "--reformat" if write else "--check"], check=False
+        ).returncode
     python_paths = [str(p) for p in files if p.suffix == ".py"]
-    if not sys.argv[1:]:
+    if not args:
         python_paths = ["."]
     if python_paths:
-        failed |= subprocess.run(
-            ["ruff", "format", "--no-cache", "--check", *python_paths], check=False
-        ).returncode
+        command = ["ruff", "format", "--no-cache"]
+        if not write:
+            command.append("--check")
+        failed |= subprocess.run([*command, *python_paths], check=False).returncode
     for path in files:
         if path.suffix in (".html", ".py"):
             continue
@@ -47,15 +50,19 @@ def main():
             options.space_around_combinator = True
         formatted = formatter.beautify(original, options).rstrip() + "\n"
         if original != formatted:
-            failed = 1
-            sys.stdout.writelines(
-                difflib.unified_diff(
-                    original.splitlines(True),
-                    formatted.splitlines(True),
-                    fromfile=str(path),
-                    tofile=str(path),
+            if write:
+                path.write_text(formatted, encoding="utf-8")
+                print(f"formatted {path}")
+            else:
+                failed = 1
+                sys.stdout.writelines(
+                    difflib.unified_diff(
+                        original.splitlines(True),
+                        formatted.splitlines(True),
+                        fromfile=str(path),
+                        tofile=str(path),
+                    )
                 )
-            )
     return int(bool(failed))
 
 

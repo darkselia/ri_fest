@@ -16,7 +16,7 @@ services:
       context: .
       dockerfile: Dockerfile.lint
     volumes:
-      - .:/app:ro
+      - .:/app
 
   db:
     ports:
