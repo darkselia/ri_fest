@@ -97,11 +97,7 @@ docker compose -f compose.yaml -f compose.dev.yaml exec web python manage.py mak
 
 ## Отступы и dev-линтер
 
-`.editorconfig` задаёт четыре пробела для Python, Django HTML, JS и CSS (два для YAML/JSON).
-`Dockerfile.lint` расширяет образ приложения инструментами разработки; `tools/lint_format.py` объединяет проверки. Его сервис `lint` запускается только профилем `dev-tools`, а исходники подключены только для чтения. Изолированный dev-образ содержит djLint для Django-шаблонов и форматирующие проверки JS/CSS;
-Python проверяется форматтером Ruff; без аргументов он проверяет проект, при переданных путях — найденные в них `.py`-файлы. Форматтеры расставляют пробелы вокруг операторов по правилам
-соответствующего языка; в CSS комбинаторы `>`, `+` и `~` также отделяются пробелами.
-Production-зависимости не меняются. Проверки ничего не перезаписывают:
+Обычный запуск только проверяет форматирование и показывает diff, ничего не перезаписывая:
 
 ```powershell
 docker compose -f compose.yaml -f compose.dev.yaml --profile dev-tools build lint
@@ -112,6 +108,12 @@ docker compose -f compose.yaml -f compose.dev.yaml --profile dev-tools run --rm 
 
 ```powershell
 docker compose -f compose.yaml -f compose.dev.yaml --profile dev-tools run --rm lint python tools/lint_format.py templates/admin/applications/edit.html static/js/admin_lists.js
+```
+
+Чтобы отформатировать все Django-шаблоны, JavaScript, CSS и Python-файлы проекта, добавьте `--write`:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml --profile dev-tools run --rm lint python tools/lint_format.py --write
 ```
 
 Полная проверка также показывает старые расхождения форматирования. Правила Python-кода
