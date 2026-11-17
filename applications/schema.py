@@ -24,6 +24,7 @@ FIELD_NAMES = (
     "label",
     "help_text",
     "is_required",
+    "in_application_name",
     "is_active",
     "order",
 )
@@ -345,6 +346,10 @@ def prepare_schema(festival, rows):
             )
             if field.field_type in ("info", "datefee") and field.is_required:
                 raise ValidationError("Информационный блок не требует заполнения.")
+            if field.in_application_name and field.field_type != "text":
+                raise ValidationError(
+                    "В названии анкеты можно использовать только короткий текст."
+                )
             field.full_clean(
                 exclude=["festival", "label"]
                 if festival.status == Festival.Status.DRAFT and field.label == ""

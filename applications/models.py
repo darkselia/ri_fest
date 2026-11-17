@@ -42,6 +42,9 @@ class FormField(models.Model):
     label = models.CharField("Название", max_length=255)
     help_text = models.TextField("Подсказка", blank=True)
     is_required = models.BooleanField("Обязательный", default=False)
+    in_application_name = models.BooleanField(
+        "Использовать для идентификации участника", default=False
+    )
     order = models.PositiveIntegerField("Порядок", default=0)
     is_active = models.BooleanField("Активный", default=True)
 
@@ -250,6 +253,29 @@ class Application(models.Model):
 
     def __str__(self):
         return f"Анкета {self.number}" if self.number else "Новая анкета"
+
+    @property
+    def display_name(self):
+        if self.anonymized_at:
+            return "Обезличенная анкета"
+        if not self.pk:
+            return str(self)
+        answers = self.answers.all()
+        if "answers" not in getattr(self, "_prefetched_objects_cache", {}):
+            answers = answers.select_related("field")
+        selected = sorted(
+            (
+                answer
+                for answer in answers
+                if answer.field.is_active
+                and answer.field.in_application_name
+                and answer.field.field_type == FormField.Type.TEXT
+                and isinstance(answer.value, str)
+                and answer.value.strip()
+            ),
+            key=lambda answer: (answer.field.order, answer.field_id),
+        )
+        return ", ".join(answer.value.strip() for answer in selected) or str(self)
 
     def save(self, *args, **kwargs):
         if self.owner_id is None or self.number is not None:

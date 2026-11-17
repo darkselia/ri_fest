@@ -1,17 +1,19 @@
 {% extends "applications/base.html" %}
 {% block account_content %}
     {% include "components/history_back.html" %}
-    <div class="application-heading"><h2>{{ festival.name }}</h2><span
-        class="application-badge{% if application.status == 'withdrawn' %} application-badge--withdrawn{% elif archived %} application-badge--archive{% elif application.status == 'active' %} application-badge--active{% endif %}">{{ status_label }}</span>
+    <div class="application-heading"><h2>{{ festival.name }}</h2><span class="application-badge{% if application.status == 'withdrawn' %} application-badge--withdrawn{% elif archived %} application-badge--archive{% elif application.status == 'active' %} application-badge--active{% endif %}">{{ status_label }}</span>
     </div>
-    <p class="muted">Анкета {{ application.number }}</p>
+    <p class="muted">{{ application.display_name }}</p>
     {% if closed_reason %}<p class="application-note">{{ closed_reason }}</p>{% endif %}
     <dl class="application-answers">
         {% for entry in entries %}
             <div>
                 <dt>{{ entry.label }}</dt>
-                <dd>{{ entry.value|linebreaksbr }}</dd>
-            </div>{% endfor %}
+                <dd>
+                    {{ entry.value|linebreaksbr }}
+                </dd>
+            </div>
+        {% endfor %}
         {% if fee_entries %}
             {% for entry in fee_entries %}
                 {% include "components/forms/date_fee.html" %}
@@ -23,9 +25,9 @@
         {% if can_edit %}<a class="button"
                             href="{% url 'applications:edit' application.pk %}">Открыть для
             редактирования</a>{% endif %}
-        {% if can_withdraw %}<a class="button button--secondary"
-                                href="{% url 'applications:withdraw' application.pk %}">Отозвать анкету</a>{% endif %}
-        {% if is_draft %}<a class="application-delete"
-                            href="{% url 'applications:delete' application.pk %}">Удалить черновик</a>{% endif %}
+    {% if can_withdraw %}<a class="button button--secondary"
+                            href="{% url 'applications:withdraw' application.pk %}">Отозвать анкету</a>{% endif %}
+    {% if is_draft %}<a class="application-delete"
+                        href="{% url 'applications:delete' application.pk %}">Удалить черновик</a>{% endif %}
     </div>
 {% endblock %}

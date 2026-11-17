@@ -114,7 +114,7 @@ def dashboard_context(user, params):
             else query.filter(submitted_filter)
         )
     query = query.prefetch_related(
-        "answers", "service_selections__option__field", "fee_locks__field"
+        "answers__field", "service_selections__option__field", "fee_locks__field"
     )
     page = Paginator(query, 20).get_page(params.get("page"))
     cards = []
