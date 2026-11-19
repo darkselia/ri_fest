@@ -1,0 +1,22 @@
+{% load i18n %}
+{% if cl.search_fields %}
+    <div id="toolbar">
+        <form {% if not cl.is_dataset %}id="changelist-search"{% endif %}
+              method="get"
+              role="search">
+            {% translate "Type to search" as default_placeholder %}
+            {% if not cl.is_dataset %}
+                {% include "admin/includes/list_search.html" with search_name=search_var search_value=cl.query search_id="searchbar" search_placeholder=cl.search_help_text|default:default_placeholder show_shortcut=True %}
+            {% else %}
+                {% include "admin/includes/list_search.html" with search_name=search_var search_value=cl.query search_placeholder=cl.search_help_text|default:default_placeholder show_shortcut=False %}
+            {% endif %}
+            {% for pair in cl.filter_params.items %}
+                {% for val in pair.1 %}
+                    {% if pair.0 != search_var %}
+                        <input type="hidden" name="{{ pair.0 }}" value="{{ val }}">
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        </form>
+    </div>
+{% endif %}

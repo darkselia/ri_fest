@@ -5,13 +5,17 @@ document.addEventListener("alpine:init", () => {
 
     window.theme = (...args) => {
         const state = unfoldTheme(...args);
+        let wasDesktop = desktop.matches;
         state.sidebarOpen = savedOpen;
         state.sidebarToggle = function() {
             this.sidebarOpen = !this.sidebarOpen;
             if (desktop.matches) localStorage.setItem("sidebarOpen", this.sidebarOpen ? "1" : "0");
         };
         state.themeBindings["x-resize.window"] = function() {
-            this.sidebarOpen = savedOpen();
+            if (wasDesktop !== desktop.matches) {
+                wasDesktop = desktop.matches;
+                this.sidebarOpen = savedOpen();
+            }
         };
         return state;
     };

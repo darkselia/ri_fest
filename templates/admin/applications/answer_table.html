@@ -1,0 +1,100 @@
+{% extends "admin/base_site.html" %}
+{% load static unfold %}
+{% block bodyclass %}answer-list-page{% endblock %}
+{% block extrahead %}
+    {{ block.super }}
+    {{ media }}
+    <link rel="stylesheet" href="{% static 'css/answer_table.css' %}?v=7">
+    <script src="{% static 'js/admin_lists.js' %}?v=3" defer></script>
+    <script src="{% static 'js/answer_table.js' %}?v=5" defer></script>
+{% endblock %}
+{% block content %}
+    <div class="answer-table" data-festival="{{ festival.pk|default:'' }}">
+        <div class="answer-table__layout">
+            <div class="answer-table__results"
+                 data-base-width="{{ base_width }}"
+                 style="--answer-money-width: {{ money_width }}px;
+                        --answer-table-width: {{ table_width }}px">
+                <div class="admin-list-toolbar answer-table__toolbar">
+                    <form method="get" class="answer-table__festival">
+                        <label for="festival">Фестиваль</label>
+                        {{ festival_select }}
+                        <noscript>
+                            <button type="submit">Выбрать</button>
+                        </noscript>
+                    </form>
+                    {% if festival %}
+                        <div id="toolbar">
+                            <form method="get" id="changelist-search" role="search">
+                                {% for name, value in search_params %}
+                                    <input type="hidden" name="{{ name }}" value="{{ value }}">
+                                {% endfor %}
+                                {% include "admin/includes/list_search.html" with search_name="q" search_value=request.GET.q search_id="searchbar" search_placeholder="Поиск по ответам и владельцу" show_shortcut=True %}
+                            </form>
+                        </div>
+                        <div class="answer-table__buttons">
+                            <button type="button" data-panel="answer-filters" aria-expanded="false">Фильтры <span class="material-symbols-outlined" aria-hidden="true">filter_list</span></button>
+                            <button type="button"
+                                    data-panel="answer-columns"
+                                    aria-expanded="false">Столбцы</button>
+                        </div>
+                    {% endif %}
+                </div>
+                {% if festival %}
+                    {% if page_obj %}
+                        {% component "unfold/components/table.html" with table=answer_data class="answer-table__scroll" striped=1 %}
+                        {% endcomponent %}
+                    {% else %}
+                        {% include "unfold/helpers/empty_results.html" with answer_empty=True %}
+                    {% endif %}
+                {% else %}
+                    <div class="admin-panel answer-table__panel">Выберите фестиваль, чтобы увидеть ответы участников.</div>
+                {% endif %}
+            </div>
+            {% if festival %}
+                <aside class="answer-table__sidebar">
+                    <section id="answer-filters" class="answer-table__panel">
+                        <section class="answer-table__status" aria-label="Статус анкеты">
+                            <h3>Статус анкеты</h3>
+                            <ul class="admin-filter-choice">
+                                {% for option in status_options %}<li><a href="{{ option.url }}"
+                                                                         {% if option.selected %}aria-current="true"{% endif %}>{{ option.label }}</a></li>{% endfor %}
+                            </ul>
+                        </section>
+                        <h2>Фильтры</h2>
+                        <form method="get" id="answer-filter-form">
+                            <input type="hidden" name="festival" value="{{ festival.pk }}">
+                            {% if request.GET.sort %}
+                                <input type="hidden" name="sort" value="{{ request.GET.sort }}">
+                            {% endif %}
+                            <input type="hidden" name="status" value="{{ status }}">
+                            {% if request.GET.q %}
+                                <input type="hidden" name="q" value="{{ request.GET.q }}">
+                            {% endif %}
+                            {% for filter in filters %}
+                                {% include "admin/includes/grouped_filter.html" with group=filter input_name=filter.name autosubmit=True %}
+                            {% endfor %}
+                            <noscript>
+                                <button type="submit">Применить</button>
+                            </noscript>
+                        </form>
+                    </section>
+                    <section id="answer-columns" class="answer-table__panel">
+                        <h2>Столбцы</h2>
+                        <div class="admin-filter-choice answer-table__column-options">
+                            {% for field in columns %}<label><input type="checkbox"
+                                                                    data-column-toggle="{{ field.pk }}"
+                                                                    data-column-width="{{ field.answer_width }}"
+                                                                    {% if field.is_active %}checked{% endif %}> {{ field.label }}{% if not field.is_active %} <small>Скрыт</small>{% endif %}</label>{% endfor %}
+                        </div>
+                    </section>
+                </aside>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
+{% block footer %}
+    {% if festival %}
+        {% include "unfold/helpers/pagination.html" %}
+    {% endif %}
+{% endblock %}

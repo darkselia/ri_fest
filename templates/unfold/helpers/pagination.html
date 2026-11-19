@@ -1,0 +1,18 @@
+{% load admin_list unfold %}
+{% if cl or page_obj.paginator %}
+    <div class="admin-bottom-bar px-4 {% element_classes 'pagination' %}">
+        <div class="admin-table-rail" hidden>
+            <input type="range"
+                   min="0"
+                   value="0"
+                   aria-label="Горизонтальная прокрутка таблицы">
+        </div>
+        <div class="lg:flex lg:items-center {% if not cl.model_admin.list_fullwidth and not is_popup %}container mx-auto{% endif %}">
+            {% if cl %}
+                {% pagination cl %}
+            {% else %}
+                {% include "unfold/helpers/pagination_default.html" %}
+            {% endif %}
+        </div>
+    </div>
+{% endif %}

@@ -3,7 +3,12 @@ from django.contrib import admin, messages
 from django.contrib.admin.helpers import AdminForm
 from django.contrib.auth import get_user_model
 from django.core import signing
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import (
+    PermissionDenied,
+    SuspiciousOperation,
+    ValidationError,
+)
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import (
     BooleanField,
@@ -21,12 +26,17 @@ from django.db.models import (
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
+from django.urls import path, reverse
 from django.utils.formats import number_format
 from django.utils.html import format_html, format_html_join
-from django.utils.text import smart_split, unescape_string_literal
+from django.utils.text import Truncator, smart_split, unescape_string_literal
 from unfold.admin import ModelAdmin
 from unfold.contrib.filters.admin import DropdownFilter
-from unfold.widgets import UnfoldAdminSelectWidget, UnfoldAdminTextInputWidget
+from unfold.widgets import (
+    UnfoldAdminSelect2Widget,
+    UnfoldAdminSelectWidget,
+    UnfoldAdminTextInputWidget,
+)
 
 from billing.admin_fees import FeeLockAdminMixin
 from billing.calculator import calc_application_total
@@ -41,6 +51,7 @@ from billing.services import change_paid_amount, payment_allowed
 from festivals.models import Festival
 from festivals.services import get_effective_status
 
+from .answer_table import prepare_answer_table
 from .models import (
     Application,
     ApplicationAnswer,
@@ -97,7 +108,7 @@ class FestivalFilter(DropdownFilter):
         return queryset.filter(festival_id=self.value()) if self.value() else queryset
 
 
-class ApplicationStateFilter(DropdownFilter):
+class ApplicationStateFilter(admin.SimpleListFilter):
     title = "Статус анкеты"
     parameter_name = "application_status"
 
@@ -123,7 +134,7 @@ class ApplicationStateFilter(DropdownFilter):
         return queryset
 
 
-class BalanceFilter(DropdownFilter):
+class BalanceFilter(admin.SimpleListFilter):
     title = "Баланс"
     parameter_name = "balance"
 
@@ -144,9 +155,10 @@ class BalanceFilter(DropdownFilter):
         return queryset
 
 
-class ServiceFilter(DropdownFilter):
+class ServiceFilter(admin.SimpleListFilter):
     title = "Услуга"
     parameter_name = "service"
+    template = "admin/applications/grouped_filter.html"
 
     def lookups(self, request, model_admin):
         selected = request.GET.get("festival__id__exact", "")
@@ -157,17 +169,34 @@ class ServiceFilter(DropdownFilter):
             .select_related("field")
             .order_by("field__order", "order", "pk")
         )
-        return [
-            (option.pk, f"{option.field.label} · {option.label}") for option in options
-        ]
+        self.groups = []
+        selected_values = set(request.GET.getlist(self.parameter_name))
+        for option in options:
+            if not self.groups or self.groups[-1]["id"] != option.field_id:
+                self.groups.append(
+                    {"id": option.field_id, "label": option.field.label, "options": []}
+                )
+            self.groups[-1]["options"].append(
+                {
+                    "value": str(option.pk),
+                    "label": option.label,
+                    "checked": str(option.pk) in selected_values,
+                }
+            )
+        return [(option.pk, option.label) for option in options]
 
     def queryset(self, request, queryset):
         selected = request.GET.get("festival__id__exact", "")
-        if selected.isdecimal() and self.value() and self.value().isdecimal():
-            option_id = int(self.value())
-            if not ServiceOption.objects.filter(
-                pk=option_id, field__festival_id=int(selected)
-            ).exists():
+        values = set(request.GET.getlist(self.parameter_name)) - {""}
+        if selected.isdecimal() and values:
+            if any(not value.isdecimal() for value in values):
+                return queryset.none()
+            options = list(
+                ServiceOption.objects.filter(
+                    pk__in=values, field__festival_id=int(selected)
+                )
+            )
+            if len(options) != len(values):
                 return queryset.none()
             archived = [
                 f.pk
@@ -179,23 +208,35 @@ class ServiceFilter(DropdownFilter):
                 financial_snapshot_current=True,
                 financial_snapshot__isnull=False,
             )
-            return queryset.annotate(
-                registry_service_selected=Case(
-                    When(snapshot, then=SnapshotServiceSelected(option_id)),
-                    default=Exists(
-                        ApplicationServiceSelection.objects.filter(
-                            application_id=OuterRef("pk"), option_id=option_id
+            groups = {}
+            for option in options:
+                name = f"registry_service_{option.pk}"
+                queryset = queryset.annotate(
+                    **{
+                        name: Case(
+                            When(snapshot, then=SnapshotServiceSelected(option.pk)),
+                            default=Exists(
+                                ApplicationServiceSelection.objects.filter(
+                                    application_id=OuterRef("pk"), option_id=option.pk
+                                )
+                            ),
+                            output_field=BooleanField(),
                         )
-                    ),
-                    output_field=BooleanField(),
+                    }
                 )
-            ).filter(registry_service_selected=True)
+                groups[option.field_id] = groups.get(option.field_id, Q()) | Q(
+                    **{name: True}
+                )
+            for condition in groups.values():
+                queryset = queryset.filter(condition)
+            return queryset
         return queryset
 
 
-class FeeStatusFilter(DropdownFilter):
+class FeeStatusFilter(admin.SimpleListFilter):
     title = "Фиксация платы"
     parameter_name = "fee_status"
+    template = "admin/applications/grouped_filter.html"
 
     def lookups(self, request, model_admin):
         selected = request.GET.get("festival__id__exact", "")
@@ -204,6 +245,25 @@ class FeeStatusFilter(DropdownFilter):
         fields = FormField.objects.filter(
             festival_id=int(selected), field_type="datefee", is_active=True
         )
+        selected_values = set(request.GET.getlist(self.parameter_name))
+        self.groups = [
+            {
+                "id": field.pk,
+                "label": field.label,
+                "options": [
+                    {
+                        "value": f"{field.pk}:{state}",
+                        "label": label.capitalize(),
+                        "checked": f"{field.pk}:{state}" in selected_values,
+                    }
+                    for state, label in (
+                        ("yes", "зафиксирован"),
+                        ("no", "не зафиксирован"),
+                    )
+                ],
+            }
+            for field in fields
+        ]
         return [
             (f"{field.pk}:{state}", f"{field.label}: {label}")
             for field in fields
@@ -211,7 +271,18 @@ class FeeStatusFilter(DropdownFilter):
         ]
 
     def queryset(self, request, queryset):
-        value = self.value() or ""
+        values = set(request.GET.getlist(self.parameter_name)) - {""}
+        if not values <= {str(value) for value, _ in self.lookup_choices}:
+            return queryset.none()
+        for value in values:
+            if value.endswith(":yes") and value[:-4] + ":no" in values:
+                continue
+            if value.endswith(":no") and value[:-3] + ":yes" in values:
+                continue
+            queryset = self.filter_value(request, queryset, value)
+        return queryset
+
+    def filter_value(self, request, queryset, value):
         parts = value.split(":")
         selected = request.GET.get("festival__id__exact", "")
         if (
@@ -263,18 +334,260 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
     list_filter = (
         FestivalFilter,
         ApplicationStateFilter,
-        ServiceFilter,
         BalanceFilter,
         FeeStatusFilter,
+        ServiceFilter,
     )
     list_filter_options = {"festival__id__exact": {"horizontal": True}}
     list_filter_submit = True
     search_fields = ("owner__email", "owner__first_name", "owner__last_name")
     ordering = ("status", "-updated_at", "-pk")
     list_per_page = 25
+    list_max_show_all = 0
     show_full_result_count = False
     actions = None
     warn_unsaved_form = False
+
+    def get_urls(self):
+        return [
+            path(
+                "answers/",
+                self.admin_site.admin_view(self.answers_view),
+                name="applications_application_answers",
+            ),
+            *super().get_urls(),
+        ]
+
+    def answers_view(self, request):
+        if not self.has_view_or_change_permission(request):
+            raise PermissionDenied
+        festivals = ordered_festivals()
+        selected = request.GET.get("festival", "")
+        if selected and not selected.isdecimal():
+            raise SuspiciousOperation("Неизвестный фестиваль.")
+        festival = (
+            get_object_or_404(Festival, pk=int(selected))
+            if selected.isdecimal()
+            else None
+        )
+        festival_widget = UnfoldAdminSelect2Widget(
+            attrs={"id": "festival", "data-submit": True},
+            choices=[("", "Выберите фестиваль")]
+            + [
+                (
+                    item.pk,
+                    f"{item.name} — {Festival.Status(get_effective_status(item)).label}",
+                )
+                for item in festivals
+            ],
+        )
+        columns, rows, selections = (
+            prepare_answer_table(festival, request.GET) if festival else ([], [], {})
+        )
+        filters = []
+        for field in columns:
+            if field.field_type not in ("single", "multi", "service", "service1"):
+                continue
+            options = (
+                field.service_options.all()
+                if field.field_type in ("service", "service1")
+                else field.options.all()
+            )
+            filters.append(
+                {
+                    "label": field.label,
+                    "name": f"answer_{field.pk}",
+                    "options": [
+                        {
+                            "value": option.pk,
+                            "label": option.label,
+                            "checked": str(option.pk)
+                            in selections.get(field.pk, set()),
+                            "hidden": not option.is_active,
+                        }
+                        for option in options
+                    ],
+                }
+            )
+        page = Paginator(rows, 10).get_page(request.GET.get("p"))
+        query = request.GET.copy()
+        query.pop("p", None)
+        status_options = []
+        for value, label in (
+            ("all", "Все"),
+            ("active", "Активные"),
+            ("archived", "В архиве"),
+            ("withdrawn", "Отозванные"),
+        ):
+            status_query = query.copy()
+            status_query["status"] = value
+            status_options.append(
+                {
+                    "label": label,
+                    "url": f"?{status_query.urlencode()}",
+                    "selected": request.GET.get("status", "active") == value,
+                }
+            )
+
+        ordering = query.get("sort", "").split(",") if query.get("sort") else []
+
+        def sort_link(items):
+            params = query.copy()
+            if items:
+                params["sort"] = ",".join(items)
+            else:
+                params.pop("sort", None)
+            return f"?{params.urlencode()}"
+
+        def sortable_header(key, label):
+            items = list(ordering)
+            index = next(
+                (i for i, value in enumerate(items) if value.lstrip("-") == key), None
+            )
+            if index is None:
+                items.append(f"-{key}")
+                return format_html('<a href="{}">{}</a>', sort_link(items), label)
+            current = items[index]
+            if current.startswith("-"):
+                items[index] = key
+            else:
+                items.pop(index)
+            icon = "arrow_downward" if current.startswith("-") else "arrow_upward"
+            priority = str(index + 1) if len(ordering) > 1 else ""
+            return format_html(
+                '<div class="answer-sort"><a href="{}">{} <span class="admin-sort-icon material-symbols-outlined" aria-hidden="true">{}</span> <span>{}</span></a></div>',
+                sort_link(items),
+                label,
+                icon,
+                priority,
+            )
+
+        money_chars = max(
+            (
+                len(number_format(value or 0, decimal_pos=2, force_grouping=True))
+                for row in rows
+                for value in (
+                    row["application"].registry_total,
+                    row["application"].paid_amount,
+                    row["application"].registry_balance,
+                )
+            ),
+            default=8,
+        )
+        money_width = max(100, (money_chars + 2) * 9 + 24)
+        widths = {"number": 90, "date": 120, "textarea": 200}
+        column_widths = {
+            field.pk: widths.get(field.field_type, 170) for field in columns
+        }
+        for field in columns:
+            field.answer_width = column_widths[field.pk]
+        headers = [
+            {
+                "class": "answer-column-money"
+                if key in ("total", "paid", "balance")
+                else "answer-column-default",
+                "content": sortable_header(key, label),
+            }
+            for key, label in (
+                ("owner", "Владелец"),
+                ("fees", "Платы по дате"),
+                ("total", "Сумма"),
+                ("paid", "Внесено"),
+                ("balance", "Итого"),
+            )
+        ]
+        headers.extend(
+            {
+                "class": f"answer-column-{field.pk}",
+                "content": sortable_header(
+                    f"field_{field.pk}",
+                    field.label + (" · Скрыт" if not field.is_active else ""),
+                ),
+            }
+            for field in columns
+        )
+        for row in page:
+            row["values"] = [
+                {
+                    "text": ", ".join(row["cells"].get(field.pk, [])),
+                    "long_text": field.field_type == "textarea"
+                    and len(", ".join(row["cells"].get(field.pk, []))) > 100,
+                }
+                for field in columns
+            ]
+            application = row["application"]
+            row["fees"] = self.fees_display(application)
+            row["total"] = self.total_display(application)
+            row["paid"] = self.paid_display(application)
+            row["balance"] = self.balance_display(application)
+        rendered_rows = []
+        for row in page:
+            application = row["application"]
+            owner = application.owner
+            name = (
+                (owner.get_full_name() or owner.email) if owner else "Владелец удалён"
+            )
+            cells = [
+                format_html(
+                    '<a href="{}">{}<small class="block mt-1">{}</small></a>',
+                    reverse(
+                        "admin:applications_application_change", args=[application.pk]
+                    ),
+                    name,
+                    self.application_status(application),
+                ),
+                row["fees"],
+                {"class": "answer-column-money", "content": row["total"]},
+                {"class": "answer-column-money", "content": row["paid"]},
+                {"class": "answer-column-money", "content": row["balance"]},
+            ]
+            for field, value in zip(columns, row["values"], strict=True):
+                content = value["text"] or "—"
+                if value["long_text"]:
+                    content = format_html(
+                        '<details class="answer-table__long"><summary><span class="answer-table__preview">{}</span><span class="answer-table__expand" aria-label="Показать ответ полностью">...</span><span class="answer-table__collapse">скрыть ⌃</span></summary><div class="answer-table__value">{}</div></details>',
+                        Truncator(content).chars(100, truncate=""),
+                        content,
+                    )
+                else:
+                    content = format_html(
+                        '<span class="answer-table__value">{}</span>', content
+                    )
+                cells.append({"class": f"answer-column-{field.pk}", "content": content})
+            rendered_rows.append(cells)
+        return TemplateResponse(
+            request,
+            "admin/applications/answer_table.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "Ответы анкет",
+                "answer_data": {"headers": headers, "rows": rendered_rows},
+                "content_title": "Ответы анкет",
+                "can_add_application": self.has_add_permission(request),
+                "festivals": festivals,
+                "festival": festival,
+                "columns": columns,
+                "filters": filters,
+                "status_options": status_options,
+                "page_obj": page,
+                "page_range": page.paginator.get_elided_page_range(page.number),
+                "status": request.GET.get("status", "active"),
+                "query_without_page": query.urlencode(),
+                "search_params": [
+                    (key, value)
+                    for key, values in query.lists()
+                    if key != "q"
+                    for value in values
+                ],
+                "festival_select": festival_widget.render("festival", selected),
+                "media": self.media + festival_widget.media,
+                "money_width": money_width,
+                "base_width": 340 + 3 * money_width,
+                "table_width": 340
+                + 3 * money_width
+                + sum(field.answer_width for field in columns if field.is_active),
+            },
+        )
 
     def get_search_results(self, request, queryset, search_term):
         for term in smart_split(search_term):
@@ -297,7 +610,7 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
 
     @admin.display(description="Внесено", ordering="paid_amount")
     def paid_display(self, obj):
-        return f"{number_format(obj.paid_amount, decimal_pos=2, force_grouping=True)} ₽"
+        return self.money(obj.paid_amount)
 
     def get_queryset(self, request):
         queryset = (

@@ -1,0 +1,19 @@
+{% load i18n %}
+<div class="bg-white border border-base-200 flex flex-row items-center px-3 rounded-default relative shadow-xs w-full focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-primary-600 lg:w-96 dark:bg-base-900 dark:border-base-700">
+    <button type="submit"
+            class="flex items-center focus:outline-hidden"
+            aria-label="Поиск">
+        <span class="material-symbols-outlined md-18 text-base-400 dark:text-base-500"
+              aria-hidden="true">search</span>
+    </button>
+    <input type="text"
+           class="grow font-medium min-w-0 overflow-hidden p-2 placeholder-font-subtle-light truncate focus:outline-hidden dark:bg-base-900 dark:placeholder-font-subtle-dark dark:text-font-default-dark"
+           name="{{ search_name }}"
+           value="{{ search_value|default:'' }}"
+           {% if search_id %}id="{{ search_id }}"{% endif %}
+           placeholder="{{ search_placeholder }}"
+           aria-label="{{ search_placeholder }}">
+    {% if show_shortcut %}
+        {% include "unfold/helpers/shortcut.html" with shortcut="/" %}
+    {% endif %}
+</div>

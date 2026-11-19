@@ -23,6 +23,138 @@ html.dark .text-subtle {
     background-color: var(--admin-page-bg);
 }
 
+.admin-bottom-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
+    background: var(--admin-panel-bg);
+    border-top: 1px solid var(--admin-panel-border);
+}
+
+.admin-table-rail {
+    height: 18px;
+    display: flex;
+    align-items: center;
+}
+
+.admin-table-rail input {
+    appearance: none;
+    width: 100%;
+    height: 12px;
+    margin: 0;
+    cursor: ew-resize;
+    background: var(--admin-panel-border);
+    border-radius: 6px;
+}
+
+.admin-table-rail input::-webkit-slider-thumb {
+    appearance: none;
+    width: 56px;
+    height: 12px;
+    background: var(--color-base-500);
+    border-radius: 6px;
+}
+
+.admin-table-rail input::-moz-range-thumb {
+    width: 56px;
+    height: 12px;
+    border: 0;
+    background: var(--color-base-500);
+    border-radius: 6px;
+}
+
+.admin-table-rail[hidden] {
+    display: none;
+}
+
+.admin-table-pagination {
+    min-height: 48px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.admin-table-pagination nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.admin-table-pagination nav :is(a, span) {
+    padding: 5px 9px;
+    border-radius: 5px;
+}
+
+.admin-table-pagination [aria-current=page],
+.admin-table-pagination nav span.text-primary-600 {
+    background: var(--color-accent);
+    color: #fff;
+    font-weight: 700;
+}
+
+.admin-table-pagination [aria-disabled=true] {
+    color: var(--admin-subtle-text);
+    opacity: .6;
+}
+
+.admin-sort-icon {
+    font-size: 15px !important;
+    vertical-align: middle;
+    color: var(--admin-subtle-text);
+}
+
+.admin-sort-link {
+    overflow-wrap: anywhere;
+}
+
+.registry-grouped-filter h3,
+.registry-grouped-filter summary {
+    font-weight: 650;
+}
+
+.registry-grouped-filter details {
+    margin-top: 14px;
+}
+
+.admin-filter-choice {
+    border: 1px solid var(--admin-panel-border);
+    border-radius: 6px;
+    background: var(--admin-panel-bg);
+    overflow: hidden;
+}
+
+.admin-filter-choice summary {
+    padding: 10px 12px;
+}
+
+.admin-filter-choice label {
+    padding: 0 12px;
+}
+
+.registry-grouped-filter summary {
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+.registry-grouped-filter label {
+    display: block;
+    margin: 8px 0;
+    overflow-wrap: anywhere;
+}
+
+.answer-table__scroll .overflow-x-auto,
+div:has(> #result_list) {
+    scrollbar-width: none;
+}
+
+.answer-table__scroll .overflow-x-auto::-webkit-scrollbar,
+div:has(> #result_list)::-webkit-scrollbar {
+    display: none;
+}
+
 .admin-table-scroll-hint {
     margin: 0 0 8px;
     color: var(--admin-subtle-text);
@@ -142,6 +274,15 @@ fieldset.module {
     margin-bottom: 16px;
 }
 
+body.app-applications.model-application.change-list #changelist-filter {
+    position: static;
+}
+
+body.app-applications.model-application.change-list #changelist-filter li a {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 body.app-applications.model-application.change-list #header-inner h1 > span.font-medium {
     display: none;
 }
@@ -180,6 +321,73 @@ body.app-applications.model-application.change-list #changelist-filter .select2-
     font-variant-numeric: tabular-nums;
 }
 
+#result_list {
+    table-layout: fixed;
+}
+
+#result_list thead th {
+    width: 12.5%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+body.app-applications.model-application.change-list #result_list thead th:nth-child(1) {
+    width: 12%;
+}
+
+body.app-applications.model-application.change-list #result_list thead th:nth-child(2) {
+    width: 16%;
+}
+
+body.app-applications.model-application.change-list #result_list thead th:nth-child(3) {
+    width: 13%;
+}
+
+body.app-applications.model-application.change-list #result_list thead th:nth-child(4) {
+    width: 16%;
+}
+
+body.app-applications.model-application.change-list #result_list thead th:nth-child(5),
+body.app-applications.model-application.change-list #result_list thead th:nth-child(6) {
+    width: 110px;
+}
+
+body.app-applications.model-application.change-list #result_list thead th:nth-child(7) {
+    width: 120px;
+}
+
+body.app-applications.model-application.change-list #result_list thead th:nth-child(8) {
+    width: 150px;
+}
+
+body.app-festivals.model-festival.change-list #result_list {
+    min-width: 770px;
+}
+
+body.app-festivals.model-festival.change-list #result_list .column-name {
+    width: 240px;
+}
+
+body.app-festivals.model-festival.change-list #result_list .column-status {
+    width: 130px;
+}
+
+body.app-festivals.model-festival.change-list #result_list :is(.column-start_date, .column-end_date) {
+    width: 120px;
+}
+
+body.app-festivals.model-festival.change-list #result_list .column-timezone {
+    width: 160px;
+}
+
+body.app-festivals.model-festival.change-list #result_list :is(.field-start_date, .field-end_date, .field-timezone) {
+    white-space: nowrap;
+}
+
+#result_list tbody :is(th, td) {
+    overflow-wrap: anywhere;
+}
+
 #result_list tbody a[href*="/change/"] {
     font-weight: 650;
     text-decoration: none;
@@ -211,8 +419,8 @@ body.app-applications.model-application.change-list #result_list .field-particip
     display: grid !important;
     grid-template-columns: minmax(300px, auto) minmax(0, 1fr) auto;
     align-items: center;
-    margin-bottom: 16px !important;
-    padding-bottom: 12px !important;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
 }
 
 .admin-list-toolbar > form {
@@ -300,11 +508,7 @@ body.app-applications.model-application.change-list #result_list .field-particip
 }
 
 .app-applications.model-application #result_list {
-    min-width: 900px;
-}
-
-.app-applications.model-application #result_list :is(th, td) {
-    padding-inline: 8px;
+    min-width: 1200px;
 }
 
 .app-applications.model-application #result_list .field-fees_display {
@@ -557,6 +761,10 @@ body.app-applications.model-application.change-list #result_list .field-particip
 
 @media (width < 1024px) {
 
+    #page > div:has(#nav-sidebar) > div:has(#nav-sidebar) {
+        position: fixed;
+    }
+
     body.change-list #content {
         max-width: none;
     }
@@ -573,10 +781,6 @@ body.app-applications.model-application.change-list #result_list .field-particip
 
     #header-inner h1 > span.font-medium {
         display: none;
-    }
-
-    #result_list :is(th, td) {
-        padding-inline: 8px;
     }
 
     .addlink .addlink__text {
@@ -615,6 +819,11 @@ body.app-applications.model-application.change-list #result_list .field-particip
         min-width: 0;
         max-width: none;
         order: 0;
+    }
+
+    body.app-applications.model-application.change-list #changelist-filter {
+        max-height: none;
+        overflow-y: visible;
     }
 
     .admin-filter-panel[style*="display: none"] {
@@ -678,8 +887,8 @@ body.app-applications.model-application.change-list #result_list .field-particip
 }
 
 @media (width < 800px) {
-    #page > div:has(#nav-sidebar) > div:has(#nav-sidebar) {
-        position: static;
+    .admin-table-rail {
+        display: none;
     }
 
     #result_list tbody a[href*="/change/"] {

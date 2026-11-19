@@ -1,0 +1,6 @@
+<div class="registry-grouped-filter">
+    <h3>{{ title }}</h3>
+    {% for group in spec.groups %}
+        {% include "admin/includes/grouped_filter.html" with input_name=spec.parameter_name %}
+    {% endfor %}
+</div>

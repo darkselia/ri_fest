@@ -1,0 +1,10 @@
+<details class="admin-filter-choice">
+    <summary>{{ group.label }}</summary>
+    {% for option in group.options %}
+        <label><input type="checkbox"
+                      name="{{ input_name }}"
+                      value="{{ option.value }}"
+                      {% if option.checked %}checked{% endif %}
+                      {% if autosubmit %}data-submit{% endif %}> {{ option.label }}{% if option.hidden %} · Скрыт{% endif %}</label>
+    {% endfor %}
+</details>

@@ -178,6 +178,44 @@ def test_registry_service_filter_uses_archived_snapshot(
     assert list(response.context["cl"].queryset) == [app]
 
 
+def test_registry_grouped_filters_combine_options(priced, client, django_user_model):
+    case, fee = priced
+    _, owner, festival, app, _ = case
+    staff = django_user_model.objects.create_superuser(
+        "grouped@example.invalid", "test-password"
+    )
+    options = list(app.service_selections.values_list("option_id", flat=True))
+    second = Application.objects.create(owner=owner, festival=festival, status="active")
+    ApplicationServiceSelection.objects.create(application=second, option_id=options[1])
+    FeeLock.objects.create(
+        application=app,
+        field=fee,
+        amount=1200,
+        locked_at=datetime(2029, 12, 1, tzinfo=timezone.utc),
+    )
+    client.force_login(staff)
+    url = reverse("admin:applications_application_changelist")
+    params = {
+        "festival__id__exact": festival.pk,
+        "service": [options[0], options[1]],
+        "fee_status": [f"{fee.pk}:yes", f"{fee.pk}:no"],
+    }
+    response = client.get(url, params)
+    assert set(response.context["cl"].queryset) == {app, second}
+    params["fee_status"] = [f"{fee.pk}:yes"]
+    assert list(client.get(url, params).context["cl"].queryset) == [app]
+    other_field = FormField.objects.create(
+        festival=festival, field_type="service", label="Питание"
+    )
+    other_option = ServiceOption.objects.create(
+        field=other_field, label="Обед", price=0
+    )
+    ApplicationServiceSelection.objects.create(application=second, option=other_option)
+    params["fee_status"] = [f"{fee.pk}:yes", f"{fee.pk}:no"]
+    params["service"].append(other_option.pk)
+    assert list(client.get(url, params).context["cl"].queryset) == [second]
+
+
 def test_registry_sorting_and_combined_filters_with_archive(
     priced, client, django_user_model
 ):

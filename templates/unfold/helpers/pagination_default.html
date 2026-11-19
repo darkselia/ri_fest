@@ -1,7 +1,19 @@
 {% load unfold_list %}
-{% if pagination_required %}
-    {% for i in page_range %}
-        <div class="pr-4">{% paginator_number cl i %}</div>
-    {% endfor %}
-{% endif %}
-<div class="py-4">Количество: {{ cl.result_count }}</div>
+<div class="admin-table-pagination">
+    <span>Всего записей: {% if cl %}{{ cl.result_count }}{% else %}{{ page_obj.paginator.count }}{% endif %}</span>
+    {% if pagination_required or page_obj.paginator.num_pages > 1 %}
+        <nav aria-label="Страницы">
+            {% if cl %}
+                {% if cl.page_num > 1 %}<a href="{{ cl.get_query_string }}&amp;p={{ cl.page_num|add:'-1' }}">Назад</a>{% else %}<span aria-disabled="true">Назад</span>{% endif %}
+                {% for i in page_range %}{% paginator_number cl i %}{% endfor %}
+                {% if cl.page_num < cl.paginator.num_pages %}<a href="{{ cl.get_query_string }}&amp;p={{ cl.page_num|add:'1' }}">Далее</a>{% endif %}
+            {% else %}
+                {% if page_obj.has_previous %}<a href="?{{ query_without_page }}&amp;p={{ page_obj.previous_page_number }}">Назад</a>{% else %}<span aria-disabled="true">Назад</span>{% endif %}
+                {% for number in page_range %}
+                    {% if number == page_obj.paginator.ELLIPSIS %}<span>…</span>{% elif number == page_obj.number %}<span aria-current="page">{{ number }}</span>{% else %}<a href="?{{ query_without_page }}&amp;p={{ number }}">{{ number }}</a>{% endif %}
+                {% endfor %}
+                {% if page_obj.has_next %}<a href="?{{ query_without_page }}&amp;p={{ page_obj.next_page_number }}">Далее</a>{% endif %}
+            {% endif %}
+        </nav>
+    {% endif %}
+</div>

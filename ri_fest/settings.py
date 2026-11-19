@@ -69,6 +69,30 @@ UNFOLD = {
                         "link": reverse_lazy(
                             "admin:applications_application_changelist"
                         ),
+                        "active": lambda request: (
+                            request.path.startswith(
+                                str(
+                                    reverse_lazy(
+                                        "admin:applications_application_changelist"
+                                    )
+                                )
+                            )
+                            and not request.path.startswith(
+                                str(
+                                    reverse_lazy(
+                                        "admin:applications_application_answers"
+                                    )
+                                )
+                            )
+                        ),
+                        "permission": lambda request: request.user.has_perm(
+                            "applications.view_application"
+                        ),
+                    },
+                    {
+                        "title": "Ответы анкет",
+                        "icon": "table_chart",
+                        "link": reverse_lazy("admin:applications_application_answers"),
                         "permission": lambda request: request.user.has_perm(
                             "applications.view_application"
                         ),

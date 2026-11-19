@@ -1,10 +1,17 @@
+document.querySelectorAll('select[name="balance"], select[name="application_status"]').forEach(select => {
+    select.dataset.minimumResultsForSearch = "-1";
+});
+
 document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("#filter-form details:has(input:checked), #answer-filter-form details:has(input:checked)").forEach(details => {
+        details.open = true;
+    });
     if (document.body.matches(".app-applications.model-application")) {
         const form = document.getElementById("filter-form");
         if (form) {
             const applyFilter = () => form.requestSubmit();
             if (window.django?.jQuery) {
-                window.django.jQuery(form).on("change", "select", applyFilter);
+                window.django.jQuery(form).on("change", "select, input[type=checkbox]", applyFilter);
             } else {
                 form.addEventListener("change", applyFilter);
             }
@@ -40,20 +47,22 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.django.jQuery(festival).on("input change", resetFestivalFilters);
             }
         }
-        const table = document.getElementById("result_list");
-        const scroller = table?.parentElement;
-        if (scroller) {
-            const hint = document.createElement("p");
-            hint.className = "admin-table-scroll-hint";
-            hint.textContent = "Прокрутите таблицу вбок, чтобы увидеть все столбцы. Чтобы перейти в анкету нажмите" +
-                " на поле \"Участник\"";
-            scroller.before(hint);
-            const updateHint = () => {
-                hint.hidden = scroller.scrollWidth <= scroller.clientWidth;
-            };
-            new ResizeObserver(updateHint).observe(scroller);
-            updateHint();
+    }
+    const table = document.getElementById("result_list");
+    const scroller = table?.parentElement;
+    if (scroller) {
+        const hint = document.createElement("p");
+        hint.className = "admin-table-scroll-hint";
+        hint.textContent = "Прокрутите таблицу вбок, чтобы увидеть все столбцы.";
+        if (document.body.matches(".app-applications.model-application.change-list")) {
+            hint.textContent += " Чтобы перейти в анкету нажмите на поле \"Участник\"";
         }
+        scroller.before(hint);
+        const updateHint = () => {
+            hint.hidden = scroller.scrollWidth <= scroller.clientWidth;
+        };
+        new ResizeObserver(updateHint).observe(scroller);
+        updateHint();
     }
     const toolbar = document.getElementById("toolbar");
     const filters = document.getElementById("changelist-filter");

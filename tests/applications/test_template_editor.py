@@ -694,7 +694,7 @@ def test_festival_counter_shows_total(number):
         "unfold/helpers/pagination_default.html",
         {"cl": SimpleNamespace(result_count=number, opts=Festival._meta)},
     )
-    assert " ".join(strip_tags(html).split()) == f"Количество: {number}"
+    assert " ".join(strip_tags(html).split()) == f"Всего записей: {number}"
 
 
 def test_incomplete_draft_schema_can_be_saved_but_not_published(festival, actor):
