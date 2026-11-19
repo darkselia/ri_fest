@@ -219,6 +219,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "ru"
+FORMAT_MODULE_PATH = ["ri_fest.formats"]
 LOCALE_PATHS = [Path("/opt/ri-fest/locale")]
 TIME_ZONE = "UTC"
 USE_I18N = True

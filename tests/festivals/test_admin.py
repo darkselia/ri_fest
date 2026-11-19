@@ -6,6 +6,8 @@ import pytest
 from django.contrib.admin.templatetags.admin_list import result_headers
 from django.contrib.auth.models import Group, Permission
 from django.urls import reverse
+from django.utils.formats import date_format
+from django.utils.translation import override
 
 from applications.models import FormField
 from festivals.models import Festival
@@ -17,6 +19,15 @@ from festivals.services import (
 )
 
 pytestmark = pytest.mark.django_db
+
+
+def test_russian_date_and_datetime_formats():
+    with override("ru"):
+        assert date_format(date(2030, 1, 28), "DATE_FORMAT") == "28.01.2030"
+        assert (
+            date_format(datetime(2030, 1, 28, 9, 5), "DATETIME_FORMAT")
+            == "28.01.2030 09:05"
+        )
 
 
 def test_admin_create_and_errors(client, organizer, now):
@@ -328,6 +339,8 @@ def test_list_has_no_actions_and_sorts_by_requested_columns(
     )
     list_url = reverse("admin:festivals_festival_changelist")
     response = client.get(list_url)
+    assert "28.01.2030" in response.content.decode()
+    assert "01.02.2030" in response.content.decode()
     headers = list(result_headers(response.context["cl"]))
     assert [str(header["text"]) for header in headers if header["sortable"]] == [
         "Название",
