@@ -2,7 +2,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import Group, Permission
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -17,282 +18,213 @@ from applications.models import (
     FormOption,
     ServiceOption,
 )
+from billing.calculator import calc_application_total, calendar_cutoff, make_snapshot
+from billing.models import FeeLock
 from festivals.models import Festival
 
 
+PEOPLE = [
+    ("Алексей", "Смирнов"), ("Мария", "Иванова"), ("Дмитрий", "Кузнецов"),
+    ("Анна", "Попова"), ("Илья", "Соколов"), ("Екатерина", "Лебедева"),
+    ("Максим", "Козлов"), ("Полина", "Новикова"), ("Артём", "Морозов"),
+    ("Ольга", "Волкова"), ("Никита", "Зайцев"), ("Софья", "Павлова"),
+    ("Егор", "Семёнов"), ("Вера", "Голубева"), ("Кирилл", "Виноградов"),
+    ("Лена", "Беляева"), ("Роман", "Комаров"), ("Дарья", "Орлова"),
+    ("Тимур", "Андреев"), ("Алиса", "Макарова"), ("Павел", "Никитин"),
+    ("Миша", "Захаров"), ("Ксения", "Соловьёва"), ("Глеб", "Борисов"),
+    ("Юля", "Яковлева"), ("Степан", "Григорьев"), ("Надя", "Романова"),
+    ("Лев", "Воробьёв"), ("Ирина", "Сергеева"), ("Фёдор", "Медведев"),
+    ("Маша", "Ершова"), ("Влад", "Киселёв"), ("Саша", "Тихонов"),
+    ("Лиза", "Фёдорова"), ("Марк", "Михайлов"), ("Нина", "Баранова"),
+]
+
+ABOUT = [
+    "Играю несколько лет, люблю камерные сюжеты и знакомиться с людьми. Могу помочь с реквизитом.",
+    "Буду впервые. Пока присматриваюсь к программе, но на настолки и мастерскую точно загляну.",
+    "Еду с подругой на машине. Если кому-то по пути из города, есть одно свободное место.",
+    "Вожу игры и иногда пишу сценарии. Могу провести короткую игру вечером, если будет запрос.",
+    "Хочется сменить обстановку, погулять и провести выходные без телефона. Особых пожеланий нет.",
+    "Участвовал(а) в прошлом году — понравилась дружелюбная атмосфера. В этот раз приеду пораньше.",
+    "Люблю мастерить: могу привезти материалы и показать, как делать простые кожаные брелоки.",
+    "Пока не знаю, на сколько получится приехать из-за работы. Уточню даты ближе к событию.",
+]
+
+
 class Command(BaseCommand):
-    help = "Заменить фестивали и анкеты демонстрационными данными."
+    help = "Заменить фестивали и анкеты реалистичными демонстрационными данными."
 
     def add_arguments(self, parser):
-        parser.add_argument("--apply", action="store_true")
-        parser.add_argument("--dry-run", action="store_true")
+        parser.add_argument(
+            "--mode",
+            choices=("reset", "add", "refresh"),
+            default="refresh",
+            help="reset: очистить базу (только DEBUG); add: добавить демо; refresh: обновить демо.",
+        )
+        parser.add_argument("--apply", action="store_true", help="Выполнить выбранный режим.")
+        parser.add_argument("--dry-run", action="store_true", help="Только показать план.")
 
     def handle(self, *args, **options):
-        if not options["apply"]:
-            self.stdout.write(
-                "Будут заменены все фестивали и анкеты. Для выполнения добавьте --apply."
-            )
+        mode = options["mode"]
+        if mode == "reset" and not settings.DEBUG:
+            raise CommandError("Режим reset разрешён только при DEBUG=True.")
+        if not options["apply"] or options["dry_run"]:
+            self.stdout.write(f"Режим {mode}: " + {
+                "reset": "полностью очистить базу и создать демо-пользователей и данные",
+                "add": "добавить демо-пользователей и данные без удаления текущих",
+                "refresh": "обновить демо-пользователей и заменить их демо-данные",
+            }[mode] + ". Для выполнения добавьте --apply.")
             return
 
         with transaction.atomic():
-            # Clear dependent rows first; applications belonging to real users are replaced too.
-            Application.objects.all().delete()
-            FormField.objects.all().delete()
-            Festival.objects.all().delete()
+            if mode == "reset":
+                from django.core.management import call_command
+
+                call_command("flush", interactive=False, verbosity=0)
+
+            if mode == "refresh":
+                demo_emails = [f"demo-participant-{i:02d}@example.invalid" for i in range(1, len(PEOPLE) + 1)]
+                demo_emails += [f"user{i}@example.com" for i in range(len(PEOPLE))]
+                Application.objects.filter(owner__email__in=demo_emails).delete()
+                User.objects.filter(email__in=demo_emails).delete()
+                Festival.objects.filter(name__in=["РИ-фест: Первый ролевой", "Северный ветер: игры у озера", "Мастерская миров", "Осенние встречи"]).delete()
 
             admin, _ = User.objects.get_or_create(email="admin@example.com")
             admin.first_name, admin.last_name = "Администратор", "Демо"
-            admin.is_staff = admin.is_superuser = True
-            admin.is_active = True
+            admin.is_staff = admin.is_superuser = admin.is_active = True
             admin.set_password("admin")
             admin.save()
-
-            group, created = Group.objects.get_or_create(name="Организаторы")
-            group.permissions.add(
-                *Permission.objects.filter(
-                    Q(content_type__app_label="festivals")
-                    | Q(
-                        content_type__app_label="applications",
-                        content_type__model__in=[
-                            "formfield",
-                            "formoption",
-                            "serviceoption",
-                        ],
-                    )
-                )
-            )
+            group, _ = Group.objects.get_or_create(name="Организаторы")
+            group.permissions.add(*Permission.objects.filter(
+                Q(content_type__app_label="festivals")
+                | Q(content_type__app_label="applications", content_type__model__in=["formfield", "formoption", "serviceoption"])
+            ))
             admin.groups.add(group)
 
             participants = []
-            for email, first_name, last_name in [
-                ("user0@example.com", "Алексей", "Смирнов"),
-                ("user1@example.com", "Мария", "Иванова"),
-                ("user2@example.com", "Дмитрий", "Кузнецов"),
-            ]:
-                user, _ = User.objects.get_or_create(email=email)
-                user.first_name, user.last_name = first_name, last_name
-                user.is_staff = user.is_superuser = False
-                user.is_active = True
-                user.set_password(
-                    "Simple_Password#1"
-                    if email == "user0@example.com"
-                    else "Demo-RiFest-2027!"
-                )
-                user.save()
+            for index, (first, last) in enumerate(PEOPLE, 1):
+                email = f"demo-participant-{index:02d}@example.invalid"
+                user, created = User.objects.get_or_create(email=email, defaults={"first_name": first, "last_name": last, "is_active": True})
+                if created:
+                    user.set_password("Demo-RiFest-2027!")
+                    user.save()
                 participants.append(user)
 
-            start = date(2027, 1, 28)
             today = timezone.localdate()
             specs = [
-                ("РИ-фест 2027: Первый ролевой", "open", start, date(2027, 1, 31)),
-                (
-                    "Северный ветер",
-                    "open",
-                    today + timedelta(days=60),
-                    today + timedelta(days=63),
-                ),
-                (
-                    "Мастерская миров",
-                    "draft",
-                    today + timedelta(days=90),
-                    today + timedelta(days=92),
-                ),
-                (
-                    "Осенние встречи",
-                    "archived",
-                    today - timedelta(days=23),
-                    today - timedelta(days=20),
-                ),
+                ("РИ-фест: Первый ролевой", "open", date(2027, 1, 28), date(2027, 1, 31)),
+                ("Северный ветер", "open", today + timedelta(days=60), today + timedelta(days=63)),
+                ("Мастерская миров", "draft", today + timedelta(days=90), today + timedelta(days=92)),
+                ("Осенние встречи", "archived", today - timedelta(days=23), today - timedelta(days=20)),
             ]
-
-            for festival_index, (name, status, start_date, end_date) in enumerate(
-                specs
-            ):
-                festival = Festival.objects.create(
-                    name=name,
-                    theme="22-й Сибирский фестиваль ролевых игр. Ролевые игры, общение и совместное творчество.",
-                    status=status,
-                    start_date=start_date,
-                    end_date=end_date,
-                    published_at=None if status == "draft" else timezone.now(),
-                )
+            for fi, (name, status, start, end) in enumerate(specs):
+                festival = Festival.objects.create(name=name, theme="Ролевые игры, общение и совместное творчество.", status=status, start_date=start, end_date=end, published_at=None if status == "draft" else timezone.now())
                 fields = {}
 
-                def field(key, field_type, label, **kwargs):
-                    fields[key] = FormField.objects.create(
-                        festival=festival,
-                        field_type=field_type,
-                        label=label,
-                        order=len(fields),
-                        **kwargs,
-                    )
+                def field(key, kind, label, **kwargs):
+                    fields[key] = FormField.objects.create(festival=festival, field_type=kind, label=label, order=len(fields), **kwargs)
                     return fields[key]
 
-                field(
-                    "welcome",
-                    "info",
-                    "РИ-фест — Первый ролевой",
-                    help_text="Заезд 28 января с 15:00, открытие 29 января около 14:00. Фестиваль завершится 31 января после обеда. Мероприятие 18+; несовершеннолетние допускаются только по индивидуальному согласованию.",
-                )
-                field("name", "text", "Имя или игровой псевдоним", is_required=True)
-                field("about", "textarea", "Расскажите о себе и своих интересах")
-                field("age", "number", "Возраст", is_required=True)
-                field("arrival", "date", "Дата приезда")
-                field(
-                    "rules",
-                    "boolean",
-                    "Подтверждаю, что ознакомился(-ась) с правилами",
-                    is_required=True,
-                )
-                single = field("transport", "single", "Как вы доберётесь до фестиваля?")
-                single_options = [
-                    FormOption.objects.create(field=single, label=label, order=i)
-                    for i, label in enumerate(
-                        [
-                            "Автобус №12 до остановки «Школа глухих»",
-                            "На автомобиле через КПП №1",
-                            "Другой способ",
-                        ]
-                    )
-                ]
-                multi = field(
-                    "interests", "multi", "В каких активностях хотите участвовать?"
-                )
-                multi_options = [
-                    FormOption.objects.create(field=multi, label=label, order=i)
-                    for i, label in enumerate(
-                        [
-                            "Ролевые игры",
-                            "Мастерские",
-                            "Настольные игры",
-                            "Готов провести свою активность",
-                        ]
-                    )
-                ]
-                field(
-                    "hidden", "text", "Внутренняя заметка организатора", is_active=False
-                )
-
-                lodging = field("lodging", "service1", "Проживание — 2 070 ₽ за сутки")
-                lodging_options = [
-                    ServiceOption.objects.create(
-                        field=lodging,
-                        label="Ночь 28–29 января",
-                        service_date=start,
-                        price=Decimal("2070.00"),
-                    ),
-                    ServiceOption.objects.create(
-                        field=lodging,
-                        label="Ночь 29–30 января",
-                        service_date=date(2027, 1, 29),
-                        price=Decimal("2070.00"),
-                        order=1,
-                    ),
-                    ServiceOption.objects.create(
-                        field=lodging,
-                        label="Ночь 30–31 января",
-                        service_date=date(2027, 1, 30),
-                        price=Decimal("2070.00"),
-                        order=2,
-                    ),
-                    ServiceOption.objects.create(
-                        field=lodging, label="Без проживания", is_opt_out=True, order=3
-                    ),
-                ]
-                meals = field("meals", "service", "Питание по датам и приёмам пищи")
-                meal_options = []
-                for i, (day, label, price) in enumerate(
-                    [
-                        (date(2027, 1, 29), "Пятница, завтрак", "250.00"),
-                        (date(2027, 1, 29), "Пятница, обед", "450.00"),
-                        (date(2027, 1, 29), "Пятница, ужин", "400.00"),
-                        (date(2027, 1, 30), "Суббота, завтрак", "250.00"),
-                        (date(2027, 1, 30), "Суббота, обед", "450.00"),
-                        (date(2027, 1, 30), "Суббота, ужин", "400.00"),
-                    ]
-                ):
-                    meal_options.append(
-                        ServiceOption.objects.create(
-                            field=meals,
-                            label=label,
-                            service_date=day,
-                            price=Decimal(price),
-                            order=i,
-                        )
-                    )
-                meal_opt_out = ServiceOption.objects.create(
-                    field=meals,
-                    label="Питаюсь самостоятельно",
-                    is_opt_out=True,
-                    order=len(meal_options),
-                )
-
-                fee = field("fee", "datefee", "Организационный взнос")
-                for ends_on, amount in [
-                    (date(2026, 11, 30), "1300.00"),
-                    (date(2027, 1, 10), "1400.00"),
-                    (date(2027, 1, 27), "1600.00"),
-                    (None, "1800.00"),
-                ]:
-                    FeePeriod.objects.create(
-                        field=fee, ends_on=ends_on, amount=Decimal(amount)
-                    )
-
+                if fi == 0:
+                    field("welcome", "info", "Добро пожаловать на Первый ролевой", help_text="Заезд 28 января после 15:00. Возраст участников — 18+.")
+                    field("name", "text", "Имя или игровой псевдоним", is_required=True, in_application_name=True)
+                    field("about", "textarea", "Что вам интересно на фестивале?")
+                    field("age", "number", "Возраст", is_required=True)
+                    field("guests", "number", "Сколько сопровождающих приедет?")
+                    field("arrival", "date", "Когда планируете приехать?")
+                    field("volunteer", "boolean", "Можете помочь на площадке?")
+                    field("rules", "boolean", "Я ознакомился(-ась) с правилами", is_required=True)
+                    field("organizer_note", "text", "Заметка организатора", is_active=False)
+                    choice = field("transport", "single", "Как доберётесь?")
+                    choice_options = [FormOption.objects.create(field=choice, label=x, order=i) for i, x in enumerate(["Автобус из города", "На своей машине", "Пока не решил(а)"])]
+                    multi = field("interests", "multi", "Что хотите попробовать?")
+                    multi_options = [FormOption.objects.create(field=multi, label=x, order=i) for i, x in enumerate(["Ролевые игры", "Мастерские", "Настольные игры", "Провести свою активность"])]
+                    lodging = field("lodging", "service1", "Проживание — 2 070 ₽ за ночь")
+                    stay = [ServiceOption.objects.create(field=lodging, label=f"Ночь {start + timedelta(days=i):%d.%m}", service_date=start + timedelta(days=i), price=Decimal("2070.00"), order=i) for i in range(3)]
+                    meals = field("meals", "service", "Питание")
+                    meal_options = [ServiceOption.objects.create(field=meals, label=label, service_date=start + timedelta(days=day), price=Decimal(price), order=i) for i, (day, label, price) in enumerate([(1,"Пятница, обед","450"),(1,"Пятница, ужин","400"),(2,"Суббота, завтрак","250"),(2,"Суббота, обед","450"),(2,"Суббота, ужин","400")])]
+                    meal_options.append(ServiceOption.objects.create(field=meals, label="Питаюсь самостоятельно", is_opt_out=True, order=5))
+                    fee = field("fee", "datefee", "Организационный взнос")
+                    for ends_on, amount in [(date(2026, 11, 30), "1300.00"), (date(2027, 1, 10), "1400.00"), (date(2027, 1, 27), "1600.00"), (None, "1800.00")]:
+                        FeePeriod.objects.create(field=fee, ends_on=ends_on, amount=Decimal(amount))
+                elif fi == 1:
+                    field("name", "text", "Как к вам обращаться?", is_required=True, in_application_name=True)
+                    field("about", "textarea", "Расскажите, с каким настроением едете")
+                    field("arrival", "date", "День приезда")
+                    field("camp", "boolean", "Планирую жить в палатке")
+                    field("rules", "boolean", "Согласен(-на) с правилами лагеря", is_required=True)
+                    field("organizer_note", "text", "Заметка организатора", is_active=False)
+                    choice = field("role", "single", "Что вам ближе?")
+                    choice_options = [FormOption.objects.create(field=choice, label=x, order=i) for i, x in enumerate(["Игрок", "Мастер", "Помощник"])]
+                    multi = field("food", "multi", "Какие активности интересны?")
+                    multi_options = [FormOption.objects.create(field=multi, label=x, order=i) for i, x in enumerate(["Полевые игры", "Поход к озеру", "Костёр и песни", "Обмен настольными играми"])]
+                    lodging = field("lodging", "service1", "Место в гостевом доме")
+                    stay = [ServiceOption.objects.create(field=lodging, label="Ночь в общей комнате", price=Decimal("1800")), ServiceOption.objects.create(field=lodging, label="Без проживания", is_opt_out=True, order=1)]
+                    meals = field("meals", "service", "Общие ужины")
+                    meal_options = [ServiceOption.objects.create(field=meals, label=x, price=Decimal("350"), order=i) for i, x in enumerate(["Ужин в пятницу", "Ужин в субботу"])]
+                    meal_options.append(ServiceOption.objects.create(field=meals, label="Не участвовать в общих ужинах", is_opt_out=True, order=2))
+                    fee = field("fee", "datefee", "Взнос участника")
+                    for ends_on, amount in [(today + timedelta(days=30), "900.00"), (None, "1100.00")]:
+                        FeePeriod.objects.create(field=fee, ends_on=ends_on, amount=Decimal(amount))
+                elif fi == 2:
+                    field("name", "text", "Имя для бейджа", is_required=True, in_application_name=True)
+                    field("about", "textarea", "Чему хотите научиться?")
+                    field("age", "number", "Возраст")
+                    multi = field("craft", "multi", "Какие мастерские выбрать?")
+                    multi_options = [FormOption.objects.create(field=multi, label=x, order=i) for i, x in enumerate(["Рисование карты", "Основы вёрстки буклета", "Создание персонажа", "Командная игра по вечерам"])]
+                    choice_options = []
+                    stay = meal_options = []
+                else:
+                    field("name", "text", "Имя участника", is_required=True, in_application_name=True)
+                    field("about", "textarea", "Что запомнилось больше всего?")
+                    multi = field("return", "multi", "Что повторить в следующий раз?")
+                    multi_options = [FormOption.objects.create(field=multi, label=x, order=i) for i, x in enumerate(["Игры", "Мастерские", "Общий ужин", "Прогулка"])]
+                    choice_options = []
+                    stay = meal_options = []
+                    fee = field("fee", "datefee", "Взнос участника")
+                    FeePeriod.objects.create(field=fee, ends_on=None, amount=Decimal("700.00"))
                 if status == "draft":
                     continue
-                owners = [admin, *participants]
-                for person_index, owner in enumerate(owners):
-                    app_status = (
-                        "archived"
-                        if status == "archived"
-                        else "withdrawn"
-                        if person_index == 1 and festival_index == 1
-                        else "active"
-                    )
-                    app = Application.objects.create(
-                        owner=owner, festival=festival, status=app_status
-                    )
-                    if person_index == 2:
-                        Application.objects.filter(pk=app.pk).update(status="draft")
-                        continue
-                    answers = {
-                        "name": f"{owner.first_name} {owner.last_name}",
-                        "about": "Приезжаю за общением, играми и совместным творчеством.",
-                        "age": 29 + person_index,
-                        "arrival": start_date.isoformat(),
-                        "rules": True,
-                        "transport": str(
-                            single_options[person_index % len(single_options)].pk
-                        ),
-                        "interests": [
-                            str(item.pk)
-                            for item in multi_options[: person_index % 3 + 1]
-                        ],
-                        "hidden": "Участвовал(-а) раньше"
-                        if person_index == 0
-                        else "Новый участник",
-                    }
-                    ApplicationAnswer.objects.bulk_create(
-                        [
-                            ApplicationAnswer(
-                                application=app, field=fields[key], value=value
-                            )
-                            for key, value in answers.items()
-                        ]
-                    )
-                    selected = [lodging_options[person_index % 3]]
-                    selected += (
-                        [meal_opt_out]
-                        if person_index == 3
-                        else meal_options[person_index::3][:2]
-                    )
-                    ApplicationServiceSelection.objects.bulk_create(
-                        [
-                            ApplicationServiceSelection(application=app, option=option)
-                            for option in selected
-                        ]
-                    )
 
+                owners = [admin, *participants[:12]] if fi != 1 else participants
+                for pi, owner in enumerate(owners):
+                    app_status = "archived" if status == "archived" else ("draft" if fi == 1 and pi == 0 else "withdrawn" if fi == 1 and pi in (2, 9, 17, 28) else "active")
+                    app = Application.objects.create(owner=owner, festival=festival, status=app_status)
+                    if status == "draft" or app_status == "draft":
+                        continue
+                    display_name = f"{owner.first_name} {owner.last_name}"
+                    if fi == 1 and pi == 0:
+                        display_name = "Лисёнок"  # Второе имя для того же пользователя.
+                    answers = {"name": display_name, "about": ABOUT[pi % len(ABOUT)], "rules": pi % 8 != 6}
+                    if "age" in fields: answers["age"] = 19 + (pi * 7) % 43
+                    if "guests" in fields and pi % 4: answers["guests"] = pi % 3
+                    if "arrival" in fields and pi % 5: answers["arrival"] = (start + timedelta(days=pi % 3)).isoformat()
+                    if "volunteer" in fields: answers["volunteer"] = pi % 4 == 0
+                    if "camp" in fields: answers["camp"] = pi % 3 == 0
+                    if "transport" in fields or "role" in fields:
+                        key = "transport" if "transport" in fields else "role"
+                        if pi % 6 != 5: answers[key] = str(choice_options[pi % len(choice_options)].pk)
+                    multi_key = "interests" if "interests" in fields else "food" if "food" in fields else "craft" if "craft" in fields else "return"
+                    if pi % 7:
+                        answers[multi_key] = [str(o.pk) for o in multi_options] if pi % 5 == 0 else [str(o.pk) for o in multi_options[:pi % len(multi_options)]] if pi % 4 else []
+                    if pi % 6 == 4: answers.pop("about", None)
+                    if "organizer_note" in fields:
+                        answers["organizer_note"] = "Уточнить время приезда" if pi % 2 else "Постоянный участник"
+                    answers = {key: value for key, value in answers.items() if key in fields}
+                    ApplicationAnswer.objects.bulk_create([ApplicationAnswer(application=app, field=fields[k], value=v) for k, v in answers.items()])
+                    selected = []
+                    if stay: selected.append(stay[0] if pi % 4 != 3 else stay[-1])
+                    if meal_options:
+                        selected.extend([meal_options[-1]] if pi % 5 == 3 else [meal_options[j] for j in range(len(meal_options)-1) if (j + pi) % 3 == 0])
+                    ApplicationServiceSelection.objects.bulk_create([ApplicationServiceSelection(application=app, option=o) for o in selected])
+                    if pi % 3 == 0 and "fee" in fields:
+                        FeeLock.objects.create(application=app, field=fields["fee"], amount=Decimal("1300.00"), locked_at=timezone.now())
+                    total = calc_application_total(app)["total"]
+                    app.paid_amount = (Decimal("0") if pi % 4 == 0 else total / 2 if pi % 4 == 1 else total if pi % 4 == 2 else total + Decimal("500")).quantize(Decimal("0.01"))
+                    app.was_submitted = app_status != "draft"
+                    if status == "archived":
+                        app.financial_snapshot = make_snapshot(app, at=calendar_cutoff(festival))
+                        app.financial_snapshot_current = True
+                    app.save(update_fields=("paid_amount", "was_submitted", "financial_snapshot", "financial_snapshot_current"))
                 self.stdout.write(f"Создан фестиваль и анкеты: {name}")
 
         self.stdout.write(self.style.SUCCESS("Демо-данные заменены."))
