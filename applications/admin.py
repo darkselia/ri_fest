@@ -81,6 +81,13 @@ def ordered_festivals():
     )
 
 
+def selectable_festivals(user):
+    excluded = {Festival.Status.DRAFT}
+    if user.hide_archived_festivals:
+        excluded.add(Festival.Status.ARCHIVED)
+    return [f for f in ordered_festivals() if get_effective_status(f) not in excluded]
+
+
 class AnswerText(Func):
     output_field = TextField()
 
@@ -101,7 +108,7 @@ class FestivalFilter(DropdownFilter):
     def lookups(self, request, model_admin):
         return [
             (f.pk, f"{f.name} — {Festival.Status(get_effective_status(f)).label}")
-            for f in ordered_festivals()
+            for f in selectable_festivals(request.user)
         ]
 
     def queryset(self, request, queryset):
@@ -361,7 +368,7 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
     def answers_view(self, request):
         if not self.has_view_or_change_permission(request):
             raise PermissionDenied
-        festivals = ordered_festivals()
+        festivals = selectable_festivals(request.user)
         selected = request.GET.get("festival", "")
         if selected and not selected.isdecimal():
             raise SuspiciousOperation("Неизвестный фестиваль.")
@@ -940,7 +947,7 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         if not self.has_view_or_change_permission(request):
             raise PermissionDenied
-        festivals = ordered_festivals()
+        festivals = selectable_festivals(request.user)
         selected = request.GET.get("festival__id__exact")
         return super().changelist_view(
             request,

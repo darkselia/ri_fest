@@ -1,0 +1,38 @@
+{% load i18n %}
+<form method="post" action="{% url 'admin_festival_preference' %}" class="border-b border-base-200 mb-1 pb-1 dark:border-base-700">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <label class="mx-1 px-3 py-2 flex items-center gap-2 cursor-pointer  rounded-default hover:bg-base-100
+    dark:hover:bg-base-700">
+        <input type="checkbox"
+               name="hide_archived_festivals"
+               {% if request.user.hide_archived_festivals %}checked{% endif %}
+               onchange="this.form.requestSubmit()">
+        <span>Скрыть архивные фестивали</span>
+    </label>
+    <noscript>
+        <button type="submit" class="mx-1 px-3 py-2">Сохранить</button>
+    </noscript>
+</form>
+{% if site_url %}
+    <a href="{{ site_url }}" class="mx-1 px-3 py-2 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200">
+        {% trans "View site" %}
+    </a>
+{% endif %}
+{% if account_links %}
+    {% for link in account_links %}
+        <a href="{{ link.link }}" class="mx-1 px-3 py-2 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200">{{ link.title }}</a>
+    {% endfor %}
+{% elif user.has_usable_password %}
+    <a href="{% url 'admin:password_change' %}" class="mx-1 px-3 py-2 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200">
+        {% trans "Change password" %}
+    </a>
+{% endif %}
+<div class="border-t border-base-200 mt-1 pt-1 dark:border-base-700">
+    <form id="logout-form" method="post" action="{% url 'admin:logout' %}" class="mx-1">
+        {% csrf_token %}
+        <button type="submit" class="bg-none flex cursor-pointer items-center px-3 py-1.5 text-left text-red-700 rounded-default w-full hover:bg-red-100 dark:hover:bg-red-500/20 dark:text-red-400 dark:hover:text-red-400">
+            {% trans "Log out" %} <span class="ml-auto material-symbols-outlined text-red-700 dark:text-red-400">logout</span>
+        </button>
+    </form>
+</div>

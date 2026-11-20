@@ -18,6 +18,7 @@ class User(AbstractUser):
         "Новый email ожидает подтверждения", blank=True, default="", editable=False
     )
     email_change_id = models.UUIDField(null=True, blank=True, editable=False)
+    hide_archived_festivals = models.BooleanField(default=False, editable=False)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
