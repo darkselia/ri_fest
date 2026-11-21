@@ -4,9 +4,21 @@
 {% block extrahead %}
     {{ block.super }}
     {{ media }}
-    <link rel="stylesheet" href="{% static 'css/answer_table.css' %}?v=7">
-    <script src="{% static 'js/admin_lists.js' %}?v=3" defer></script>
-    <script src="{% static 'js/answer_table.js' %}?v=5" defer></script>
+    <link rel="stylesheet" href="{% static 'css/answer_table.css' %}">
+    <link rel="stylesheet" href="{% static 'css/application_export.css' %}">
+    <link rel="stylesheet" href="{% static 'css/filter_drawer.css' %}">
+    <script src="{% static 'js/admin_lists.js' %}" defer></script>
+    <script src="{% static 'js/answer_table.js' %}" defer></script>
+    <script src="{% static 'js/filter_drawer.js' %}" defer></script>
+    <script src="{% static 'js/application_export.js' %}" defer></script>
+{% endblock %}
+{% block nav-global-side %}
+    {% if festival %}
+        {% include "admin/applications/export_button.html" %}
+    {% else %}
+        {% include "admin/applications/export_button.html" with answer_export_disabled=True %}
+    {% endif %}
+    {% if festival %}{% include "admin/includes/filter_button.html" with target="answer-table-sidebar" %}{% endif %}
 {% endblock %}
 {% block content %}
     <div class="answer-table" data-festival="{{ festival.pk|default:'' }}">
@@ -32,12 +44,6 @@
                                 {% include "admin/includes/list_search.html" with search_name="q" search_value=request.GET.q search_id="searchbar" search_placeholder="Поиск по ответам и владельцу" show_shortcut=True %}
                             </form>
                         </div>
-                        <div class="answer-table__buttons">
-                            <button type="button" data-panel="answer-filters" aria-expanded="false">Фильтры <span class="material-symbols-outlined" aria-hidden="true">filter_list</span></button>
-                            <button type="button"
-                                    data-panel="answer-columns"
-                                    aria-expanded="false">Столбцы</button>
-                        </div>
                     {% endif %}
                 </div>
                 {% if festival %}
@@ -52,39 +58,66 @@
                 {% endif %}
             </div>
             {% if festival %}
-                <aside class="answer-table__sidebar">
-                    <section id="answer-filters" class="answer-table__panel">
-                        <section class="answer-table__status" aria-label="Статус анкеты">
-                            <h3>Статус анкеты</h3>
-                            <ul class="admin-filter-choice">
-                                {% for option in status_options %}<li><a href="{{ option.url }}"
-                                                                         {% if option.selected %}aria-current="true"{% endif %}>{{ option.label }}</a></li>{% endfor %}
-                            </ul>
-                        </section>
-                        <h2>Фильтры</h2>
+                <aside id="answer-table-sidebar" class="answer-table__sidebar">
+                    <div class="answer-table__buttons" role="group" aria-label="Настройки таблицы">
+                        <button type="button" data-panel="answer-filters" aria-controls="answer-filters" aria-expanded="true" aria-pressed="true">Фильтры</button>
+                        <button type="button" data-panel="answer-columns" aria-controls="answer-columns" aria-expanded="false" aria-pressed="false">Столбцы</button>
+                    </div>
+                    <section id="answer-filters" class="answer-table__panel" aria-label="Фильтры">
                         <form method="get" id="answer-filter-form">
                             <input type="hidden" name="festival" value="{{ festival.pk }}">
                             {% if request.GET.sort %}
                                 <input type="hidden" name="sort" value="{{ request.GET.sort }}">
                             {% endif %}
-                            <input type="hidden" name="status" value="{{ status }}">
                             {% if request.GET.q %}
                                 <input type="hidden" name="q" value="{{ request.GET.q }}">
                             {% endif %}
-                            {% for filter in filters %}
-                                {% include "admin/includes/grouped_filter.html" with group=filter input_name=filter.name autosubmit=True %}
-                            {% endfor %}
+                            <div class="admin-panel application-filter-group">
+                                <h3>Общие фильтры</h3>
+                                <details class="admin-filter-choice" open>
+                                <summary>Статус анкеты</summary>
+                                {% for option in status_options %}
+                                    <label><input type="radio" name="status" value="{{ option.value }}" {% if option.selected %}checked{% endif %} data-submit> <span>{{ option.label }}</span></label>
+                                {% endfor %}
+                                </details>
+                                <details class="admin-filter-choice">
+                                <summary>Баланс</summary>
+                                <label><input type="radio" name="balance" value="" {% if not request.GET.balance %}checked{% endif %} data-submit> <span>Все</span></label>
+                                <label><input type="radio" name="balance" value="due" {% if request.GET.balance == 'due' %}checked{% endif %} data-submit> <span>Есть долг</span></label>
+                                <label><input type="radio" name="balance" value="overpaid" {% if request.GET.balance == 'overpaid' %}checked{% endif %} data-submit> <span>Есть переплата</span></label>
+                                <label><input type="radio" name="balance" value="settled" {% if request.GET.balance == 'settled' %}checked{% endif %} data-submit> <span>Полный расчёт</span></label>
+                                </details>
+                                {% for filter in filters %}
+                                    {% include "admin/includes/grouped_filter.html" with group=filter input_name=filter.name autosubmit=True %}
+                                {% endfor %}
+                            </div>
+                            {% if fee_filters %}
+                                <div class="admin-panel application-filter-group">
+                                    <h3>Платы по дате</h3>
+                                    {% for filter in fee_filters %}{% include "admin/includes/grouped_filter.html" with group=filter input_name=filter.name autosubmit=True %}{% endfor %}
+                                </div>
+                            {% endif %}
+                            {% if service_filters %}
+                                <div class="admin-panel application-filter-group">
+                                    <h3>Услуги</h3>
+                                    {% for filter in service_filters %}{% include "admin/includes/grouped_filter.html" with group=filter input_name=filter.name autosubmit=True %}{% endfor %}
+                                </div>
+                            {% endif %}
                             <noscript>
                                 <button type="submit">Применить</button>
                             </noscript>
                         </form>
                     </section>
-                    <section id="answer-columns" class="answer-table__panel">
-                        <h2>Столбцы</h2>
-                        <div class="admin-filter-choice answer-table__column-options">
+                    <section id="answer-columns" class="admin-panel answer-table__panel" aria-label="Столбцы">
+                        <div class="answer-table__column-options">
+                            <h3>Основные и финансовые поля</h3>
+                            {% for key, label in fixed_columns %}<label><input type="checkbox" data-column-toggle="fixed-{{ key }}" data-column-width="{% if key == 'owner' %}190{% elif key == 'fees' %}170{% elif key == 'balance' %}{{ money_width|add:'25' }}{% else %}{{ money_width }}{% endif %}" checked> {{ label }}</label>{% endfor %}
+                        <div class="answer-table__column-options-divider"></div>
+                            <h3>Ответы на вопросы</h3>
                             {% for field in columns %}<label><input type="checkbox"
                                                                     data-column-toggle="{{ field.pk }}"
                                                                     data-column-width="{{ field.answer_width }}"
+                                                                    data-field-type="{{ field.field_type }}"
                                                                     {% if field.is_active %}checked{% endif %}> {{ field.label }}{% if not field.is_active %} <small>Скрыт</small>{% endif %}</label>{% endfor %}
                         </div>
                     </section>
@@ -92,6 +125,7 @@
             {% endif %}
         </div>
     </div>
+    {% if festival %}{% include "admin/applications/export_dialog.html" with answer_export=True %}{% endif %}
 {% endblock %}
 {% block footer %}
     {% if festival %}

@@ -1,0 +1,284 @@
+.application-export-dialog {
+    width: min(560px, calc(100% - 32px));
+    max-height: calc(100% - 32px);
+    padding: 24px;
+    color: var(--color-ink);
+    background: var(--admin-panel-bg);
+    border: 1px solid var(--admin-panel-border);
+    border-radius: 8px;
+}
+
+.application-export-dialog::backdrop {
+    background: rgb(0 0 0 / 48%);
+}
+
+.application-export-dialog h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 16px;
+}
+
+.application-export-dialog label {
+    display: block;
+    margin: 16px 0;
+}
+
+.application-export-dialog small {
+    display: block;
+    color: var(--admin-subtle-text);
+    margin: 4px 0 0 23px;
+}
+
+.application-export-dialog input {
+    accent-color: var(--color-accent);
+}
+
+.application-export-dialog [role="alert"] {
+    color: var(--color-error);
+}
+
+.application-export-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.application-export-actions button {
+    background: var(--admin-panel-bg);
+    border: 1px solid var(--admin-panel-border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: inherit;
+}
+
+.application-export-actions button[type="submit"] {
+    background: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+}
+
+.application-export-dialog :focus-visible, .application-export-button:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+.application-export-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid #286b3c;
+    border-radius: 6px;
+    background: #286b3c;
+    color: #fff;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.application-export-button:hover {
+    background: #205b31;
+}
+
+.application-export-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.application-export-button__icon {
+    display: none;
+}
+
+.application-filter-group {
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+#filter-form .application-filter-group {
+    margin-bottom: 0;
+}
+
+.application-filter-group > h3 {
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.application-filter-group .admin-filter-choice {
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid var(--admin-panel-border);
+    border-radius: 0;
+    background: transparent;
+}
+
+.application-filter-group .admin-filter-choice:last-child {
+    border-bottom: 0;
+}
+
+.application-filter-group .admin-filter-choice > summary {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 0;
+    font-weight: 650;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+    list-style: none;
+}
+
+.application-filter-group summary::-webkit-details-marker {
+    display: none;
+}
+
+.application-filter-group .admin-filter-choice > summary::before {
+    content: "";
+    flex: none;
+    width: 7px;
+    height: 7px;
+    margin: 5px 2px 0 1px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+}
+
+.application-filter-group .admin-filter-choice[open] > summary::before {
+    margin-top: 3px;
+    transform: rotate(45deg);
+}
+
+.application-filter-summary-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.application-filter-summary-value {
+    flex: none;
+    max-width: 45%;
+    overflow: hidden;
+    color: var(--admin-subtle-text);
+    font-size: 12px;
+    font-weight: 400;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.application-filter-summary-value.is-active {
+    color: var(--color-primary-600);
+    font-weight: 600;
+}
+
+.dark .application-filter-summary-value.is-active {
+    color: var(--color-primary-400);
+}
+
+.application-filter-group label {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    margin: 0;
+    padding: 4px 0 4px 18px;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+
+.application-filter-group label:last-child {
+    padding-bottom: 12px;
+}
+
+.application-filter-group input {
+    flex: none;
+    margin-top: 3px;
+    accent-color: var(--color-accent);
+}
+
+.dark .application-filter-group input {
+    color-scheme: dark;
+    accent-color: var(--color-primary-400);
+}
+
+.application-filter-question > div > h3 {
+    display: none;
+}
+
+.application-filter-question > div > ul {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding-bottom: 8px;
+}
+
+.application-filter-question li {
+    border: 0;
+}
+
+.application-filter-question li a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0 4px 18px;
+    color: var(--color-ink);
+    font-weight: 400;
+    white-space: normal;
+}
+
+.application-filter-question li a::before {
+    content: "";
+    flex: none;
+    width: 13px;
+    height: 13px;
+    border: 1px solid var(--admin-subtle-text);
+    border-radius: 50%;
+}
+
+.application-filter-question li.font-semibold a::before {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    box-shadow: inset 0 0 0 2px var(--admin-panel-bg);
+}
+
+.dark .application-filter-question li.font-semibold a::before {
+    border-color: var(--color-primary-400);
+    background: var(--color-primary-400);
+}
+
+.application-filter-group :is(summary, a, input):focus-visible {
+    outline: 2px solid var(--admin-focus);
+    outline-offset: 2px;
+}
+
+body.app-applications.model-application.change-list .admin-filter-panel {
+    width: 260px;
+    min-width: 260px;
+    max-width: 260px;
+    flex-basis: 260px;
+}
+
+@media (width < 1024px) {
+    body.app-applications.model-application.change-list .admin-filter-panel {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        flex-basis: auto;
+    }
+
+}
+
+@media (width < 800px) {
+    .application-export-button {
+        width: 40px;
+        padding: 8px;
+    }
+
+    .application-export-button__icon {
+        display: inline-block;
+        font-size: 21px;
+    }
+
+    .application-export-button__text {
+        display: none;
+    }
+}

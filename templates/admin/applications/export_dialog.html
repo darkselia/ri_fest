@@ -1,0 +1,9 @@
+<dialog id="application-export-dialog" class="application-export-dialog" aria-labelledby="application-export-title">
+    <form method="get" id="application-export-form">
+        <h2 id="application-export-title">Что выгрузить?</h2>
+        <label><input type="radio" name="mode" value="filtered" checked> <strong>По текущим настройкам</strong><small>Все анкеты, соответствующие поиску и фильтрам{% if answer_export %}, и выбранные столбцы{% else %}, со столбцами списка анкет{% endif %}.</small></label>
+        <label><input type="radio" name="mode" value="all"> <strong>Все данные</strong><small>{% if answer_export %}Все анкеты и вопросы выбранного фестиваля, включая скрытые вопросы, без учёта поиска и фильтров.{% else %}Все анкеты выбранных фестивалей со столбцами списка анкет, без учёта поиска и фильтров.{% endif %}</small></label>
+        <p id="application-export-error" role="alert" hidden>Выберите хотя бы один столбец.</p>
+        <div class="application-export-actions"><button type="submit">Выгрузить XLSX</button><button type="button" data-export-close>Отмена</button></div>
+    </form>
+</dialog>

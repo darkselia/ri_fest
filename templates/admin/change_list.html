@@ -1,6 +1,22 @@
 {% extends "admin/change_list.html" %}
-{% load static %}
+{% load static unfold_list %}
 {% block extrahead %}
     {{ block.super }}
-    <script src="{% static 'js/admin_lists.js' %}?v=3" defer></script>
+    <script src="{% static 'js/admin_lists.js' %}" defer></script>
+    <link rel="stylesheet" href="{% static 'css/admin_table_widths.css' %}">
+    <link rel="stylesheet" href="{% static 'css/filter_drawer.css' %}">
+    <script src="{% static 'js/filter_drawer.js' %}" defer></script>
+    {% if opts.app_label == 'applications' and opts.model_name == 'application' %}
+        <link rel="stylesheet" href="{% static 'css/application_export.css' %}">
+        <script src="{% static 'js/application_export.js' %}" defer></script>
+    {% endif %}
+{% endblock %}
+{% block nav-global-side %}
+    {{ block.super }}
+    {% if opts.app_label == 'applications' and opts.model_name == 'application' %}{% include "admin/applications/export_button.html" %}{% endif %}
+    {% if cl.has_filters and cl|unfold_vertical_filters %}{% include "admin/includes/filter_button.html" with target="changelist-filter" %}{% endif %}
+{% endblock %}
+{% block content %}
+    {{ block.super }}
+    {% if opts.app_label == 'applications' and opts.model_name == 'application' %}{% include "admin/applications/export_dialog.html" %}{% endif %}
 {% endblock %}

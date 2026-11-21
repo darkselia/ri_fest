@@ -12,12 +12,14 @@ from festivals.services import get_effective_status
 from .models import Application, ApplicationAnswer, ApplicationServiceSelection
 
 
-def prepare_answer_table(festival, params):
+def prepare_answer_table(festival, params, *, include_hidden=False):
     fields = list(
         festival.form_fields.exclude(field_type__in=("info", "datefee"))
         .prefetch_related("options", "service_options")
         .order_by("order", "pk")
     )
+    for field in fields:
+        field.festival = festival
     archived = get_effective_status(festival) == "archived"
     status = params.get("status", "active")
     if status not in ("all", "active", "archived", "withdrawn"):
@@ -164,7 +166,11 @@ def prepare_answer_table(festival, params):
         if matches and all(term in searchable.casefold() for term in search):
             rows.append({"application": app, "cells": cells})
 
-    columns = [field for field in fields if field.is_active or field.pk in present]
+    columns = [
+        field
+        for field in fields
+        if include_hidden or field.is_active or field.pk in present
+    ]
     requested = params.get("sort", "")
     ordering = requested.split(",") if requested else []
     allowed = {"owner", "fees", "total", "paid", "balance"}

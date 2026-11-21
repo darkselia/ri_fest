@@ -52,6 +52,7 @@ from festivals.models import Festival
 from festivals.services import get_effective_status
 
 from .answer_table import prepare_answer_table
+from .export import FIXED_COLUMNS, export_filename, export_xlsx
 from .models import (
     Application,
     ApplicationAnswer,
@@ -365,6 +366,55 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
             *super().get_urls(),
         ]
 
+    def export_changelist(self, request):
+        mode = request.GET.get("export", "")
+        if not self.has_view_or_change_permission(request):
+            raise PermissionDenied
+        if mode not in ("all", "filtered"):
+            raise SuspiciousOperation("Неизвестный режим выгрузки.")
+        original = request.GET
+        params = original.copy()
+        params.pop("export", None)
+        if mode == "all":
+            festival = params.get("festival__id__exact", "")
+            params.clear()
+            if festival:
+                params["festival__id__exact"] = festival
+        request.GET = params
+        try:
+            changelist = self.get_changelist_instance(request)
+            applications = list(changelist.queryset)
+        finally:
+            request.GET = original
+        if not applications:
+            messages.warning(request, "Нет анкет для выгрузки.")
+            query = original.copy()
+            query.pop("export", None)
+            return redirect(f"{request.path}?{query.urlencode()}")
+        festival_id = params.get("festival__id__exact", "")
+        festival = next(
+            (
+                app.festival
+                for app in applications
+                if str(app.festival_id) == festival_id
+            ),
+            None,
+        )
+        return export_xlsx(
+            [{"application": app} for app in applications],
+            [],
+            {key for key, _ in FIXED_COLUMNS},
+            self,
+            registry=True,
+            filename=export_filename(
+                "Анкеты",
+                mode,
+                original,
+                festival=festival,
+                specs=changelist.filter_specs,
+            ),
+        )
+
     def answers_view(self, request):
         if not self.has_view_or_change_permission(request):
             raise PermissionDenied
@@ -388,10 +438,57 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
                 for item in festivals
             ],
         )
+        export_mode = request.GET.get("export", "")
+        params = request.GET
+        if export_mode == "all":
+            params = request.GET.copy()
+            params.clear()
+            params["status"] = "all"
         columns, rows, selections = (
-            prepare_answer_table(festival, request.GET) if festival else ([], [], {})
+            prepare_answer_table(festival, params, include_hidden=export_mode == "all")
+            if festival
+            else ([], [], {})
         )
+        if export_mode:
+            if export_mode not in ("all", "filtered") or not festival:
+                raise SuspiciousOperation("Неизвестный режим выгрузки.")
+            allowed = {key for key, _ in FIXED_COLUMNS} | {
+                f"field_{field.pk}" for field in columns
+            }
+            selected_columns = (
+                allowed if export_mode == "all" else set(request.GET.getlist("column"))
+            )
+            if not selected_columns or not selected_columns <= allowed:
+                raise SuspiciousOperation("Выберите столбцы для выгрузки.")
+            visible_columns = (
+                set(request.GET.getlist("column"))
+                if export_mode == "all" and request.GET.get("column_state") == "1"
+                else None
+            )
+            if visible_columns is not None and not visible_columns <= allowed:
+                raise SuspiciousOperation("Неизвестный столбец.")
+            if not rows:
+                messages.warning(request, "Нет анкет для выгрузки.")
+                query = request.GET.copy()
+                query.pop("export", None)
+                query.pop("column", None)
+                return redirect(f"{request.path}?{query.urlencode()}")
+            return export_xlsx(
+                rows,
+                columns,
+                selected_columns,
+                self,
+                visible_columns=visible_columns,
+                filename=export_filename(
+                    "Ответы анкет",
+                    export_mode,
+                    request.GET,
+                    festival=festival,
+                    fields=columns,
+                ),
+            )
         filters = []
+        service_filters = []
         for field in columns:
             if field.field_type not in ("single", "multi", "service", "service1"):
                 continue
@@ -947,6 +1044,8 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         if not self.has_view_or_change_permission(request):
             raise PermissionDenied
+        if request.GET.get("export"):
+            return self.export_changelist(request)
         festivals = selectable_festivals(request.user)
         selected = request.GET.get("festival__id__exact")
         return super().changelist_view(
