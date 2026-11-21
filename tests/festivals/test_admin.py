@@ -194,7 +194,12 @@ def test_return_links_are_in_history_toolbar_without_duplicates(
     assert "Управление фестивалем" not in html
     assert ('name="_publish"' in html) == can_publish
     assert ("Сохранить черновик" in html) == can_publish
-    assert ("Сохранить" in html) == (role != "viewer" and state in {"open", "running"})
+    save_button = re.search(
+        r'<button\b[^>]*name="_save"[^>]*>(.*?)</button>', html, re.S
+    )
+    assert bool(save_button and save_button.group(1).strip() == "Сохранить") == (
+        role != "viewer" and state in {"open", "running"}
+    )
     assert 'name="_continue"' not in html
     assert 'name="_addanother"' not in html
     assert Festival.objects.values().get(pk=draft.pk) == before
