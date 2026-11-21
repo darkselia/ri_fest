@@ -164,17 +164,76 @@ def test_owner_edits_active_and_withdraws_without_copy(client, cabinet):
         withdraw_application(app.pk, actor=owner)
 
 
-def test_demo_seed_is_repeatable_and_keeps_edits():
+def test_demo_seed_add_preserves_existing_answers(settings):
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
     output = StringIO()
-    call_command("seed_demo_data", dry_run=True, stdout=output)
-    assert not Festival.objects.filter(name__startswith="[Демо]").exists()
-    call_command("seed_demo_data", apply=True, stdout=output)
+    call_command("seed_demo_data", mode="add", dry_run=True, stdout=output)
+    assert not Festival.objects.exists()
+    call_command("seed_demo_data", mode="add", apply=True, stdout=output)
     counts = (Festival.objects.count(), Application.objects.count())
-    app = Application.objects.filter(owner__email="demo.anna@example.invalid").first()
+    app = Application.objects.filter(
+        owner__email="demo-participant-04@example.invalid", answers__isnull=False
+    ).first()
+    assert app is not None
     app.answers.update(value="Ручная правка")
-    call_command("seed_demo_data", apply=True, stdout=output)
-    assert (Festival.objects.count(), Application.objects.count()) == counts
+    call_command("seed_demo_data", mode="add", apply=True, stdout=output)
+    assert (Festival.objects.count(), Application.objects.count()) == (
+        counts[0] * 2,
+        counts[1] * 2,
+    )
     assert all(
         value == "Ручная правка"
         for value in app.answers.values_list("value", flat=True)
     )
+
+
+def test_demo_seed_does_not_modify_existing_admin(settings, django_user_model):
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+    admin = django_user_model.objects.create_user(
+        "admin@example.com",
+        "private-password",
+        first_name="Существующий",
+        is_active=False,
+    )
+    password = admin.password
+    call_command("seed_demo_data", mode="add", apply=True, stdout=StringIO())
+    admin.refresh_from_db()
+    assert admin.password == password
+    assert admin.first_name == "Существующий"
+    assert not admin.is_active and not admin.is_staff and not admin.is_superuser
+    assert not admin.groups.exists()
+    assert not admin.applications.exists()
+
+
+def test_demo_seed_refresh_is_repeatable(settings, cabinet, django_user_model):
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+    owner, _, other_festival, field, _, _ = cabinet
+    demo_owner = django_user_model.objects.create_user(
+        "demo-participant-01@example.invalid", "existing-password"
+    )
+    password = demo_owner.password
+    outside = Application.objects.create(owner=demo_owner, festival=other_festival)
+    ApplicationAnswer.objects.create(
+        application=outside, field=field, value="Сохранить"
+    )
+    legacy = Festival.objects.create(name="Северный ветер: игры у озера")
+    legacy_field = legacy.form_fields.create(field_type="text", label="Вопрос")
+    legacy_application = Application.objects.create(owner=owner, festival=legacy)
+    ApplicationAnswer.objects.create(
+        application=legacy_application, field=legacy_field, value="Старые данные"
+    )
+    output = StringIO()
+    call_command("seed_demo_data", mode="refresh", dry_run=True, stdout=output)
+    assert Festival.objects.filter(pk=legacy.pk).exists()
+    assert "Найдено фестивалей: 1, их анкет: 1" in output.getvalue()
+    call_command("seed_demo_data", mode="refresh", apply=True, stdout=StringIO())
+    assert not Festival.objects.filter(pk=legacy.pk).exists()
+    assert not Application.objects.filter(pk=legacy_application.pk).exists()
+    counts = (Festival.objects.count(), Application.objects.count())
+    call_command("seed_demo_data", mode="refresh", apply=True, stdout=StringIO())
+    assert (Festival.objects.count(), Application.objects.count()) == counts
+    demo_owner.refresh_from_db()
+    assert demo_owner.password == password
+    assert Festival.objects.filter(pk=other_festival.pk).exists()
+    assert Application.objects.filter(pk=outside.pk).exists()
+    assert outside.answers.get().value == "Сохранить"
