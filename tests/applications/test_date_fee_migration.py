@@ -10,9 +10,9 @@ from django.db.migrations.executor import MigrationExecutor
 def test_fee_end_dates_preserve_prices_ids_and_round_trip():
     executor = MigrationExecutor(connection)
     latest = executor.loader.graph.leaf_nodes()
-    previous = [target for target in latest if target[0] != "applications"] + [
-        ("applications", "0012_date_fees")
-    ]
+    previous = [
+        target for target in latest if target[0] not in ("applications", "billing")
+    ] + [("billing", "0001_initial"), ("applications", "0012_date_fees")]
     try:
         executor.migrate(previous)
         apps = executor.loader.project_state(previous).apps

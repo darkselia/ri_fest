@@ -9,9 +9,9 @@ from django.db.migrations.executor import MigrationExecutor
 def test_unification_and_simplification_preserve_records_and_selections():
     executor = MigrationExecutor(connection)
     latest = executor.loader.graph.leaf_nodes()
-    previous = [target for target in latest if target[0] != "applications"] + [
-        ("applications", "0005_service_fields")
-    ]
+    previous = [
+        target for target in latest if target[0] not in ("applications", "billing")
+    ] + [("billing", "0001_initial"), ("applications", "0005_service_fields")]
     try:
         executor.migrate(previous)
         apps = executor.loader.project_state(previous).apps
