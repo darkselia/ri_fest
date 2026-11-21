@@ -1,0 +1,138 @@
+:is(body.change-list, body.answer-list-page) :is(#content.container, .container:has(> #header-inner), .admin-bottom-bar > .container) {
+    max-width: none;
+}
+
+.admin-filter-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    color: var(--color-ink);
+    cursor: pointer;
+}
+
+html:not(.filter-drawer-ready) .admin-filter-trigger {
+    visibility: hidden;
+}
+
+.admin-filter-trigger:hover {
+    background: var(--admin-panel-border);
+}
+
+.admin-filter-trigger:focus-visible,
+.filter-drawer__close:focus-visible {
+    outline: 2px solid var(--admin-focus);
+    outline-offset: 2px;
+}
+
+body.change-list #changelist-filter,
+body.app-applications.model-application.change-list #changelist-filter,
+body.answer-list-page .answer-table__sidebar {
+    position: sticky;
+    top: 80px;
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+}
+
+body.change-list #changelist-filter[hidden],
+.answer-table__sidebar[hidden] {
+    display: none !important;
+}
+
+@media (width < 1024px) {
+    body.change-list .admin-list-toolbar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    body.change-list .admin-list-toolbar > form {
+        order: 0;
+        grid-column: auto;
+        min-width: 0;
+    }
+
+    body.change-list .admin-list-toolbar > #toolbar {
+        order: 1;
+        grid-column: auto;
+        width: 100%;
+    }
+
+    html.filter-drawer-open {
+        overflow: hidden;
+    }
+
+    .filter-drawer {
+        position: fixed;
+        inset: 0 0 0 auto;
+        width: min(360px, 90vw);
+        max-width: none;
+        height: 100dvh;
+        max-height: none;
+        margin: 0;
+        padding: 16px;
+        overflow-y: auto;
+        color: var(--color-ink);
+        background: var(--admin-page-bg);
+        border: 0;
+        border-left: 1px solid var(--admin-panel-border);
+        border-radius: 0;
+        translate: none;
+        animation: filter-drawer-enter 180ms ease-out;
+    }
+
+    .filter-drawer::backdrop {
+        background: rgb(0 0 0 / 50%);
+        backdrop-filter: none;
+    }
+
+    .filter-drawer__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .filter-drawer__header h2 {
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .filter-drawer__close {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border: 1px solid var(--admin-panel-border);
+        border-radius: 6px;
+        background: var(--admin-panel-bg);
+        color: var(--color-ink);
+        font-size: 26px;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    body.change-list .filter-drawer #changelist-filter,
+    body.app-applications.model-application.change-list .filter-drawer #changelist-filter,
+    body.answer-list-page .filter-drawer .answer-table__sidebar {
+        position: static;
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        max-height: none;
+        margin: 0;
+        overflow: visible;
+    }
+}
+
+@keyframes filter-drawer-enter {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .filter-drawer {
+        animation: none;
+    }
+}

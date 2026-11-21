@@ -164,7 +164,7 @@ class BalanceFilter(admin.SimpleListFilter):
 
 
 class ServiceFilter(admin.SimpleListFilter):
-    title = "Услуга"
+    title = "Услуги"
     parameter_name = "service"
     template = "admin/applications/grouped_filter.html"
 
@@ -242,7 +242,7 @@ class ServiceFilter(admin.SimpleListFilter):
 
 
 class FeeStatusFilter(admin.SimpleListFilter):
-    title = "Фиксация платы"
+    title = "Платы по дате"
     parameter_name = "fee_status"
     template = "admin/applications/grouped_filter.html"
 
@@ -497,7 +497,12 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
                 if field.field_type in ("service", "service1")
                 else field.options.all()
             )
-            filters.append(
+            target_filters = (
+                service_filters
+                if field.field_type in ("service", "service1")
+                else filters
+            )
+            target_filters.append(
                 {
                     "label": field.label,
                     "name": f"answer_{field.pk}",
@@ -513,6 +518,31 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
                     ],
                 }
             )
+        fee_filters = (
+            [
+                {
+                    "label": field.label,
+                    "name": "fee_status",
+                    "options": [
+                        {
+                            "value": f"{field.pk}:{value}",
+                            "label": label,
+                            "checked": f"{field.pk}:{value}"
+                            in request.GET.getlist("fee_status"),
+                        }
+                        for value, label in (
+                            ("yes", "Зафиксирован"),
+                            ("no", "Не зафиксирован"),
+                        )
+                    ],
+                }
+                for field in festival.form_fields.filter(
+                    field_type="datefee", is_active=True
+                )
+            ]
+            if festival
+            else []
+        )
         page = Paginator(rows, 10).get_page(request.GET.get("p"))
         query = request.GET.copy()
         query.pop("p", None)
@@ -672,6 +702,9 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
                 "festival": festival,
                 "columns": columns,
                 "filters": filters,
+                "service_filters": service_filters,
+                "fee_filters": fee_filters,
+                "fixed_columns": FIXED_COLUMNS,
                 "status_options": status_options,
                 "page_obj": page,
                 "page_range": page.paginator.get_elided_page_range(page.number),

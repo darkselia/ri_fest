@@ -3,18 +3,42 @@
     {% if cl.has_filters and vertical_filters %}
         <aside id="changelist-filter"
                class="admin-filter-panel"
-               aria-label="Фильтры"
-               {% if cl.opts.app_label == "applications" and cl.opts.model_name == "application" %} x-init="(() => { try { filterOpen = sessionStorage.getItem('ri-fest:application-filter-panel') === 'open'; } catch {} })()" {% endif %}
-               x-show="filterOpen">
+               aria-label="Фильтры">
             {% if cl.model_admin.list_filter_submit %}
                 <form id="filter-form" method="get" class="flex flex-col gap-4">
                     {% preserve_filters "vertical" %}
+                    {% if cl.opts.app_label == "applications" and cl.opts.model_name == "application" %}
+                        {% if request.GET.application_status %}<input type="hidden" name="application_status" value="{{ request.GET.application_status }}">{% endif %}
+                        {% if request.GET.balance %}<input type="hidden" name="balance" value="{{ request.GET.balance }}">{% endif %}
+                    {% endif %}
             {% else %}
                 <div class="flex flex-col gap-4">
             {% endif %}
-                {% for spec in vertical_filters %}
-                    {% unfold_admin_list_filter cl spec %}
-                {% endfor %}
+                {% if cl.opts.app_label == "applications" and cl.opts.model_name == "application" %}
+                    <div class="admin-panel application-filter-group">
+                        <h3>Общие фильтры</h3>
+                        {% for spec in vertical_filters %}
+                            {% if spec.parameter_name == "application_status" or spec.parameter_name == "balance" %}
+                                <details class="admin-filter-choice application-filter-question" {% if spec.parameter_name == "application_status" %}open{% endif %}>
+                                    <summary>{{ spec.title|capfirst }}</summary>
+                                    {% unfold_admin_list_filter cl spec %}
+                                </details>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% for spec in vertical_filters %}
+                        {% if spec.parameter_name == "fee_status" or spec.parameter_name == "service" %}
+                            <div class="admin-panel application-filter-group">
+                                <h3>{{ spec.title|capfirst }}</h3>
+                                {% unfold_admin_list_filter cl spec %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    {% for spec in vertical_filters %}
+                        {% unfold_admin_list_filter cl spec %}
+                    {% endfor %}
+                {% endif %}
                 {% if cl.model_admin.list_filter_submit %}
                     <noscript>
                         {% component "unfold/components/button.html" with submit=1 %}Применить фильтры{% endcomponent %}

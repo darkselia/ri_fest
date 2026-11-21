@@ -47,6 +47,24 @@ def prepare_answer_table(festival, params, *, include_hidden=False):
     elif status == "withdrawn":
         queryset = queryset.filter(status="withdrawn")
 
+    balance = params.get("balance", "")
+    if balance == "due":
+        queryset = queryset.filter(registry_due__gt=0)
+    elif balance == "overpaid":
+        queryset = queryset.filter(registry_overpaid__gt=0)
+    elif balance == "settled":
+        queryset = queryset.filter(registry_due=0, registry_overpaid=0)
+    elif balance:
+        raise SuspiciousOperation("Неизвестный фильтр баланса.")
+
+    fee_fields = list(festival.form_fields.filter(field_type="datefee", is_active=True))
+    fee_options = {
+        f"{field.pk}:{state}" for field in fee_fields for state in ("yes", "no")
+    }
+    fee_filters = set(params.getlist("fee_status")) - {""}
+    if not fee_filters <= fee_options:
+        raise SuspiciousOperation("Неизвестный фильтр платы по дате.")
+
     field_map = {str(field.pk): field for field in fields}
     option_labels = {
         field.pk: {str(option.pk): option.label for option in field.options.all()}
@@ -103,6 +121,26 @@ def prepare_answer_table(festival, params, *, include_hidden=False):
                 )
     search = params.get("q", "").casefold().split()
     for app in queryset:
+        snapshot = (
+            app.financial_snapshot
+            if archived and app.financial_snapshot_current and app.financial_snapshot
+            else None
+        )
+        locked = (
+            {
+                item["field_id"]
+                for item in snapshot.get("fees", [])
+                if item.get("locked_at")
+            }
+            if snapshot
+            else {lock.field_id for lock in app.fee_locks.all()}
+        )
+        if any(
+            (f"{field.pk}:yes" in fee_filters) != (field.pk in locked)
+            for field in fee_fields
+            if (f"{field.pk}:yes" in fee_filters) != (f"{field.pk}:no" in fee_filters)
+        ):
+            continue
         answers = {answer.field_id: answer.value for answer in app.answers.all()}
         services = defaultdict(list)
         if archived and app.financial_snapshot_current and app.financial_snapshot:

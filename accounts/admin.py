@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.decorators import method_decorator
+from django.utils.text import capfirst
 from django.views.decorators.debug import sensitive_post_parameters
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm
@@ -78,6 +79,12 @@ class UserAdmin(DjangoUserAdmin, ModelAdmin):
             {"fields": ("email", "usable_password", "password1", "password2")},
         ),
     )
+
+    def get_changelist_instance(self, request):
+        changelist = super().get_changelist_instance(request)
+        for spec in changelist.filter_specs:
+            spec.title = capfirst(spec.title)
+        return changelist
 
     def save_model(self, request, obj, form, change):
         if change and not obj.is_active:

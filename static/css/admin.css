@@ -274,10 +274,6 @@ fieldset.module {
     margin-bottom: 16px;
 }
 
-body.app-applications.model-application.change-list #changelist-filter {
-    position: static;
-}
-
 body.app-applications.model-application.change-list #changelist-filter li a {
     white-space: normal;
     overflow-wrap: anywhere;
@@ -315,12 +311,6 @@ body.app-applications.model-application.change-list #changelist-filter .select2-
     transform: translateY(-50%);
 }
 
-#result_list :is(.column-paid_display, .column-cost_display, .field-paid_display, .field-cost_display) {
-    text-align: end;
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-}
-
 #result_list {
     table-layout: fixed;
 }
@@ -329,55 +319,6 @@ body.app-applications.model-application.change-list #changelist-filter .select2-
     width: 12.5%;
     white-space: normal;
     overflow-wrap: anywhere;
-}
-
-body.app-applications.model-application.change-list #result_list thead th:nth-child(1) {
-    width: 12%;
-}
-
-body.app-applications.model-application.change-list #result_list thead th:nth-child(2) {
-    width: 16%;
-}
-
-body.app-applications.model-application.change-list #result_list thead th:nth-child(3) {
-    width: 13%;
-}
-
-body.app-applications.model-application.change-list #result_list thead th:nth-child(4) {
-    width: 16%;
-}
-
-body.app-applications.model-application.change-list #result_list thead th:nth-child(5),
-body.app-applications.model-application.change-list #result_list thead th:nth-child(6) {
-    width: 110px;
-}
-
-body.app-applications.model-application.change-list #result_list thead th:nth-child(7) {
-    width: 120px;
-}
-
-body.app-applications.model-application.change-list #result_list thead th:nth-child(8) {
-    width: 150px;
-}
-
-body.app-festivals.model-festival.change-list #result_list {
-    min-width: 770px;
-}
-
-body.app-festivals.model-festival.change-list #result_list .column-name {
-    width: 240px;
-}
-
-body.app-festivals.model-festival.change-list #result_list .column-status {
-    width: 130px;
-}
-
-body.app-festivals.model-festival.change-list #result_list :is(.column-start_date, .column-end_date) {
-    width: 120px;
-}
-
-body.app-festivals.model-festival.change-list #result_list .column-timezone {
-    width: 160px;
 }
 
 body.app-festivals.model-festival.change-list #result_list :is(.field-start_date, .field-end_date, .field-timezone) {
@@ -783,16 +724,6 @@ body.app-applications.model-application.change-list #result_list .field-particip
         display: none;
     }
 
-    .addlink .addlink__text {
-        display: none;
-    }
-
-    .addlink {
-        min-width: 40px;
-        min-height: 40px;
-        padding: 8px;
-    }
-
     #header-inner [x-data*="showActions"] {
         position: relative;
     }
@@ -838,27 +769,18 @@ body.app-applications.model-application.change-list #result_list .field-particip
         padding-top: 16px;
     }
 
-    .admin-list-toolbar > .filter-open-button {
-        display: flex;
+    .admin-list-toolbar,
+    .admin-list-toolbar:not(:has(>form)) {
+        grid-template-columns: minmax(0, 1fr);
     }
 
-    .admin-list-toolbar {
-        grid-template-columns: minmax(0, 1fr) auto;
+    .admin-list-toolbar > form {
+        order: 0;
+        min-width: 0;
     }
 
     .admin-list-toolbar > #toolbar {
         order: 1;
-    }
-
-    .admin-list-toolbar > .filter-open-button {
-        order: 2;
-    }
-
-    .admin-list-toolbar > form {
-        order: 3;
-        grid-column: 1 / -1;
-        min-width: 0;
-        width: 100%;
     }
 
     .admin-list-toolbar .form-field {
@@ -894,6 +816,15 @@ body.app-applications.model-application.change-list #result_list .field-particip
     #result_list tbody a[href*="/change/"] {
         background: var(--admin-panel-border);
         border-radius: 3px;
+    }
+        .addlink .addlink__text {
+        display: none;
+    }
+
+    .addlink {
+        min-width: 40px;
+        min-height: 40px;
+        padding: 8px;
     }
 }
 
