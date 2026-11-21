@@ -1,5 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
+    const applicationList = document.body.matches(".app-applications.model-application.change-list");
     document.querySelectorAll("a[data-sort-new]").forEach(link => {
+        if (applicationList) return;
         const url = new URL(link.href);
         const ordering = url.searchParams.get("o")?.split(".");
         if (ordering?.length) {

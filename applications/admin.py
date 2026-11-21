@@ -557,6 +557,7 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
             status_query["status"] = value
             status_options.append(
                 {
+                    "value": value,
                     "label": label,
                     "url": f"?{status_query.urlencode()}",
                     "selected": request.GET.get("status", "active") == value,
@@ -617,9 +618,12 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
             field.answer_width = column_widths[field.pk]
         headers = [
             {
-                "class": "answer-column-money"
-                if key in ("total", "paid", "balance")
-                else "answer-column-default",
+                "class": f"answer-column-fixed-{key} "
+                + (
+                    "answer-column-money"
+                    if key in ("total", "paid", "balance")
+                    else "answer-column-default"
+                ),
                 "content": sortable_header(key, label),
             }
             for key, label in (
@@ -662,18 +666,31 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
                 (owner.get_full_name() or owner.email) if owner else "Владелец удалён"
             )
             cells = [
-                format_html(
-                    '<a href="{}">{}<small class="block mt-1">{}</small></a>',
-                    reverse(
-                        "admin:applications_application_change", args=[application.pk]
+                {
+                    "class": "answer-column-fixed-owner",
+                    "content": format_html(
+                        '<a href="{}">{}<small class="block mt-1">{}</small></a>',
+                        reverse(
+                            "admin:applications_application_change",
+                            args=[application.pk],
+                        ),
+                        name,
+                        self.application_status(application),
                     ),
-                    name,
-                    self.application_status(application),
-                ),
-                row["fees"],
-                {"class": "answer-column-money", "content": row["total"]},
-                {"class": "answer-column-money", "content": row["paid"]},
-                {"class": "answer-column-money", "content": row["balance"]},
+                },
+                {"class": "answer-column-fixed-fees", "content": row["fees"]},
+                {
+                    "class": "answer-column-money answer-column-fixed-total",
+                    "content": row["total"],
+                },
+                {
+                    "class": "answer-column-money answer-column-fixed-paid",
+                    "content": row["paid"],
+                },
+                {
+                    "class": "answer-column-money answer-column-fixed-balance",
+                    "content": row["balance"],
+                },
             ]
             for field, value in zip(columns, row["values"], strict=True):
                 content = value["text"] or "—"
