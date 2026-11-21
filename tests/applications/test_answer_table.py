@@ -243,7 +243,7 @@ def test_answer_table_sorts_numbers_and_keeps_filter(
         "10",
         "30",
     ]
-    assert "arrow_upward" in response.content.decode()
+    assert "arrow_downward" in response.content.decode()
     params["sort"] = f"field_{question.pk},-field_{question.pk}"
     assert client.get(url, params).status_code == 400
     params["sort"] = "field_999999"
@@ -291,14 +291,14 @@ def test_answer_table_sort_cycle_preserves_other_columns(
     params = {"festival": festival.pk, "sort": "paid"}
     response = client.get(url, params)
     assert (
-        "sort=paid%2C-total" in response.context["answer_data"]["headers"][2]["content"]
-    )
-    params["sort"] = "paid,-total"
-    response = client.get(url, params)
-    assert (
         "sort=paid%2Ctotal" in response.context["answer_data"]["headers"][2]["content"]
     )
     params["sort"] = "paid,total"
+    response = client.get(url, params)
+    assert (
+        "sort=paid%2C-total" in response.context["answer_data"]["headers"][2]["content"]
+    )
+    params["sort"] = "paid,-total"
     response = client.get(url, params)
     assert "sort=paid" in response.context["answer_data"]["headers"][2]["content"]
 

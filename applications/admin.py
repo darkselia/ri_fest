@@ -580,14 +580,14 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
                 (i for i, value in enumerate(items) if value.lstrip("-") == key), None
             )
             if index is None:
-                items.append(f"-{key}")
+                items.append(key)
                 return format_html('<a href="{}">{}</a>', sort_link(items), label)
             current = items[index]
             if current.startswith("-"):
-                items[index] = key
-            else:
                 items.pop(index)
-            icon = "arrow_downward" if current.startswith("-") else "arrow_upward"
+            else:
+                items[index] = f"-{key}"
+            icon = "arrow_upward" if current.startswith("-") else "arrow_downward"
             priority = str(index + 1) if len(ordering) > 1 else ""
             return format_html(
                 '<div class="answer-sort"><a href="{}">{} <span class="admin-sort-icon material-symbols-outlined" aria-hidden="true">{}</span> <span>{}</span></a></div>',
