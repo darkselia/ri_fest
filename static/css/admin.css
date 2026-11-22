@@ -214,15 +214,15 @@ fieldset.module {
 }
 
 .festival-action--archive {
-    background: var(--color-action-archive);
+    background: var(--color-info-bg);
 }
 
 .festival-action--draft {
-    background: var(--color-action-draft);
+    background: var(--color-warning-bg);
 }
 
 .festival-action--danger {
-    background: var(--color-action-delete);
+    background: var(--color-error-bg);
 }
 
 .dark .festival-action {
@@ -420,12 +420,12 @@ body.app-applications.model-application.change-list #result_list .field-particip
 }
 
 .application-balance--due {
-    color: var(--color-balance-due);
+    color: var(--color-error);
     font-weight: 600;
 }
 
 .application-balance--overpaid {
-    color: var(--color-balance-overpaid);
+    color: var(--color-info);
     font-weight: 600;
 }
 
@@ -445,7 +445,7 @@ body.app-applications.model-application.change-list #result_list .field-particip
 }
 
 .registry-fee__icon--unlocked {
-    color: var(--color-balance-due);
+    color: var(--color-error);
 }
 
 .app-applications.model-application #result_list {

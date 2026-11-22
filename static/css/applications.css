@@ -159,7 +159,7 @@
     justify-content: center;
     border-radius: 7px;
     border: 1px solid var(--color-line);
-    color: var(--color-danger);
+    color: var(--color-error);
 }
 
 .application-row__delete svg {
@@ -174,7 +174,7 @@
 }
 
 .application-delete {
-    color: var(--color-danger);
+    color: var(--color-error);
 }
 
 .application-selector {
@@ -189,7 +189,7 @@
     box-sizing: border-box;
     width: 100%;
     padding: 8px 10px;
-    border: 1px solid var(--color-cabinet-input-border);
+    border: 1px solid var(--color-surface-border);
     border-radius: 6px;
     background: var(--color-surface);
     color: var(--color-ink);
@@ -264,13 +264,13 @@
 }
 
 .application-row__balance--due {
-    color: var(--color-balance-due);
-    background: var(--color-balance-due-bg);
+    color: var(--color-error);
+    background: var(--color-error-bg);
 }
 
 .application-row__balance--overpaid {
-    color: var(--color-balance-overpaid);
-    background: var(--color-balance-overpaid-bg);
+    color: var(--color-info);
+    background: var(--color-info-bg);
 }
 
 @media (width < 640px) {

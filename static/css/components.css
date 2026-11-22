@@ -60,14 +60,14 @@
 }
 
 .button--danger {
-    background: var(--color-danger);
-    border-color: var(--color-danger);
+    background: var(--color-error);
+    border-color: var(--color-error);
     color: var(--color-white);
 }
 
 .button--danger:hover {
-    background: var(--color-danger-hover);
-    border-color: var(--color-danger-hover);
+    background: var(--color-error-hover);
+    border-color: var(--color-error-hover);
 }
 
 .account-form {
@@ -95,7 +95,7 @@
     width: 100%;
     min-width: 0;
     padding: 8px 10px;
-    border: 1px solid var(--color-cabinet-input-border);
+    border: 1px solid var(--color-surface-border);
     border-radius: 6px;
     background: var(--color-surface);
     color: var(--color-ink);
@@ -187,8 +187,8 @@
     align-items: center;
     border-radius: 6px;
     padding: 4px 9px;
-    background: var(--color-cabinet-draft-bg);
-    color: var(--color-cabinet-draft);
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
     font-size: 12px;
     font-weight: 700;
     white-space: nowrap;
@@ -196,18 +196,18 @@
 
 .application-badge--active,
 .email-status--confirmed {
-    background: var(--color-cabinet-sent-bg);
+    background: var(--color-success-bg);
     color: var(--color-success);
 }
 
 .application-badge--archive {
-    background: var(--color-cabinet-archive-bg);
-    color: var(--color-action-archive);
+    background: var(--color-info-bg);
+    color: var(--color-info);
 }
 
 .application-badge--withdrawn {
-    background: var(--color-cabinet-withdrawn-bg);
-    color: var(--color-cabinet-withdrawn);
+    background: var(--color-withdrawn-bg);
+    color: var(--color-withdrawn);
 }
 
 .brand-scene {
