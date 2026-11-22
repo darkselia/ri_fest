@@ -69,6 +69,10 @@
                         </div>
                     {% endif %}
                 </div>
+                <div class="schema-question-actions">
+                    {% component "unfold/components/button.html" with type="button" variant="default" extra_attrs='data-expand-questions="true"' %}Раскрыть все вопросы{% endcomponent %}
+                    {% component "unfold/components/button.html" with type="button" variant="default" extra_attrs='data-expand-questions="false"' %}Свернуть все вопросы{% endcomponent %}
+                </div>
                 <noscript>Для редактирования шаблона включите JavaScript.</noscript>
                 {% if schema_requires_unpublish %}
                     <p>Анкету нельзя редактировать, если фестиваль проходит или в архиве.</p>

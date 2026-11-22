@@ -147,11 +147,36 @@
 
 .schema-card__title {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
-    margin-bottom: 16px;
     color: var(--color-base-600);
     font-weight: 600;
+}
+
+.schema-card__title--open {
+    margin-bottom: 16px;
+}
+
+.schema-card > [hidden] {
+    display: none;
+}
+
+.schema-card__summary {
+    flex: 1 1 180px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.schema-card__type {
+    margin-left: auto;
+    font-weight: 400;
+}
+
+.schema-question-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .dark .schema-card__title {
@@ -420,7 +445,7 @@
     }
 }
 
-@media (width < 640px) {
+@media (width < 800px) {
 
     .schema-option {
         grid-template-columns: 28px minmax(0, 1fr);

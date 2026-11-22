@@ -222,6 +222,7 @@
             return copy;
         };
         const ids = new WeakMap();
+        const expanded = new WeakSet();
         let serial = 0;
         const identity = object => {
             if (!ids.has(object)) ids.set(object, `editor-${++serial}`);
@@ -253,7 +254,8 @@
             if (editable && row) reorder(["service", "service1"].includes(row.field_type) ? row.services : row.options, id, position);
         };
         const handle = (list, object) => {
-            const el = iconButton("Переместить: перетащите или нажмите Alt + ↑ / ↓", "drag_indicator", () => {});
+            const el = iconButton("Переместить: перетащите или нажмите Alt + ↑ / ↓", "drag_indicator", () => {
+            });
             el.classList.add("schema-drag");
             el.setAttribute("data-drag-handle", "");
             el.addEventListener("keydown", event => {
@@ -287,11 +289,33 @@
                 card.setAttribute("x-sort:item", JSON.stringify(rowId));
                 card.dataset.editorId = rowId;
                 const title = node("div", undefined, "schema-card__title");
+                const toggle = iconButton("Раскрыть вопрос", "expand_more", () => {
+                    if (expanded.has(row)) expanded.delete(row);
+                    else expanded.add(row);
+                    setExpanded();
+                });
+                const setExpanded = () => {
+                    const open = expanded.has(row);
+                    [...card.children].slice(1).forEach(child => child.hidden = !open);
+                    toggle.setAttribute("aria-expanded", String(open));
+                    toggle.setAttribute("aria-label", open ? "Свернуть вопрос" : "Раскрыть вопрос");
+                    toggle.title = open ? "Свернуть вопрос" : "Раскрыть вопрос";
+                    toggle.firstElementChild.textContent = open ? "expand_less" : "expand_more";
+                    title.classList.toggle("schema-card__title--open", open);
+                };
+                toggle.disabled = false;
+                title.append(toggle);
                 if (editable) title.append(handle(rows, row));
                 title.append(node("span", row.field_type === "info" ? "Текстовый блок" : `Вопрос ${questionNumber}`));
+                const summary = node("span", row.label || "Без названия", "schema-card__summary");
+                title.append(summary);
+                if (!row.is_active) title.append(node("span", "Скрыт", "schema-hidden-note"));
+                title.append(node("span", types.find(([value]) => value === row.field_type)?.[1] || row.field_type, "schema-card__type"));
                 card.append(title);
                 const head = node("div", undefined, "schema-card__head");
-                control(head, row, "label", "Название");
+                control(head, row, "label", "Название").addEventListener("input", () => {
+                    summary.textContent = row.label || "Без названия";
+                });
                 const originalKind = row.field_type;
                 const kind = control(head, row, "field_type", "Тип", "text", types);
                 kind.addEventListener("change", () => {
@@ -487,8 +511,7 @@
                                 return;
                             }
                             const count = hiding.counts[String(row.id)] || 0;
-                            if (count) confirmAction(event.currentTarget, `Есть ответы в ${countIn(count)}. Для сохранения ответов используйте скрытие вопроса.`,
-                                row.is_active ? "Скрыть вопрос" : null, row.is_active ? () => hideQuestion(row, visibility) : null);
+                            if (count) confirmAction(event.currentTarget, `Есть ответы в ${countIn(count)}. Для сохранения ответов используйте скрытие вопроса.`);
                             else confirmAction(event.currentTarget, "Ответов в анкетах нет. Вопрос и его варианты будут удалены из шаблона после сохранения фестиваля.", "Удалить вопрос", () => {
                                 rows.splice(rows.indexOf(row), 1);
                                 sync();
@@ -499,12 +522,17 @@
                     settings.append(tools);
                 }
                 card.append(settings);
+                setExpanded();
                 container.append(card);
             });
             root.querySelector("[data-schema-count]").textContent = `(${rows.length})`;
         };
+        root.querySelectorAll("[data-expand-questions]").forEach(control => control.addEventListener("click", () => {
+            rows.forEach(row => control.dataset.expandQuestions === "true" ? expanded.add(row) : expanded.delete(row));
+            render();
+        }));
         root.querySelector("[data-add-field]")?.addEventListener("click", () => {
-            rows.push({
+            const row = {
                 id: null,
                 field_type: "text",
                 label: "",
@@ -514,7 +542,9 @@
                 is_active: true,
                 options: [],
                 services: []
-            });
+            };
+            rows.push(row);
+            expanded.add(row);
             sync();
             render();
             container.lastElementChild.querySelector("input")?.focus();
@@ -558,7 +588,7 @@
                 const answers = {};
                 previewFrame.contentDocument.querySelectorAll("input, select, textarea").forEach(el => {
                     if (!el.name || ((el.type === "checkbox" || el.type === "radio") && !el.checked)) return;
-                    if (el.type === "checkbox")(answers[el.name] ||= []).push(el.value);
+                    if (el.type === "checkbox") (answers[el.name] ||= []).push(el.value);
                     else answers[el.name] = el.value;
                 });
                 payload.answers = answers;
@@ -620,9 +650,9 @@
                 const pending = [];
                 if (!row.is_active && hiding.active.includes(row.id) && !hiding.confirmed.includes(String(row.id))) pending.push(String(row.id));
                 for (const [options, prefix] of [
-                        [row.options || [], "a"],
-                        [row.services || [], "s"]
-                    ]) {
+                    [row.options || [], "a"],
+                    [row.services || [], "s"]
+                ]) {
                     for (const option of options) {
                         const key = `${prefix}:${option.id}`;
                         if (!option.is_active && hiding.active_options.includes(key) && !hiding.confirmed.includes(key)) pending.push(key);
