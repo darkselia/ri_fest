@@ -95,14 +95,19 @@
                 </dialog>
                 <section data-schema-preview hidden>
                 </section>
-                <div data-schema-fields
-                     {% if schema_editable %}x-sort="window.riSchemaSort($item, $position)" x-sort:config="{handle: '[data-drag-handle]', animation: 150}"{% endif %}>
+                <div class="schema-workspace">
+                    <div class="schema-outline-column">
+                        <div class="schema-outline" data-schema-outline aria-label="Оглавление вопросов"
+                             {% if schema_editable %}x-sort="window.riSchemaSort($item, $position)" x-sort:config="{handle: '[data-drag-handle]', animation: 150}"{% endif %}></div>
+                        {% if schema_editable %}
+                            {% component "unfold/components/button.html" with type="button" extra_attrs="data-add-field" class="mt-4" %}
+                                Добавить вопрос
+                            {% endcomponent %}
+                        {% endif %}
+                    </div>
+                    <div data-schema-fields
+                         {% if schema_editable %}x-sort="window.riSchemaSort($item, $position)" x-sort:config="{handle: '[data-drag-handle]', animation: 150}"{% endif %}></div>
                 </div>
-                {% if schema_editable %}
-                    {% component "unfold/components/button.html" with type="button" extra_attrs="data-add-field" class="mt-4" %}
-                        Добавить вопрос
-                    {% endcomponent %}
-                {% endif %}
             </div>
         </details>
     {% endif %}

@@ -62,6 +62,8 @@
         const types = JSON.parse(document.getElementById("schema-types").textContent);
         const editable = root.dataset.editable === "true";
         const container = root.querySelector("[data-schema-fields]");
+        const outline = root.querySelector("[data-schema-outline]");
+        const desktop = window.matchMedia("(min-width: 801px)");
         const preview = root.querySelector("[data-schema-preview]");
         const dialog = document.getElementById("schema-preview-dialog");
         const previewFrame = dialog.querySelector("iframe");
@@ -230,6 +232,7 @@
         };
         const ids = new WeakMap();
         const expanded = new WeakSet();
+        let selected = rows[0];
         let serial = 0;
         const identity = object => {
             if (!ids.has(object)) ids.set(object, `editor-${++serial}`);
@@ -274,7 +277,7 @@
                 list.splice(to, 0, list.splice(from, 1)[0]);
                 sync();
                 render();
-                container.querySelector(`[data-editor-id="${identity(object)}"] [data-drag-handle]`)?.focus();
+                (desktop.matches ? outline : container).querySelector(`[data-editor-id="${identity(object)}"] [data-drag-handle]`)?.focus();
                 root.querySelector("[data-sort-message]").textContent = `Новая позиция: ${to + 1}.`;
             });
             return el;
@@ -282,6 +285,8 @@
         const render = () => {
             closeConfirmation(false);
             container.replaceChildren();
+            outline.replaceChildren();
+            if (!rows.includes(selected)) selected = rows[0];
             let questionNumber = 0;
             rows.forEach((row, i) => {
                 row.options ||= [];
@@ -291,7 +296,28 @@
                 if (!row.is_active) card.classList.add("schema-card--hidden");
                 if (row.field_type === "info") card.classList.add("schema-card--info");
                 if (row.field_type !== "info") questionNumber += 1;
-                card.setAttribute("aria-label", row.field_type === "info" ? "Текстовый блок" : `Вопрос ${questionNumber}`);
+                const entry = node("div", undefined, "schema-outline__item");
+                entry.dataset.editorId = rowId;
+                entry.setAttribute("x-sort:item", JSON.stringify(rowId));
+                if (editable) entry.append(handle(rows, row));
+                const choose = node("button", undefined, "schema-outline__choose");
+                choose.type = "button";
+                choose.setAttribute("aria-pressed", String(selected === row));
+                const heading = node("span", undefined, "schema-outline__heading");
+                heading.append(node("span", row.field_type === "info" ? "Текст" : `${questionNumber}`, "schema-outline__number"));
+                const outlineSummary = node("span", row.label || "Без названия", "schema-outline__summary");
+                heading.append(outlineSummary);
+                choose.append(heading);
+                if (!row.is_active) choose.append(node("span", "Скрыт", "schema-hidden-note"));
+                choose.append(node("span", types.find(([value]) => value === row.field_type)?.[1] || row.field_type, "schema-outline__type"));
+                choose.addEventListener("click", () => {
+                    selected = row;
+                    render();
+                    outline.querySelector(`[data-editor-id="${rowId}"] .schema-outline__choose`)?.focus();
+                });
+                entry.append(choose);
+                outline.append(entry);
+                card.setAttribute("aria-label", row.field_type === "info" ? "Текст блок" : `${questionNumber}`);
                 card.dataset.number = row.field_type === "info" ? "" : String(questionNumber);
                 card.setAttribute("x-sort:item", JSON.stringify(rowId));
                 card.dataset.editorId = rowId;
@@ -302,7 +328,8 @@
                     setExpanded();
                 });
                 const setExpanded = () => {
-                    const open = expanded.has(row);
+                    const open = desktop.matches || expanded.has(row);
+                    card.hidden = desktop.matches && selected !== row;
                     [...card.children].slice(1).forEach(child => child.hidden = !open);
                     toggle.setAttribute("aria-expanded", String(open));
                     toggle.setAttribute("aria-label", open ? "Свернуть вопрос" : "Раскрыть вопрос");
@@ -313,7 +340,7 @@
                 toggle.disabled = false;
                 title.append(toggle);
                 if (editable) title.append(handle(rows, row));
-                title.append(node("span", row.field_type === "info" ? "Текстовый блок" : `Вопрос ${questionNumber}`));
+                title.append(node("span", row.field_type === "info" ? "Текст" : `${questionNumber}`));
                 const summary = node("span", row.label || "Без названия", "schema-card__summary");
                 title.append(summary);
                 if (!row.is_active) title.append(node("span", "Скрыт", "schema-hidden-note"));
@@ -322,6 +349,7 @@
                 const head = node("div", undefined, "schema-card__head");
                 control(head, row, "label", "Название").addEventListener("input", () => {
                     summary.textContent = row.label || "Без названия";
+                    outlineSummary.textContent = row.label || "Без названия";
                 });
                 const originalKind = row.field_type;
                 const kind = control(head, row, "field_type", "Тип", "text", types);
@@ -508,7 +536,9 @@
                     visibility.dataset.questionVisibility = "";
                     tools.append(visibility,
                         iconButton("Дублировать вопрос", "content_copy", () => {
-                            rows.splice(i + 1, 0, independent(row));
+                            const copy = independent(row);
+                            rows.splice(i + 1, 0, copy);
+                            selected = copy;
                             sync();
                             render();
                         }),
@@ -539,6 +569,7 @@
             });
             root.querySelector("[data-schema-count]").textContent = `(${rows.length})`;
         };
+        desktop.addEventListener("change", render);
         root.querySelectorAll("[data-expand-questions]").forEach(control => control.addEventListener("click", () => {
             rows.forEach(row => control.dataset.expandQuestions === "true" ? expanded.add(row) : expanded.delete(row));
             render();
@@ -556,6 +587,7 @@
                 services: []
             };
             rows.push(row);
+            selected = row;
             expanded.add(row);
             sync();
             render();
@@ -674,6 +706,10 @@
                 }
                 if (pending.length) {
                     event.preventDefault();
+                    if (desktop.matches && selected !== row) {
+                        selected = row;
+                        render();
+                    }
                     const trigger = container.querySelector(`[data-editor-id="${identity(row)}"] [data-question-visibility]`);
                     const total = pending.reduce((sum, key) => sum + (hiding.counts[key] || hiding.option_counts[key] || 0), 0);
                     confirmAction(trigger, `Подтвердите скрытие элементов. Затронутые анкеты и выборы: ${total}. Сохранённые данные останутся в анкетах.`, "Подтвердить и сохранить", () => {
