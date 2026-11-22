@@ -220,7 +220,6 @@ class Command(BaseCommand):
             for fi, (name, status, start, end) in enumerate(specs):
                 festival = Festival.objects.create(
                     name=name,
-                    theme="Ролевые игры, общение и совместное творчество.",
                     status=status,
                     start_date=start,
                     end_date=end,

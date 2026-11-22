@@ -83,7 +83,6 @@ def service(label, price, **changes):
 def metadata(festival):
     return {
         "name": festival.name,
-        "theme": festival.theme,
         "start_date": festival.start_date,
         "end_date": festival.end_date,
         "timezone": festival.timezone,

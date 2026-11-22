@@ -252,7 +252,6 @@ def test_return_to_draft_preserves_data_and_does_not_republish(
     draft.refresh_from_db()
     values = (
         draft.name,
-        draft.theme,
         draft.start_date,
         draft.end_date,
         draft.timezone,
@@ -263,7 +262,6 @@ def test_return_to_draft_preserves_data_and_does_not_republish(
     assert returned.status == "draft"
     assert (
         returned.name,
-        returned.theme,
         returned.start_date,
         returned.end_date,
         returned.timezone,

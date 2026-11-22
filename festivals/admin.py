@@ -141,7 +141,7 @@ class FestivalAdmin(ModelAdmin):
         "end_date",
         "timezone",
     )
-    search_fields = ("name", "theme")
+    search_fields = ("name",)
     list_filter = ("status",)
     ordering = ("start_date",)
 
@@ -160,7 +160,7 @@ class FestivalAdmin(ModelAdmin):
 
     sortable_by = ("name", "start_date", "end_date", "status")
     list_filter_sheet = False
-    search_help_text = "Поиск по названию и теме"
+    search_help_text = "Поиск по названию"
     readonly_fields = ("status", "published_at")
     fields = (*EDITABLE_FIELDS, *readonly_fields)
     actions = None

@@ -15,7 +15,7 @@ from applications.models import Application, FormField
 
 from .models import Festival
 
-EDITABLE_FIELDS = ("name", "theme", "start_date", "end_date", "timezone")
+EDITABLE_FIELDS = ("name", "start_date", "end_date", "timezone")
 CONFIRMATION_SALT = "festivals.confirm-action"
 
 

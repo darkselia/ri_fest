@@ -53,15 +53,15 @@ def test_save_uses_local_archive_boundary_without_sync(
 
     if offset_us < 0:
         saved = save_festival(
-            draft.pk, actor=archive_actor, changes={"theme": "Последний день"}
+            draft.pk, actor=archive_actor, changes={"name": "Последний день"}
         )
-        assert saved.theme == "Последний день"
+        assert saved.name == "Последний день"
         assert saved.status == "running"
         assert saved.published_at == before["published_at"]
     else:
         with pytest.raises(PermissionDenied):
             save_festival(
-                draft.pk, actor=archive_actor, changes={"theme": "Слишком поздно"}
+                draft.pk, actor=archive_actor, changes={"name": "Слишком поздно"}
             )
         assert Festival.objects.values().get(pk=draft.pk) == before
         assert before["status"] == "open"
@@ -74,7 +74,7 @@ def test_save_uses_local_archive_boundary_without_sync(
     "changes",
     [
         {},
-        {"name": "Другое название", "theme": "Другая тема"},
+        {"name": "Другое название"},
         {"start_date": date(2031, 1, 28), "end_date": date(2031, 1, 31)},
         {"timezone": "Etc/GMT+12"},
     ],
@@ -106,7 +106,7 @@ def test_stored_archive_remains_read_only_with_future_calendar(
     # Earlier time makes the existing calendar future without changing the archive.
     with pytest.raises(PermissionDenied):
         save_festival(
-            draft.pk, actor=archive_actor, changes={"theme": "Правка"}, at=now
+            draft.pk, actor=archive_actor, changes={"name": "Правка"}, at=now
         )
     assert Festival.objects.values().get(pk=draft.pk) == before
 
@@ -120,10 +120,10 @@ def test_stored_archive_remains_read_only_with_future_calendar(
 )
 def test_incomplete_and_past_drafts_stay_mutable(draft, organizer, now, dates):
     saved = save_festival(
-        draft.pk, actor=organizer, changes={**dates, "theme": "Подготовка"}
+        draft.pk, actor=organizer, changes={**dates, "name": "Подготовка"}
     )
     assert saved.status == "draft"
-    assert saved.theme == "Подготовка"
+    assert saved.name == "Подготовка"
     assert saved.published_at is None
 
 

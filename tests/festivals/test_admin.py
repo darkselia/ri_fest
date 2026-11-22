@@ -50,7 +50,6 @@ def test_admin_create_and_errors(client, organizer, now):
         url,
         {
             "name": "Синтетический",
-            "theme": "Тема",
             "timezone": "invalid",
         },
     )
@@ -88,8 +87,7 @@ def test_admin_publish_search_filter_and_no_delete(client, organizer, draft, now
     response = client.post(
         change_url,
         {
-            "name": draft.name,
-            "theme": "Новая тема",
+            "name": "Новое название",
             "start_date": "2030-01-28",
             "end_date": "2030-01-31",
             "timezone": "Asia/Krasnoyarsk",
@@ -99,10 +97,10 @@ def test_admin_publish_search_filter_and_no_delete(client, organizer, draft, now
     assert response.status_code == 302
     draft.refresh_from_db()
     assert draft.status == "open"
-    assert draft.theme == "Новая тема"
+    assert draft.name == "Новое название"
     assert 'name="_publish"' not in client.get(change_url).content.decode()
     response = client.get(
-        url, {"q": "Синтетический", "status__exact": "open", "o": "2"}
+        url, {"q": "Новое название", "status__exact": "open", "o": "2"}
     )
     assert response.status_code == 200
     assert list(response.context["cl"].queryset) == [draft]
@@ -233,7 +231,6 @@ def test_form_opened_before_archive_cannot_save_without_sync(
         url,
         {
             "name": "Не должно сохраниться",
-            "theme": "Правка открытой формы",
             "start_date": "2031-01-28",
             "end_date": "2031-01-31",
             "timezone": "Etc/GMT+12",
@@ -261,7 +258,6 @@ def test_date_archival_requires_confirmation_and_preserves_pending_values(
         url,
         {
             "name": "Новое название",
-            "theme": "Сохранённая тема",
             "start_date": "2029-01-01",
             "end_date": "2029-01-02",
             "timezone": "UTC",
@@ -285,7 +281,6 @@ def test_date_archival_requires_confirmation_and_preserves_pending_values(
     draft.refresh_from_db()
     assert draft.status == "archived"
     assert draft.name == "Новое название"
-    assert draft.theme == "Сохранённая тема"
     assert draft.end_date == date(2029, 1, 2)
 
 
@@ -542,7 +537,6 @@ def test_first_save_requires_question_setup_before_publication(
         reverse("admin:festivals_festival_add"),
         {
             "name": "Публикация при создании",
-            "theme": "Сохранённая тема",
             "start_date": "2030-01-28",
             "end_date": "2030-01-31",
             "timezone": "Asia/Krasnoyarsk",
@@ -552,7 +546,7 @@ def test_first_save_requires_question_setup_before_publication(
     assert response.status_code == 302
     festival = Festival.objects.get()
     assert festival.status == "draft"
-    assert festival.theme == "Сохранённая тема"
+    assert festival.name == "Публикация при создании"
     assert festival.start_date == date(2030, 1, 28)
     assert festival.end_date == date(2030, 1, 31)
     assert festival.timezone == "Asia/Krasnoyarsk"
@@ -567,7 +561,6 @@ def test_first_save_requires_question_setup_before_publication(
 def test_failed_first_publication_saves_one_draft(client, organizer, now, reason):
     data = {
         "name": "Черновик после ошибки публикации",
-        "theme": "Сохранённые данные",
         "start_date": "2030-01-28",
         "end_date": "2030-01-31",
         "timezone": "Asia/Krasnoyarsk",
@@ -589,8 +582,8 @@ def test_failed_first_publication_saves_one_draft(client, organizer, now, reason
     assert response.redirect_chain == [(change_url, 302)]
     assert festival.status == "draft"
     assert festival.published_at is None
-    assert festival.theme == data["theme"]
-    assert response.context["adminform"].form["theme"].value() == data["theme"]
+    assert festival.name == data["name"]
+    assert response.context["adminform"].form["name"].value() == data["name"]
     count = Festival.objects.count()
 
     # Retry from the redirected card, rather than creating another festival.
@@ -610,8 +603,7 @@ def test_save_draft_and_republish_keep_first_publication(client, organizer, draf
     client.force_login(organizer)
     url = reverse("admin:festivals_festival_change", args=[draft.pk])
     data = {
-        "name": draft.name,
-        "theme": "Сохранённый черновик",
+        "name": "Сохранённый черновик",
         "start_date": "2030-01-28",
         "end_date": "2030-01-31",
         "timezone": "Asia/Krasnoyarsk",
@@ -620,7 +612,7 @@ def test_save_draft_and_republish_keep_first_publication(client, organizer, draf
     assert client.post(url, data).status_code == 302
     draft.refresh_from_db()
     assert draft.status == "draft"
-    assert draft.theme == data["theme"]
+    assert draft.name == data["name"]
     assert draft.published_at == published.published_at
     data.pop("_save")
     data["_publish"] = "1"

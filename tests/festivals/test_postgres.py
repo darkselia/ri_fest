@@ -177,7 +177,7 @@ def test_row_lock_rechecks_archive_before_update(
                     festival.pk,
                     actor=user,
                     changes={
-                        "theme": "Must not save",
+                        "name": "Must not save",
                         "start_date": date(2031, 1, 28),
                         "end_date": date(2031, 1, 31),
                     },

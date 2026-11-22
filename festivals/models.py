@@ -20,7 +20,6 @@ class Festival(models.Model):
         ARCHIVED = "archived", "Архивирован"
 
     name = models.CharField("Название", max_length=255)
-    theme = models.CharField("Тема", max_length=255, blank=True)
     start_date = models.DateField("Дата начала", blank=True, null=True)
     end_date = models.DateField("Дата окончания", blank=True, null=True)
     timezone = models.CharField(
