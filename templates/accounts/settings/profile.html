@@ -10,7 +10,7 @@
                   aria-label="{{ title }}">
                 {% csrf_token %}
                 {% if form.non_field_errors %}
-                    <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
+                    {% include "components/notice.html" with text=form.non_field_errors style="form" error=True only %}
                 {% endif %}
                 {% for field in form %}
                     {% if account_tab == "profile" %}
@@ -72,7 +72,7 @@
                           action="{% url 'accounts:email_change' %}"
                           class="account-form">
                         {% csrf_token %}
-                        {% if email_change_form.non_field_errors %}<div class="form-errors" role="alert">{{ email_change_form.non_field_errors }}</div>{% endif %}
+                        {% if email_change_form.non_field_errors %}{% include "components/notice.html" with text=email_change_form.non_field_errors style="form" error=True only %}{% endif %}
                         {% for field in email_change_form %}
                             {% include "components/forms/field.html" %}
                         {% endfor %}
@@ -90,7 +90,7 @@
                           action="{% url 'accounts:password_change' %}"
                           class="account-form">
                         {% csrf_token %}
-                        {% if password_form.non_field_errors %}<div class="form-errors" role="alert">{{ password_form.non_field_errors }}</div>{% endif %}
+                        {% if password_form.non_field_errors %}{% include "components/notice.html" with text=password_form.non_field_errors style="form" error=True only %}{% endif %}
                         {% for field in password_form %}
                             {% include "components/forms/field.html" %}
                         {% endfor %}

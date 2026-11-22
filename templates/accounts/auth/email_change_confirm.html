@@ -10,7 +10,7 @@
             <button type="submit" class="button">Подтвердить и изменить email</button>
         </form>
     {% else %}
-        <p class="form-errors" role="alert">{{ error_message|default:"Ссылка недействительна, уже использована или срок её действия истёк." }}</p>
+        {% include "components/notice.html" with text=error_message|default:"Ссылка недействительна, уже использована или срок её действия истёк." style="form" error=True only %}
         <p class="muted">Повторно отправить письмо или изменить адрес можно в личном кабинете.</p>
     {% endif %}
 {% endblock %}

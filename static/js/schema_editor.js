@@ -81,13 +81,20 @@
         } catch {
             /* Server rechecks confirmation. */
         }
-        const message = root.querySelector("[data-schema-message]");
+        const message = root.querySelector('[data-notice="schema"]');
+        const copyMessage = root.querySelector('[data-notice="copy"]');
+        const previewMessage = root.querySelector('[data-notice="preview"]');
+        const showMessage = (target, text, error = true) => {
+            target.textContent = text;
+            target.classList.toggle("schema-notice--error", error);
+            target.hidden = !text;
+        };
         let rows;
         try {
             rows = JSON.parse(input.value || "[]") || [];
         } catch {
             rows = [];
-            message.textContent = "Некорректные данные шаблона. Исправьте ошибку перед сохранением.";
+            showMessage(message, "Некорректные данные шаблона. Исправьте ошибку перед сохранением.");
         }
         let version = 0;
         let previewVersion = 0;
@@ -268,7 +275,7 @@
                 sync();
                 render();
                 container.querySelector(`[data-editor-id="${identity(object)}"] [data-drag-handle]`)?.focus();
-                message.textContent = `Новая позиция: ${to + 1}.`;
+                root.querySelector("[data-sort-message]").textContent = `Новая позиция: ${to + 1}.`;
             });
             return el;
         };
@@ -318,10 +325,15 @@
                 });
                 const originalKind = row.field_type;
                 const kind = control(head, row, "field_type", "Тип", "text", types);
+                const kindMessage = root.querySelector("[data-kind-message]").content.firstElementChild.cloneNode(true);
+                head.append(kindMessage);
                 kind.addEventListener("change", () => {
                     if ((hiding.counts[String(row.id)] || 0) > 0 && row.field_type !== originalKind) {
-                        message.textContent = `Вопрос заполнен в ${countIn(hiding.counts[String(row.id)])}. Чтобы использовать другой тип, добавьте новый вопрос.`;
                         row.field_type = originalKind;
+                        kind.value = originalKind;
+                        sync();
+                        showMessage(kindMessage, `Вопрос заполнен в ${countIn(hiding.counts[String(row.id)])}. Чтобы использовать другой тип, добавьте новый вопрос.`);
+                        return;
                     }
                     if (["info", "datefee"].includes(row.field_type)) row.is_required = false;
                     if (row.field_type !== "text") row.in_application_name = false;
@@ -550,9 +562,10 @@
             container.lastElementChild.querySelector("input")?.focus();
         });
         root.querySelector("[data-copy-template]")?.addEventListener("click", async (event) => {
+            showMessage(copyMessage, "");
             const source = root.querySelector("[data-copy-source]").value;
             if (!source) {
-                message.textContent = "Выберите фестиваль-источник.";
+                showMessage(copyMessage, "Выберите фестиваль-источник.");
                 return;
             }
             const trigger = event.currentTarget;
@@ -569,14 +582,15 @@
                 rows.push(...data.schema.map(independent));
                 sync();
                 render();
-                message.textContent = data.schema.length ? `Добавлено элементов: ${data.schema.length}. Проверьте даты, цены и подписи перед сохранением фестиваля.` : "В выбранном фестивале шаблон пуст.";
+                showMessage(copyMessage, data.schema.length ? `Добавлено элементов: ${data.schema.length}. Проверьте даты, цены и подписи перед сохранением фестиваля.` : "В выбранном фестивале шаблон пуст.", false);
             } catch (error) {
-                message.textContent = error.message;
+                showMessage(copyMessage, error.message);
             } finally {
                 trigger.disabled = false;
             }
         });
         const showPreview = async (validate = false) => {
+            showMessage(previewMessage, "");
             const requestVersion = version;
             const requestPreviewVersion = ++previewVersion;
             const payload = {
@@ -607,12 +621,12 @@
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || "Предпросмотр недоступен.");
                 if (version !== requestVersion || previewVersion !== requestPreviewVersion) {
-                    message.textContent = "Данные изменены. Повторите предпросмотр или проверку.";
+                    showMessage(previewMessage, "Данные изменены. Повторите предпросмотр или проверку.");
                     return;
                 }
                 previewFrame.srcdoc = data.html;
             } catch (error) {
-                message.textContent = error.message;
+                showMessage(previewMessage, error.message);
             }
         };
         const previewButton = root.querySelector("[data-show-preview]");

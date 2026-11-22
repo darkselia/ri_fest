@@ -33,8 +33,7 @@
                         <span data-button-label></span>
                     {% endcomponent %}
                 </template>
-                {% if schema_input.errors %}<div class="mb-4 text-red-600 dark:text-red-500"
-                                                 role="alert">{{ schema_input.errors }}</div>{% endif %}
+                {% if schema_input.errors %}{% include "components/notice.html" with text=schema_input.errors error=True only %}{% endif %}
                 <div class="schema-toolbar">
                     <div class="schema-toolbar__section schema-preview-tool">
                         <div class="schema-toolbar__description">
@@ -66,6 +65,7 @@
                             {% component "unfold/components/button.html" with type="button" variant="default" extra_attrs="data-copy-template" %}
                                 Дублировать
                             {% endcomponent %}
+                            {% include "components/notice.html" with name="copy" only %}
                         </div>
                     {% endif %}
                 </div>
@@ -79,7 +79,9 @@
                 {% elif not schema_editable %}
                     <p>Шаблон доступен только для просмотра.</p>
                 {% endif %}
-                <p data-schema-message role="status" aria-live="polite"></p>
+                {% include "components/notice.html" with name="schema" error=True only %}
+                <template data-kind-message>{% include "components/notice.html" with error=True only %}</template>
+                <p class="sr-only" data-sort-message role="status" aria-live="polite"></p>
                 <dialog id="schema-preview-dialog"
                         class="schema-preview-dialog"
                         aria-label="Предпросмотр анкеты">
@@ -88,6 +90,7 @@
                                                                     data-close-preview
                                                                     aria-label="Закрыть предпросмотр">Закрыть ×</button>
                     </div>
+                    {% include "components/notice.html" with name="preview" error=True only %}
                     <iframe title="Анкета участника" data-preview-frame></iframe>
                 </dialog>
                 <section data-schema-preview hidden>

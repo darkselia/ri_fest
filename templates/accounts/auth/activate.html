@@ -7,8 +7,7 @@
             <button type="submit" class="button button--wide">Подтвердить email</button>
         </form>
     {% else %}
-        <p class="form-errors"
-           role="alert">Ссылка недействительна, уже использована или срок её действия истёк.</p>
+        {% include "components/notice.html" with text="Ссылка недействительна, уже использована или срок её действия истёк." style="form" error=True only %}
         {% if user.is_authenticated %}
             <p class="muted">Новое письмо подтверждения можно получить в личном кабинете.</p>
         {% else %}

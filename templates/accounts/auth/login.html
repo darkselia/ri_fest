@@ -6,7 +6,7 @@
     <form method="post" class="account-form">
         {% csrf_token %}
         {% if form.non_field_errors %}
-            <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
+            {% include "components/notice.html" with text=form.non_field_errors style="form" error=True only %}
         {% endif %}
         {% for field in form %}
             {% include "components/forms/field.html" %}

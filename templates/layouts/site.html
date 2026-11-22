@@ -39,8 +39,11 @@
                 {% if messages %}
                     <div class="site-messages">
                         {% for message in messages %}
-                            <p class="site-message{% if message.tags %} {{ message.tags }}{% endif %}"
-                               role="{% if message.level >= 40 %}alert{% else %}status{% endif %}">{{ message }}</p>
+                            {% if message.level >= 40 %}
+                                {% include "components/notice.html" with text=message tags=message.tags style="site" error=True only %}
+                            {% else %}
+                                {% include "components/notice.html" with text=message tags=message.tags style="site" only %}
+                            {% endif %}
                         {% endfor %}
                     </div>
                 {% endif %}

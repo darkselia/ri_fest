@@ -48,7 +48,7 @@
             </dl>
         {% endif %}
         {% if error_message %}
-            <p role="alert" class="mb-4 text-red-600 dark:text-red-500">{{ error_message }}</p>
+            {% include "components/notice.html" with text=error_message style="form" error=True only %}
         {% endif %}
         {% if application_count != None and not count_in_description %}
             <p class="mb-4">Количество анкет: <strong>{{ application_count }}</strong></p>

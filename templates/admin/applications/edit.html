@@ -18,7 +18,7 @@
                 его личном кабинете со статусом «Активна».
             </p>
             {% if error %}
-                <p role="alert">{{ error }}</p>
+                {% include "components/notice.html" with text=error style="form" error=True only %}
             {% endif %}
             <form method="get">
                 <div class="flex flex-col gap-6">
@@ -57,7 +57,7 @@
                 </div>
             </dl>
             {% if error %}
-                <p role="alert" class="form-errors">{{ error }}</p>
+                {% include "components/notice.html" with text=error style="form" error=True only %}
             {% endif %}
             {% if restoring %}
                 <p class="application-form__note">

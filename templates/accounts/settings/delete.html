@@ -5,8 +5,7 @@
         <p class="account-description">Аккаунт и все личные черновики будут удалены. Активные анкеты будут отозваны, а история отправленных, архивных и отозванных анкет сохранится без привязки к аккаунту и персональных ответов. Для подтверждения введите текущий пароль.</p>
         <form method="post" class="account-form">
             {% csrf_token %}
-            {% if form.non_field_errors %}<div class="form-errors"
-                                               role="alert">{{ form.non_field_errors }}</div>{% endif %}
+            {% if form.non_field_errors %}{% include "components/notice.html" with text=form.non_field_errors style="form" error=True only %}{% endif %}
             {% for field in form %}
                 {% include "components/forms/field.html" %}
             {% endfor %}

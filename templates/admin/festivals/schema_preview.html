@@ -24,7 +24,7 @@
                                                     data-fixed-kopecks="0"
                                                     aria-live="polite">{{ totals.total|default:'0,00' }} ₽</output>
                 </p>
-                {% if totals %}<p role="status" data-server-result>Проверено сервером: всего услуг {{ totals.total }} ₽.</p>{% elif preview_form.is_bound %}<p class="form-errors">Исправьте ошибки заполнения.</p>{% endif %}
+                {% if totals %}<p role="status" data-server-result>Проверено сервером: всего услуг {{ totals.total }} ₽.</p>{% elif preview_form.is_bound %}{% include "components/notice.html" with text="Исправьте ошибки заполнения." style="form" error=True only %}{% endif %}
                 <button type="button"
                         class="button button--secondary"
                         data-validate-preview>Проверить заполнение на сервере</button>
