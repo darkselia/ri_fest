@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "festivals.apps.FestivalsConfig",
     "applications.apps.ApplicationsConfig",
     "billing.apps.BillingConfig",
+    "content.apps.ContentConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -95,6 +96,20 @@ UNFOLD = {
                         "link": reverse_lazy("admin:applications_application_answers"),
                         "permission": lambda request: request.user.has_perm(
                             "applications.view_application"
+                        ),
+                    },
+                ],
+            },
+            {
+                "title": "Сайт",
+                "items": [
+                    {
+                        "title": "Страницы",
+                        "icon": "article",
+                        "link": reverse_lazy("admin:content_page_changelist"),
+                        "permission": lambda request: any(
+                            request.user.has_perm(f"content.{action}_page")
+                            for action in ("view", "add", "change", "delete")
                         ),
                     },
                 ],

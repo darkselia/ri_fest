@@ -1,0 +1,19 @@
+{% extends "admin/submit_line.html" %}
+{% load unfold %}
+{% block submit-row %}
+    {% if show_save %}
+        <div class="flex flex-wrap gap-3 w-full"
+             role="group"
+             aria-label="Сохранение страницы">
+            {% component "unfold/components/button.html" with submit=1 form="page_form" name="_save" value="1" variant="default" %}{% if page_is_published %}Сохранить без публикации{% else %}Сохранить черновик{% endif %}{% endcomponent %}
+            {% component "unfold/components/button.html" with submit=1 form="page_form" name="_publish" value="1" %}{% if page_is_published %}Опубликовать изменения{% else %}Опубликовать{% endif %}{% endcomponent %}
+            {% if page_is_published %}
+                <span data-discard-changes
+                      data-has-saved-changes="{{ page_has_changes|yesno:'true,false' }}"
+                      {% if not page_has_changes %}hidden{% endif %}>{% component "unfold/components/button.html" with submit=1 form="page_form" name="_discard_changes" value="1" variant="default" extra_attrs="formnovalidate" %}Отменить изменения{% endcomponent %}</span>
+            {% endif %}
+        </div>
+    {% else %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}

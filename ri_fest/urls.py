@@ -5,8 +5,10 @@ from django.urls import include, path
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import get_language
 from django.views.decorators.http import require_POST
-from django.views.generic import RedirectView, TemplateView
+from django.views.generic import RedirectView
 from django.views.i18n import JavaScriptCatalog
+
+from content.views import page_view
 
 
 class AdminJavaScriptCatalog(JavaScriptCatalog):
@@ -43,7 +45,8 @@ def admin_festival_preference(request):
 
 
 urlpatterns = [
-    path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
+    path("", page_view, name="home"),
+    path("info/<slug:slug>/", page_view, name="content_page"),
     path("", include("accounts.urls")),
     path("account/applications/", include("applications.urls")),
     path(

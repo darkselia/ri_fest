@@ -1,0 +1,22 @@
+{% extends "admin/change_form.html" %}
+{% load unfold %}
+{% block form_top %}
+    {{ block.super }}
+    {% if page_is_published %}{{ page_saved_fields|json_script:"page-saved-fields" }}{% endif %}
+{% endblock %}
+{% block object-tools-items %}
+    {{ block.super }}
+    {% if can_unpublish_page %}
+        <li class="{% action_item_classes action %}">
+            <button type="submit"
+                    form="page_form"
+                    name="_unpublish"
+                    value="1"
+                    formnovalidate
+                    class="cursor-pointer flex grow items-center gap-2 px-3 py-2 text-left whitespace-nowrap">
+                <span class="material-symbols-outlined" aria-hidden="true">unpublished</span>
+                Снять с публикации
+            </button>
+        </li>
+    {% endif %}
+{% endblock %}
