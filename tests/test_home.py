@@ -1,10 +1,12 @@
 import os
 
+import pytest
 from django.contrib.staticfiles import finders
 from django.urls import reverse
 
 
-def test_home_renders_public_placeholder_without_database(client):
+@pytest.mark.django_db
+def test_home_renders_public_placeholder(client):
     response = client.get(reverse("home"))
 
     assert response.status_code == 200
@@ -15,6 +17,7 @@ def test_home_renders_public_placeholder_without_database(client):
     assert '<html lang="ru">' in response.text
 
 
+@pytest.mark.django_db
 def test_home_connects_discoverable_stylesheet_and_original_brand(client):
     response = client.get(reverse("home"))
 

@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
 import pytest
-from django.db import close_old_connections
+from django.db import close_old_connections, connection
 from django.test import Client
 from django.urls import reverse
 
@@ -12,6 +12,8 @@ from content.models import Page, PageVersion
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
 def test_parallel_publication_cannot_claim_same_address(django_user_model):
+    if connection.vendor != "postgresql":
+        pytest.skip("Requires isolated PostgreSQL")
     Page.objects.get_or_create(is_home=True, defaults={"slug": "home"})
     user = django_user_model.objects.create_superuser(
         email="pages-race@example.invalid", password="example-password"
