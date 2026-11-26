@@ -1,5 +1,24 @@
 from django.db import models
 
+from .storage import PrivateContentStorage, content_file_path
+
+
+class ContentFile(models.Model):
+    name = models.CharField("Название", max_length=255)
+    original_name = models.CharField("Имя файла", max_length=255, editable=False)
+    file = models.FileField(
+        "Файл", upload_to=content_file_path, storage=PrivateContentStorage()
+    )
+    created_at = models.DateTimeField("Загружен", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "файл"
+        verbose_name_plural = "файлы"
+        ordering = ("-created_at", "-pk")
+
+    def __str__(self):
+        return self.name
+
 
 class Page(models.Model):
     slug = models.SlugField("Адрес", max_length=120, unique=True)

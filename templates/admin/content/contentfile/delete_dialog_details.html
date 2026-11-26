@@ -1,0 +1,20 @@
+<div data-confirmation-dialog
+     {% if perms_lacking or protected %}data-confirmation-blocked{% endif %}>
+    <p class="font-semibold mb-2">{{ object }}</p>
+    {% if perms_lacking %}
+        <p>Для удаления файла недостаточно прав на удаление связанных объектов:</p>
+        <ul>{% for obj in perms_lacking %}<li>{{ obj }}</li>{% endfor %}</ul>
+    {% elif protected %}
+        <p>Файл нельзя удалить, поскольку он используется в следующих объектах:</p>
+        <ul>{% for obj in protected %}<li>{{ obj }}</li>{% endfor %}</ul>
+    {% else %}
+        <p>Удалить файл «{{ object }}»?{% if has_related_objects %} Вместе с ним будут удалены перечисленные связанные объекты.{% endif %}</p>
+        {% if has_related_objects %}
+            {% include "admin/includes/object_delete_summary.html" %}
+            <p class="font-semibold mt-3">Объекты</p>
+            <ul>
+                {{ deleted_objects|unordered_list }}
+            </ul>
+        {% endif %}
+    {% endif %}
+</div>

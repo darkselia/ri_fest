@@ -109,5 +109,5 @@ def test_organizers_group_is_seeded_without_account_permissions():
     group = Group.objects.get(name="Организаторы")
     assert Group.objects.filter(name="Организаторы").count() == 1
     assert not group.permissions.exclude(
-        content_type__app_label__in=("festivals", "applications")
+        content_type__app_label__in=("festivals", "applications", "content")
     ).exists()

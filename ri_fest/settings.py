@@ -112,6 +112,15 @@ UNFOLD = {
                             for action in ("view", "add", "change", "delete")
                         ),
                     },
+                    {
+                        "title": "Файлы",
+                        "icon": "folder",
+                        "link": reverse_lazy("admin:content_contentfile_changelist"),
+                        "permission": lambda request: any(
+                            request.user.has_perm(f"content.{action}_contentfile")
+                            for action in ("view", "add", "change", "delete")
+                        ),
+                    },
                 ],
             },
             {
@@ -242,6 +251,7 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static", ("brand", BASE_DIR / "assets")]
+MEDIA_ROOT = env.str("CONTENT_MEDIA_ROOT", default="/var/lib/ri-fest/content")
 
 DEFAULT_FROM_EMAIL = env.str("DEFAULT_FROM_EMAIL", default="no-reply@example.invalid")
 email_use_tls = env.bool("EMAIL_USE_TLS", default=False)

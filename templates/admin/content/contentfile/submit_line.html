@@ -1,0 +1,21 @@
+{% extends "admin/submit_line.html" %}
+{% load i18n unfold %}
+{% block submit-row %}
+    <div class="flex flex-wrap gap-3 w-full">
+        {% if show_save %}
+            {% component "unfold/components/button.html" with submit=1 form="contentfile_form" name="_save" class="w-full lg:w-auto" %}
+                {% trans "Save" %}
+            {% endcomponent %}
+        {% endif %}
+        {% if show_save_and_continue %}
+            {% component "unfold/components/button.html" with submit=1 form="contentfile_form" name="_continue" variant="default" class="w-full lg:w-auto" %}
+                {% trans "Save and continue editing" %}
+            {% endcomponent %}
+        {% endif %}
+        {% if show_save_and_add_another %}
+            {% component "unfold/components/button.html" with submit=1 form="contentfile_form" name="_addanother" variant="default" class="w-full lg:w-auto" %}
+                {% trans "Save and add another" %}
+            {% endcomponent %}
+        {% endif %}
+    </div>
+{% endblock %}

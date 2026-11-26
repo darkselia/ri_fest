@@ -2,13 +2,248 @@ from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotAllowed
+from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
+from django.urls import path, reverse
 from django.utils.decorators import method_decorator
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_protect
 from unfold.admin import ModelAdmin
+from unfold.decorators import action
+from unfold.forms import BaseDialogForm
 from unfold.widgets import UnfoldAdminTextInputWidget, UnfoldBooleanWidget
 
-from .models import Page, PageVersion
+from .models import ContentFile, Page, PageVersion
+from .uploads import ALLOWED_EXTENSIONS, validate_content_file
+
+
+class ContentFileForm(forms.ModelForm):
+    class Meta:
+        model = ContentFile
+        fields = ("name", "file")
+        help_texts = {
+            "file": (
+                "Не более 20 МБ. Изображения: PNG, JPEG, WebP, GIF; видео: MP4, "
+                "WebM, MOV, M4V; аудио: MP3, WAV, OGG, M4A, FLAC; документы: PDF, "
+                "TXT, CSV, DOCX, XLSX, PPTX, ODT, ODS, ODP; архивы: ZIP, 7Z, RAR, TAR, GZ."
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.instance.pk:
+            self.fields["name"].required = False
+            self.fields["file"].widget.attrs["accept"] = ",".join(
+                sorted(ALLOWED_EXTENSIONS)
+            )
+
+    def clean_file(self):
+        upload = self.cleaned_data["file"]
+        validate_content_file(upload)
+        return upload
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get("name") and cleaned_data.get("file"):
+            cleaned_data["name"] = cleaned_data["file"].name
+        return cleaned_data
+
+
+class DeleteFileDialogForm(BaseDialogForm):
+    form_before_template = "admin/content/contentfile/delete_dialog_details.html"
+
+    def __init__(self, request, object_id=None, *args, **kwargs):
+        super().__init__(request, object_id, *args, **kwargs)
+        model_admin = admin.site._registry[ContentFile]
+        self.obj = get_object_or_404(ContentFile, pk=object_id)
+        if not model_admin.has_delete_permission(request, self.obj):
+            raise PermissionDenied
+        self.deleted, self.counts, self.perms_lacking, self.protected = (
+            model_admin.get_deleted_objects([self.obj], request)
+        )
+
+    def clean(self):
+        data = super().clean()
+        if self.perms_lacking or self.protected:
+            raise ValidationError("Этот файл нельзя удалить.")
+        return data
+
+    def get_before_template_context(self, request, object_id):
+        return {
+            "object": self.obj,
+            "deleted_objects": self.deleted,
+            "model_count": self.counts.items(),
+            "has_related_objects": sum(self.counts.values()) > 1,
+            "perms_lacking": self.perms_lacking,
+            "protected": self.protected,
+        }
+
+
+DELETE_FILE_DIALOG = {
+    "title": "Удалить файл",
+    "form_submit_text": "Удалить файл",
+    "form_class": DeleteFileDialogForm,
+}
+
+
+@admin.register(ContentFile)
+class ContentFileAdmin(ModelAdmin):
+    class Media:
+        js = ("js/content_file.js", "js/admin_confirmation_dialog.js")
+
+    form = ContentFileForm
+    list_display = ("preview", "name", "original_name", "created_at", "download")
+    list_display_links = ("name",)
+    search_fields = ("name", "original_name")
+    actions = None
+
+    image_types = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }
+
+    def get_urls(self):
+        return [
+            path(
+                "<int:object_id>/preview/",
+                self.admin_site.admin_view(self.preview_file),
+                name="content_contentfile_preview",
+            ),
+            path(
+                "<int:object_id>/download/",
+                self.admin_site.admin_view(self.download_file),
+                name="content_contentfile_download",
+            ),
+            path(
+                "<int:object_id>/delete-dialog/",
+                self.admin_site.admin_view(self.delete_file_dialog),
+                name="content_contentfile_delete_dialog",
+            ),
+            *super().get_urls(),
+        ]
+
+    @action(dialog=DELETE_FILE_DIALOG)
+    def delete_file_dialog(self, request, form, object_id):
+        response = self.delete_view(request, str(object_id))
+        if response.status_code in (301, 302, 303):
+            return HttpResponse(headers={"HX-Redirect": response.url})
+        refreshed = DeleteFileDialogForm(request=request, object_id=object_id)
+        return render(
+            request,
+            "unfold/helpers/dialog.html",
+            {
+                "dialog": DELETE_FILE_DIALOG,
+                "form": refreshed,
+                "form_submit_text": DELETE_FILE_DIALOG["form_submit_text"],
+            },
+        )
+
+    @admin.display(description="Тип")
+    def preview(self, obj):
+        extension = "." + obj.file.name.rsplit(".", 1)[-1].lower()
+        if extension in self.image_types:
+            return format_html(
+                '<img class="content-file-preview" src="{}" alt="" loading="lazy">',
+                reverse("admin:content_contentfile_preview", args=[obj.pk]),
+            )
+        if extension in {".mp4", ".webm", ".mov", ".m4v"}:
+            icon, label = "movie", "Видео"
+        elif extension in {".mp3", ".wav", ".ogg", ".m4a", ".flac"}:
+            icon, label = "audio_file", "Аудио"
+        elif extension in {".zip", ".7z", ".rar", ".tar", ".gz"}:
+            icon, label = "folder_zip", "Архив"
+        elif extension in {".xlsx", ".ods", ".csv"}:
+            icon, label = "table_chart", "Таблица"
+        else:
+            icon, label = "description", "Документ"
+        return format_html(
+            '<span class="content-file-preview material-symbols-outlined" '
+            'role="img" aria-label="{}" title="{}">{}</span>',
+            label,
+            label,
+            icon,
+        )
+
+    @admin.display(description="Скачать")
+    def download(self, obj):
+        return mark_safe(
+            render_to_string(
+                "admin/content/contentfile/download_button.html",
+                {
+                    "download_url": reverse(
+                        "admin:content_contentfile_download", args=[obj.pk]
+                    ),
+                    "button_attrs": {"aria-label": f"Скачать {obj.original_name}"},
+                },
+            )
+        )
+
+    def download_file(self, request, object_id):
+        if request.method != "GET":
+            return HttpResponseNotAllowed(["GET"])
+        if not self.has_view_or_change_permission(request):
+            raise PermissionDenied
+        obj = get_object_or_404(ContentFile, pk=object_id)
+        if not self.has_view_or_change_permission(request, obj):
+            raise PermissionDenied
+        try:
+            response = FileResponse(
+                obj.file.open("rb"),
+                as_attachment=True,
+                filename=obj.original_name,
+                content_type="application/octet-stream",
+            )
+        except FileNotFoundError:
+            raise Http404 from None
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Cache-Control"] = "private, no-store"
+        return response
+
+    def preview_file(self, request, object_id):
+        if request.method != "GET":
+            return HttpResponseNotAllowed(["GET"])
+        if not self.has_view_or_change_permission(request):
+            raise PermissionDenied
+        obj = get_object_or_404(ContentFile, pk=object_id)
+        if not self.has_view_or_change_permission(request, obj):
+            raise PermissionDenied
+        extension = "." + obj.file.name.rsplit(".", 1)[-1].lower()
+        content_type = self.image_types.get(extension)
+        if not content_type:
+            raise Http404
+        try:
+            response = FileResponse(obj.file.open("rb"), content_type=content_type)
+        except FileNotFoundError:
+            raise Http404 from None
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Content-Security-Policy"] = "default-src 'none'; sandbox"
+        response["Cache-Control"] = "private, no-store"
+        return response
+
+    def get_readonly_fields(self, request, obj=None):
+        return ("created_at", "file_name") if obj else ()
+
+    def get_fields(self, request, obj=None):
+        return ("name", "file_name", "created_at") if obj else ("name", "file")
+
+    @admin.display(description="Файл")
+    def file_name(self, obj):
+        return obj.original_name
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.original_name = form.cleaned_data["file"].name
+        super().save_model(request, obj, form, change)
+
+    def delete_model(self, request, obj):
+        storage, name = obj.file.storage, obj.file.name
+        super().delete_model(request, obj)
+        transaction.on_commit(lambda: storage.delete(name))
 
 
 class PageForm(forms.ModelForm):
