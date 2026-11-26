@@ -14,7 +14,20 @@
                 </dd>
             </div>
         {% endfor %}
-        {% if fee_entries %}
+        {% if application.status == 'withdrawn' %}
+            {% regroup financial_totals.services|dictsort:"field_id" by field_id as service_groups %}
+            {% for group in service_groups %}
+                <div>
+                    <dt>{{ group.list.0.field_label }}</dt>
+                    <dd>
+                        {% for item in group.list %}
+                            {{ item.label }}{% if item.service_date %} — {{ item.service_date|date:"d.m.Y" }}{% endif %}{% if item.hidden %} (сохранённая скрытая услуга){% endif %}{% if not forloop.last %}<br>{% endif %}
+                        {% endfor %}
+                    </dd>
+                </div>
+            {% endfor %}
+        {% endif %}
+        {% if fee_entries and application.status != 'withdrawn' %}
             {% for entry in fee_entries %}
                 {% include "components/forms/date_fee.html" %}
             {% endfor %}

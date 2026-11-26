@@ -1,7 +1,7 @@
 /* Общая анкета: кабинет, Admin и iframe предпросмотра. */
 .application-card {
     padding: 16px;
-    border: 1px solid var(--form-line, var(--color-line));
+    border: 1px solid var(--form-line, var(--color-border));
     border-radius: 10px;
     background: var(--form-surface, var(--color-surface));
     overflow-wrap: anywhere;
@@ -18,7 +18,7 @@
     --form-border: var(--color-surface-border);
     --form-muted: var(--color-muted);
     --form-paper: var(--color-paper);
-    --form-line: var(--color-line);
+    --form-line: var(--color-border);
     --form-error: var(--color-error);
     --form-error-bg: var(--color-error-bg);
     --form-danger: var(--color-error);
@@ -111,7 +111,7 @@
 }
 
 .application-field__choices > div > div:has(input[data-opt-out]) {
-    border-top: 1px dashed var(--form-line, var(--color-line));
+    border-top: 1px dashed var(--form-line, var(--color-border));
 }
 
 .application-field label:has(input:disabled) {
@@ -160,7 +160,7 @@
     display: flex;
     justify-content: space-between;
     gap: 16px;
-    border-top: 1px solid var(--form-line, var(--color-line));
+    border-top: 1px solid var(--form-line, var(--color-border));
     padding-top: 24px;
     padding-bottom: 15px;
 
@@ -197,20 +197,7 @@
 }
 
 .application-field + .application-field {
-    border-top: 1px solid var(--form-line, var(--color-line));
-}
-
-.application-form__heading {
-    display: grid;
-    gap: 12px;
-    padding-bottom: 16px;
-    margin-bottom: 8px;
-    border-bottom: 1px solid var(--form-line, var(--admin-panel-border));
-}
-
-.application-form__heading p,
-.application-form__heading h2 {
-    margin: 0;
+    border-top: 1px solid var(--form-line, var(--color-border));
 }
 
 .application-form__title {
@@ -251,10 +238,10 @@
     color-scheme: dark;
     --form-surface: var(--admin-panel-bg);
     --form-ink: var(--color-base-100);
-    --form-border: var(--admin-panel-border);
+    --form-border: var(--color-border);
     --form-muted: var(--admin-subtle-text);
     --form-paper: var(--admin-page-bg);
-    --form-line: var(--admin-panel-border);
+    --form-line: var(--color-border);
     --form-error: var(--color-red-400);
     --form-error-bg: color-mix(in srgb, var(--color-red-400) 10%, var(--admin-panel-bg));
     --form-danger: var(--color-red-400);

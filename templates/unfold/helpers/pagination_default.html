@@ -5,7 +5,9 @@
         <nav aria-label="Страницы">
             {% if cl %}
                 {% if cl.page_num > 1 %}<a href="{{ cl.get_query_string }}&amp;p={{ cl.page_num|add:'-1' }}">Назад</a>{% else %}<span aria-disabled="true">Назад</span>{% endif %}
-                {% for i in page_range %}{% paginator_number cl i %}{% endfor %}
+                {% for i in page_range %}
+                    {% paginator_number cl i %}
+                {% endfor %}
                 {% if cl.page_num < cl.paginator.num_pages %}<a href="{{ cl.get_query_string }}&amp;p={{ cl.page_num|add:'1' }}">Далее</a>{% endif %}
             {% else %}
                 {% if page_obj.has_previous %}<a href="?{{ query_without_page }}&amp;p={{ page_obj.previous_page_number }}">Назад</a>{% else %}<span aria-disabled="true">Назад</span>{% endif %}

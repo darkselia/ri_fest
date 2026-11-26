@@ -2,7 +2,9 @@
 {% block account_content %}
     <h2>Удалить «{{ application.display_name }}» для фестиваля «{{ festival.name }}»?</h2>
     <p>Черновик «{{ application.display_name }}» будет удалён вместе с ответами и выбранными услугами. Восстановить эти данные после удаления не получится.</p>
-    {% if error %}{% include "components/notice.html" with text=error style="form" error=True only %}{% endif %}
+    {% if error %}
+        {% include "components/notice.html" with text=error style="form" error=True only %}
+    {% endif %}
     <form method="post" class="application-actions">
         {% csrf_token %}
         <button type="submit" class="button button--danger">Удалить черновик</button>

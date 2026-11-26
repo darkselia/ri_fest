@@ -26,10 +26,10 @@
                 {% if card.needs_attention %}<p class="application-row__attention"
                                                 role="status">{{ card.attention_message }}</p>{% endif %}
                 {% if card.financial_totals %}
-                    <div class="application-row__finance" aria-label="Стоимость и оплата">
-                        <span>Стоимость <strong>{{ card.financial_totals.total|floatformat:"2g" }} ₽</strong></span>
+                    <div class="application-row__finance" aria-label="{% if card.application.status == 'withdrawn' %}Оплата{% else %}Стоимость и оплата{% endif %}">
+                        {% if card.application.status != 'withdrawn' %}<span>Стоимость <strong>{{ card.financial_totals.total|floatformat:"2g" }} ₽</strong></span>{% endif %}
                         <span>Внесено <strong>{{ card.financial_totals.paid|floatformat:"2g" }} ₽</strong></span>
-                        <strong class="application-row__balance{% if card.financial_totals.due %} application-row__balance--due{% elif card.financial_totals.overpaid %} application-row__balance--overpaid{% endif %}">{% if card.financial_totals.due %}К доплате {{ card.financial_totals.due|floatformat:"2g" }} ₽{% elif card.financial_totals.overpaid %}Переплата {{ card.financial_totals.overpaid|floatformat:"2g" }} ₽{% else %}Полностью оплачено{% endif %}</strong>
+                        {% if card.application.status != 'withdrawn' %}<strong class="application-row__balance{% if card.financial_totals.due %} application-row__balance--due{% elif card.financial_totals.overpaid %} application-row__balance--overpaid{% endif %}">{% if card.financial_totals.due %}К доплате {{ card.financial_totals.due|floatformat:"2g" }} ₽{% elif card.financial_totals.overpaid %}Переплата {{ card.financial_totals.overpaid|floatformat:"2g" }} ₽{% else %}Полностью оплачено{% endif %}</strong>{% endif %}
                     </div>
                 {% elif card.draft_total != None %}
                     <div class="application-row__finance">

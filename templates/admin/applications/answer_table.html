@@ -18,7 +18,9 @@
     {% else %}
         {% include "admin/applications/export_button.html" with answer_export_disabled=True %}
     {% endif %}
-    {% if festival %}{% include "admin/includes/filter_button.html" with target="answer-table-sidebar" %}{% endif %}
+    {% if festival %}
+        {% include "admin/includes/filter_button.html" with target="answer-table-sidebar" %}
+    {% endif %}
 {% endblock %}
 {% block content %}
     <div class="answer-table" data-festival="{{ festival.pk|default:'' }}">
@@ -59,9 +61,19 @@
             </div>
             {% if festival %}
                 <aside id="answer-table-sidebar" class="answer-table__sidebar">
-                    <div class="answer-table__buttons" role="group" aria-label="Настройки таблицы">
-                        <button type="button" data-panel="answer-filters" aria-controls="answer-filters" aria-expanded="true" aria-pressed="true">Фильтры</button>
-                        <button type="button" data-panel="answer-columns" aria-controls="answer-columns" aria-expanded="false" aria-pressed="false">Столбцы</button>
+                    <div class="answer-table__buttons"
+                         role="group"
+                         aria-label="Настройки таблицы">
+                        <button type="button"
+                                data-panel="answer-filters"
+                                aria-controls="answer-filters"
+                                aria-expanded="true"
+                                aria-pressed="true">Фильтры</button>
+                        <button type="button"
+                                data-panel="answer-columns"
+                                aria-controls="answer-columns"
+                                aria-expanded="false"
+                                aria-pressed="false">Столбцы</button>
                     </div>
                     <section id="answer-filters" class="answer-table__panel" aria-label="Фильтры">
                         <form method="get" id="answer-filter-form">
@@ -75,17 +87,37 @@
                             <div class="admin-panel application-filter-group">
                                 <h3>Общие фильтры</h3>
                                 <details class="admin-filter-choice" open>
-                                <summary>Статус анкеты</summary>
-                                {% for option in status_options %}
-                                    <label><input type="radio" name="status" value="{{ option.value }}" {% if option.selected %}checked{% endif %} data-submit> <span>{{ option.label }}</span></label>
-                                {% endfor %}
+                                    <summary>Статус анкеты</summary>
+                                    {% for option in status_options %}
+                                        <label><input type="radio"
+                                                      name="status"
+                                                      value="{{ option.value }}"
+                                                      {% if option.selected %}checked{% endif %}
+                                                      data-submit> <span>{{ option.label }}</span></label>
+                                    {% endfor %}
                                 </details>
                                 <details class="admin-filter-choice">
-                                <summary>Баланс</summary>
-                                <label><input type="radio" name="balance" value="" {% if not request.GET.balance %}checked{% endif %} data-submit> <span>Все</span></label>
-                                <label><input type="radio" name="balance" value="due" {% if request.GET.balance == 'due' %}checked{% endif %} data-submit> <span>Есть долг</span></label>
-                                <label><input type="radio" name="balance" value="overpaid" {% if request.GET.balance == 'overpaid' %}checked{% endif %} data-submit> <span>Есть переплата</span></label>
-                                <label><input type="radio" name="balance" value="settled" {% if request.GET.balance == 'settled' %}checked{% endif %} data-submit> <span>Полный расчёт</span></label>
+                                    <summary>Баланс</summary>
+                                    <label><input type="radio"
+                                                  name="balance"
+                                                  value=""
+                                                  {% if not request.GET.balance %}checked{% endif %}
+                                                  data-submit> <span>Все</span></label>
+                                    <label><input type="radio"
+                                                  name="balance"
+                                                  value="due"
+                                                  {% if request.GET.balance == 'due' %}checked{% endif %}
+                                                  data-submit> <span>Есть долг</span></label>
+                                    <label><input type="radio"
+                                                  name="balance"
+                                                  value="overpaid"
+                                                  {% if request.GET.balance == 'overpaid' %}checked{% endif %}
+                                                  data-submit> <span>Есть переплата</span></label>
+                                    <label><input type="radio"
+                                                  name="balance"
+                                                  value="settled"
+                                                  {% if request.GET.balance == 'settled' %}checked{% endif %}
+                                                  data-submit> <span>Полный расчёт</span></label>
                                 </details>
                                 {% for filter in filters %}
                                     {% include "admin/includes/grouped_filter.html" with group=filter input_name=filter.name autosubmit=True %}
@@ -94,13 +126,17 @@
                             {% if fee_filters %}
                                 <div class="admin-panel application-filter-group">
                                     <h3>Платы по дате</h3>
-                                    {% for filter in fee_filters %}{% include "admin/includes/grouped_filter.html" with group=filter input_name=filter.name autosubmit=True %}{% endfor %}
+                                    {% for filter in fee_filters %}
+                                        {% include "admin/includes/grouped_filter.html" with group=filter input_name=filter.name autosubmit=True %}
+                                    {% endfor %}
                                 </div>
                             {% endif %}
                             {% if service_filters %}
                                 <div class="admin-panel application-filter-group">
                                     <h3>Услуги</h3>
-                                    {% for filter in service_filters %}{% include "admin/includes/grouped_filter.html" with group=filter input_name=filter.name autosubmit=True %}{% endfor %}
+                                    {% for filter in service_filters %}
+                                        {% include "admin/includes/grouped_filter.html" with group=filter input_name=filter.name autosubmit=True %}
+                                    {% endfor %}
                                 </div>
                             {% endif %}
                             <noscript>
@@ -108,11 +144,16 @@
                             </noscript>
                         </form>
                     </section>
-                    <section id="answer-columns" class="admin-panel answer-table__panel" aria-label="Столбцы">
+                    <section id="answer-columns"
+                             class="admin-panel answer-table__panel"
+                             aria-label="Столбцы">
                         <div class="answer-table__column-options">
                             <h3>Основные и финансовые поля</h3>
-                            {% for key, label in fixed_columns %}<label><input type="checkbox" data-column-toggle="fixed-{{ key }}" data-column-width="{% if key == 'owner' %}190{% elif key == 'fees' %}170{% elif key == 'balance' %}{{ money_width|add:'25' }}{% else %}{{ money_width }}{% endif %}" checked> {{ label }}</label>{% endfor %}
-                        <div class="answer-table__column-options-divider"></div>
+                            {% for key, label in fixed_columns %}<label><input type="checkbox"
+                                                                               data-column-toggle="fixed-{{ key }}"
+                                                                               data-column-width="{% if key == 'owner' %}190{% elif key == 'fees' %}170{% elif key == 'balance' %}{{ money_width|add:'25' }}{% else %}{{ money_width }}{% endif %}"
+                                                                               checked> {{ label }}</label>{% endfor %}
+                            <div class="answer-table__column-options-divider"></div>
                             <h3>Ответы на вопросы</h3>
                             {% for field in columns %}<label><input type="checkbox"
                                                                     data-column-toggle="{{ field.pk }}"
@@ -125,7 +166,9 @@
             {% endif %}
         </div>
     </div>
-    {% if festival %}{% include "admin/applications/export_dialog.html" with answer_export=True %}{% endif %}
+    {% if festival %}
+        {% include "admin/applications/export_dialog.html" with answer_export=True %}
+    {% endif %}
 {% endblock %}
 {% block footer %}
     {% if festival %}

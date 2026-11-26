@@ -264,8 +264,7 @@
             if (editable && row) reorder(["service", "service1"].includes(row.field_type) ? row.services : row.options, id, position);
         };
         const handle = (list, object) => {
-            const el = iconButton("Переместить: перетащите или нажмите Alt + ↑ / ↓", "drag_indicator", () => {
-            });
+            const el = iconButton("Переместить: перетащите или нажмите Alt + ↑ / ↓", "drag_indicator", () => {});
             el.classList.add("schema-drag");
             el.setAttribute("data-drag-handle", "");
             el.addEventListener("keydown", event => {
@@ -634,7 +633,7 @@
                 const answers = {};
                 previewFrame.contentDocument.querySelectorAll("input, select, textarea").forEach(el => {
                     if (!el.name || ((el.type === "checkbox" || el.type === "radio") && !el.checked)) return;
-                    if (el.type === "checkbox") (answers[el.name] ||= []).push(el.value);
+                    if (el.type === "checkbox")(answers[el.name] ||= []).push(el.value);
                     else answers[el.name] = el.value;
                 });
                 payload.answers = answers;
@@ -696,9 +695,9 @@
                 const pending = [];
                 if (!row.is_active && hiding.active.includes(row.id) && !hiding.confirmed.includes(String(row.id))) pending.push(String(row.id));
                 for (const [options, prefix] of [
-                    [row.options || [], "a"],
-                    [row.services || [], "s"]
-                ]) {
+                        [row.options || [], "a"],
+                        [row.services || [], "s"]
+                    ]) {
                     for (const option of options) {
                         const key = `${prefix}:${option.id}`;
                         if (!option.is_active && hiding.active_options.includes(key) && !hiding.confirmed.includes(key)) pending.push(key);

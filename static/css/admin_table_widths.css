@@ -1,19 +1,64 @@
-body.app-applications.model-application.change-list #result_list { min-width: 1186px; }
-body.app-applications.model-application.change-list #result_list .column-festival { width: 145px; }
+body.app-applications.model-application.change-list #result_list {
+    min-width: 1186px;
+}
+
+body.app-applications.model-application.change-list #result_list .column-festival {
+    width: 145px;
+}
+
 body.app-applications.model-application.change-list #result_list .column-owner_label,
-body.app-applications.model-application.change-list #result_list .column-participant_label { width: 190px; }
-body.app-applications.model-application.change-list #result_list .column-fees_display { width: 170px; }
-body.app-applications.model-application.change-list #result_list :is(.column-total_display, .column-paid_display) { width: 108px; }
-body.app-applications.model-application.change-list #result_list .column-balance_display { width: 135px; }
-body.app-applications.model-application.change-list #result_list .column-modified_display { width: 140px; }
+body.app-applications.model-application.change-list #result_list .column-participant_label {
+    width: 190px;
+}
 
-body.app-accounts.model-user.change-list #result_list .column-email { width: 280px; }
-body.app-accounts.model-user.change-list #result_list :is(.column-first_name, .column-last_name) { width: 140px; }
-body.app-accounts.model-user.change-list #result_list .column-is_staff { width: 170px; }
-body.app-accounts.model-user.change-list #result_list .column-is_active { width: 110px; }
+body.app-applications.model-application.change-list #result_list .column-fees_display {
+    width: 170px;
+}
 
-body.app-festivals.model-festival.change-list #result_list .column-name { width: 220px; }
-body.app-festivals.model-festival.change-list #result_list .column-status { width: 170px; }
-body.app-festivals.model-festival.change-list #result_list .column-start_date { width: 140px; }
-body.app-festivals.model-festival.change-list #result_list .column-end_date { width: 165px; }
-body.app-festivals.model-festival.change-list #result_list .column-timezone { width: 160px; }
+body.app-applications.model-application.change-list #result_list :is(.column-total_display, .column-paid_display) {
+    width: 108px;
+}
+
+body.app-applications.model-application.change-list #result_list .column-balance_display {
+    width: 135px;
+}
+
+body.app-applications.model-application.change-list #result_list .column-modified_display {
+    width: 140px;
+}
+
+body.app-accounts.model-user.change-list #result_list .column-email {
+    width: 280px;
+}
+
+body.app-accounts.model-user.change-list #result_list :is(.column-first_name, .column-last_name) {
+    width: 140px;
+}
+
+body.app-accounts.model-user.change-list #result_list .column-is_staff {
+    width: 170px;
+}
+
+body.app-accounts.model-user.change-list #result_list .column-is_active {
+    width: 110px;
+}
+
+body.app-festivals.model-festival.change-list #result_list .column-name {
+    width: 220px;
+}
+
+body.app-festivals.model-festival.change-list #result_list .column-status {
+    width: 170px;
+}
+
+body.app-festivals.model-festival.change-list #result_list .column-start_date {
+    width: 140px;
+}
+
+body.app-festivals.model-festival.change-list #result_list .column-end_date {
+    width: 165px;
+}
+
+body.app-festivals.model-festival.change-list #result_list .column-timezone {
+    width: 160px;
+}

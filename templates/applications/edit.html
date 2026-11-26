@@ -43,7 +43,8 @@
         <input type="hidden" name="schema_revision" value="{{ schema_revision }}">
         <input type="hidden" name="form_snapshot" value="{{ form_snapshot }}">
         {% if form.non_field_errors %}
-            {% include "components/notice.html" with text=form.non_field_errors style="form" error=True only %}{% endif %}
+            {% include "components/notice.html" with text=form.non_field_errors style="form" error=True only %}
+        {% endif %}
         {% if answer_errors %}
             <div class="form-errors application-errors" role="alert">
                 <p>Проверьте ответы в следующих вопросах:</p>

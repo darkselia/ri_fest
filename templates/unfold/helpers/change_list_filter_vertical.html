@@ -8,8 +8,14 @@
                 <form id="filter-form" method="get" class="flex flex-col gap-4">
                     {% preserve_filters "vertical" %}
                     {% if cl.opts.app_label == "applications" and cl.opts.model_name == "application" %}
-                        {% if request.GET.application_status %}<input type="hidden" name="application_status" value="{{ request.GET.application_status }}">{% endif %}
-                        {% if request.GET.balance %}<input type="hidden" name="balance" value="{{ request.GET.balance }}">{% endif %}
+                        {% if request.GET.application_status %}
+                            <input type="hidden"
+                                   name="application_status"
+                                   value="{{ request.GET.application_status }}">
+                        {% endif %}
+                        {% if request.GET.balance %}
+                            <input type="hidden" name="balance" value="{{ request.GET.balance }}">
+                        {% endif %}
                     {% endif %}
             {% else %}
                 <div class="flex flex-col gap-4">
@@ -19,7 +25,8 @@
                         <h3>Общие фильтры</h3>
                         {% for spec in vertical_filters %}
                             {% if spec.parameter_name == "application_status" or spec.parameter_name == "balance" %}
-                                <details class="admin-filter-choice application-filter-question" {% if spec.parameter_name == "application_status" %}open{% endif %}>
+                                <details class="admin-filter-choice application-filter-question"
+                                         {% if spec.parameter_name == "application_status" %}open{% endif %}>
                                     <summary>{{ spec.title|capfirst }}</summary>
                                     {% unfold_admin_list_filter cl spec %}
                                 </details>

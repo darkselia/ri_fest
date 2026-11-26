@@ -4,7 +4,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const key = `answer-columns:${root.dataset.festival}`;
     const columns = [...root.querySelectorAll("[data-column-toggle]")];
     const measure = document.createElement("canvas").getContext("2d");
-    const typeWidths = { text: 160, textarea: 200, number: 90, date: 120, boolean: 100, single: 150, multi: 180, service: 180, service1: 160 };
+    const typeWidths = {
+        text: 160,
+        textarea: 200,
+        number: 90,
+        date: 120,
+        boolean: 100,
+        single: 150,
+        multi: 180,
+        service: 180,
+        service1: 160
+    };
     const baseWidths = columns.map(input => typeWidths[input.dataset.fieldType] ?? Number(input.dataset.columnWidth));
     const measureWidths = () => {
         if (!measure) return;
@@ -60,14 +70,19 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
         try {
-            sessionStorage.setItem(key, JSON.stringify({ visible }));
+            sessionStorage.setItem(key, JSON.stringify({
+                visible
+            }));
         } catch {
             /* Storage can be disabled. */
         }
     };
     columns.forEach(input => input.addEventListener("change", update));
     update();
-    document.fonts?.ready.then(() => { measureWidths(); update(); });
+    document.fonts?.ready.then(() => {
+        measureWidths();
+        update();
+    });
     root.querySelectorAll("[data-submit]").forEach(input => input.addEventListener("change", () => {
         if (!input.classList.contains("select2-hidden-accessible")) input.form.requestSubmit();
     }));

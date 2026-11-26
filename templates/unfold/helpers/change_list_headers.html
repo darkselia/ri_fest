@@ -4,17 +4,18 @@
         {% if cl.model_admin.ordering_field %}<th></th>{% endif %}
         {% if cl.model_admin.list_sections|length > 0 %}<th></th>{% endif %}
         {% for header in result_headers %}
-            <th class="align-middle font-semibold py-2 text-left text-important whitespace-nowrap {{ header.class_attrib }} {% if 'action-toggle' in header.text and forloop.counter == 1 %}pl-3 w-px{% else %}px-3{% endif %}" scope="col">
+            <th class="align-middle font-semibold py-2 text-left text-important whitespace-nowrap {{ header.class_attrib }} {% if 'action-toggle' in header.text and forloop.counter == 1 %}pl-3 w-px{% else %}px-3{% endif %}"
+                scope="col">
                 <div class="flex items-center {% if header.formatting == 'price' %}justify-end{% endif %}">
                     {% if header.sortable %}
                         <a class="admin-sort-link" href="{% if cl.opts.app_label == 'applications' and cl.opts.model_name == 'application' %}{% if header.sorted %}{% if header.ascending %}{{ header.url_toggle }}{% else %}{{ header.url_remove }}{% endif %}{% else %}{{ header.url_primary }}{% endif %}{% else %}{% if header.sorted %}{% if header.ascending %}{{ header.url_remove }}{% else %}{{ header.url_toggle }}{% endif %}{% else %}{{ header.url_primary }}{% endif %}{% endif %}" {% if not header.sorted %}data-sort-new{% endif %}>
                             {{ header.text|capfirst }}
                             {% if header.sorted %}
-                                <span class="admin-sort-icon material-symbols-outlined" aria-hidden="true">{% if cl.opts.app_label == 'applications' and cl.opts.model_name == 'application' %}{% if header.ascending %}arrow_downward{% else %}arrow_upward{% endif %}{% else %}{% if header.ascending %}arrow_upward{% else %}arrow_downward{% endif %}{% endif %}</span>
+                                <span class="admin-sort-icon material-symbols-outlined" aria-hidden="true">{% if cl.opts.app_label == "applications" and cl.opts.model_name == "application" %}{% if header.ascending %}arrow_downward{% else %}arrow_upward{% endif %}{% else %}{% if header.ascending %}arrow_upward{% else %}arrow_downward{% endif %}{% endif %}</span>
                                 {% if num_sorted_fields > 1 %}<span class="sortpriority text-xs">{{ header.sort_priority }}</span>{% endif %}
                             {% endif %}
                         </a>
-                    {% elif 'action-toggle' in header.text and forloop.counter == 1 %}
+                    {% elif "action-toggle" in header.text and forloop.counter == 1 %}
                         <label class="flex flex-row items-center gap-2">{{ header.text|capfirst }}</label>
                     {% else %}
                         <span>{{ header.text|capfirst }}</span>

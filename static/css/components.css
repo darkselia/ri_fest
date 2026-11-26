@@ -52,7 +52,7 @@
 .button--secondary {
     background: transparent;
     color: var(--color-ink);
-    border-color: var(--color-line);
+    border-color: var(--color-border);
 }
 
 .button--secondary:hover {
@@ -152,7 +152,7 @@
 .site-message {
     margin: 0;
     padding: 10px 16px;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--color-border);
     border-left: 3px solid var(--color-ink);
     border-radius: 7px;
     background: var(--color-surface);

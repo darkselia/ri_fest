@@ -8,10 +8,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const panelKey = `ri-fest:filter-panel:${location.pathname}`;
     const drawerKey = `ri-fest:filter-drawer:${location.pathname}`;
     const read = key => {
-        try { return sessionStorage.getItem(key); } catch { return null; }
+        try {
+            return sessionStorage.getItem(key);
+        } catch {
+            return null;
+        }
     };
     const save = (key, open) => {
-        try { sessionStorage.setItem(key, open ? "open" : "closed"); } catch { /* Storage can be disabled. */ }
+        try {
+            sessionStorage.setItem(key, open ? "open" : "closed");
+        } catch {
+            /* Storage can be disabled. */ }
     };
     const setExpanded = open => {
         trigger.setAttribute("aria-expanded", String(open));

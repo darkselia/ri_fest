@@ -14,9 +14,9 @@
             .filter(Boolean);
         const updateDiscard = () => {
             const unsavedChanges = fields.some(field => (
-                field.type === "checkbox"
-                    ? field.checked !== savedValues[field.name]
-                    : field.value !== savedValues[field.name]
+                field.type === "checkbox" ?
+                field.checked !== savedValues[field.name] :
+                field.value !== savedValues[field.name]
             ));
             discard.hidden = !savedChanges && !unsavedChanges;
         };

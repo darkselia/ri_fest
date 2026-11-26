@@ -19,14 +19,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const selected = [...details.querySelectorAll("input:checked")];
             const selectedLink = details.querySelector("li.font-semibold a");
             if (selectedLink) selectedLink.setAttribute("aria-current", "true");
-            const label = selected.length > 1
-                ? `Выбрано: ${selected.length}`
-                : selected.length === 1
-                    ? selected[0].closest("label").textContent.trim()
-                    : selectedLink?.textContent.trim() || "Все";
-            const active = selected.length > 0
-                ? selected.some(input => input.value !== "")
-                : Boolean(selectedLink && label !== "Все");
+            const label = selected.length > 1 ?
+                `Выбрано: ${selected.length}` :
+                selected.length === 1 ?
+                selected[0].closest("label").textContent.trim() :
+                selectedLink?.textContent.trim() || "Все";
+            const active = selected.length > 0 ?
+                selected.some(input => input.value !== "") :
+                Boolean(selectedLink && label !== "Все");
             value.textContent = label;
             value.title = label;
             value.classList.toggle("is-active", active);

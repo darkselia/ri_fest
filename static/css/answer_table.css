@@ -8,8 +8,10 @@
 
 .answer-table__festival {
     display: flex;
+    flex: 1 1 200px;
     align-items: center;
     gap: 8px;
+    min-width: 0;
 }
 
 .answer-table__toolbar {
@@ -17,13 +19,8 @@
     flex-wrap: wrap;
     padding: 12px;
     gap: 12px;
-    border: 1px solid var(--admin-panel-border);
+    border: 1px solid var(--color-border);
     border-radius: 6px 6px 0 0;
-}
-
-.answer-table__festival {
-    flex: 1 1 200px;
-    min-width: 0;
 }
 
 .answer-table__toolbar > .answer-table__festival {
@@ -42,7 +39,7 @@
 
 .answer-table__festival button {
     background: var(--admin-panel-bg);
-    border: 1px solid var(--admin-panel-border);
+    border: 1px solid var(--color-border);
     border-radius: 6px;
     padding: 8px 10px;
     color: inherit;
@@ -76,12 +73,14 @@
 
 .answer-table th,
 .answer-table td {
-    border-bottom: 1px solid var(--admin-panel-border);
+    border-bottom: 1px solid var(--color-border);
     text-align: left;
 }
 
 .answer-table th {
     min-width: 50px;
+    font-weight: 650;
+    font-size: 13px;
     white-space: normal !important;
     overflow-wrap: normal;
     word-break: normal;
@@ -102,11 +101,6 @@
 
 .answer-table__value {
     overflow-wrap: anywhere;
-}
-
-.answer-table th {
-    font-weight: 650;
-    font-size: 13px;
 }
 
 .answer-sort {
@@ -150,7 +144,7 @@
 }
 
 .answer-table__long :is(.answer-table__expand, .answer-table__collapse):hover {
-    background: var(--admin-panel-border);
+    background: var(--color-border);
 }
 
 .answer-table__long[open] {
@@ -180,12 +174,12 @@
 }
 
 .answer-table td a:hover {
-    background: var(--admin-panel-border);
+    background: var(--color-border);
     border-radius: 3px;
 }
 
 .answer-table td a:focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--admin-focus);
     outline-offset: 2px;
 }
 
@@ -199,7 +193,7 @@
 }
 
 .answer-table__column-options-divider {
-    border-top: 1px solid var(--admin-panel-border);
+    border-top: 1px solid var(--color-border);
     margin: 13px 0;
 }
 
@@ -211,6 +205,7 @@
     overflow-wrap: anywhere;
     cursor: pointer;
 }
+
 .answer-table__column-options h3 {
     font-weight: 700;
     margin-bottom: 10px;
@@ -223,7 +218,7 @@
 }
 
 .answer-table__panel :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--admin-focus);
     outline-offset: 2px;
 }
 
@@ -232,7 +227,7 @@
     gap: 4px;
     margin-bottom: 12px;
     padding: 4px;
-    border: 1px solid var(--admin-panel-border);
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     background: var(--admin-panel-bg);
 }
@@ -247,7 +242,7 @@
 
 .answer-table__buttons button[aria-pressed="true"] {
     background: var(--color-accent);
-    color: #fff;
+    color: var(--admin-accent-fg);
     font-weight: 650;
 }
 
@@ -296,7 +291,7 @@
 
 @media (width < 800px) {
     .answer-table td a {
-        background: var(--admin-panel-border);
+        background: var(--color-border);
         border-radius: 3px;
     }
 }

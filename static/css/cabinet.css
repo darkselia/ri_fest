@@ -73,7 +73,7 @@
 .account-navigation {
     display: flex;
     gap: 5px;
-    border-bottom: 1px solid var(--color-line);
+    border-bottom: 1px solid var(--color-border);
     margin: 0;
     padding: 0;
 }
@@ -89,7 +89,7 @@
 .account-navigation a[aria-current=page] {
     background: var(--color-surface);
     color: var(--color-ink);
-    border-color: var(--color-line);
+    border-color: var(--color-border);
     border-bottom-color: var(--color-surface);
     border-radius: 10px 10px 0 0;
     margin-bottom: -1px;
@@ -97,7 +97,7 @@
 
 .account-workspace {
     min-width: 0;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--color-border);
     border-top: 0;
     border-radius: 0 0 12px 12px;
     background: var(--color-surface);
@@ -120,7 +120,7 @@
 .profile-editor > :is(.profile-editor__column, .profile-editor__email, .profile-editor__password, .profile-editor__delete) {
     min-width: 0;
     padding: 18px 0;
-    border-bottom: 1px solid var(--color-line);
+    border-bottom: 1px solid var(--color-border);
     overflow-wrap: anywhere;
 }
 
@@ -157,7 +157,7 @@
 .email-change-pending {
     margin-top: 20px;
     padding-top: 16px;
-    border-top: 1px solid var(--color-line);
+    border-top: 1px solid var(--color-border);
 }
 
 .email-change-pending__actions,

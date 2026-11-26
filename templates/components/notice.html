@@ -1,4 +1,1 @@
-<div class="{% if style == 'form' %}form-errors{% elif style == 'site' %}site-message{% if tags %} {{ tags }}{% endif %}{% else %}schema-notice{% if error %} schema-notice--error{% endif %}{% endif %}"
-     {% if name %}data-notice="{{ name }}"{% endif %}
-     role="{% if error %}alert{% else %}status{% endif %}"
-     {% if not text %}hidden{% endif %}>{{ text|default:"" }}</div>
+<div class="{% if style == 'form' %}form-errors{% elif style == 'site' %}site-message{% if tags %} {{ tags }}{% endif %}{% else %}schema-notice{% if error %} schema-notice--error{% endif %}{% endif %}" {% if name %}data-notice="{{ name }}"{% endif %} role="{% if error %}alert{% else %}status{% endif %}" {% if not text %}hidden{% endif %}>{{ text|default:"" }}</div>
