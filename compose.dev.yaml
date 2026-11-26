@@ -20,24 +20,30 @@ services:
 
   db:
     ports:
-      - "5432:5432"
+      - "${DEV_DB_PORT:-5432}:5432"
 
   redis:
     ports:
-      - "6379:6379"
+      - "${DEV_REDIS_PORT:-6379}:6379"
 
   mailpit:
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      - "${DEV_MAILPIT_WEB_PORT:-8025}:8025"
+      - "${DEV_MAILPIT_SMTP_PORT:-1025}:1025"
 
   migrate:
     <<: *dev
 
   web:
     <<: *dev
+    volumes:
+      - type: bind
+        source: .
+        target: /app
+        read_only: true
+      - content_data:${CONTENT_MEDIA_ROOT:-/var/lib/ri-fest/content}
     ports:
-      - "8081:8081"
+      - "${DEV_WEB_PORT:-8081}:8081"
     command: ["python", "manage.py", "runserver", "0.0.0.0:8081"]
 
   worker:

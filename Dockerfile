@@ -15,8 +15,8 @@ RUN python -m venv "$VIRTUAL_ENV" \
 # Keep the existing Beat volume's numeric owner when replacing Micromamba.
 RUN groupadd --gid 57439 app \
     && useradd --uid 57439 --gid app --create-home app \
-    && mkdir -p /app /var/lib/ri-fest/beat \
-    && chown app:app /app /var/lib/ri-fest/beat
+    && mkdir -p /app /var/lib/ri-fest/beat /var/lib/ri-fest/content \
+    && chown app:app /app /var/lib/ri-fest/beat /var/lib/ri-fest/content
 COPY locale /tmp/ri-fest-locale
 RUN apt-get update && apt-get install -y --no-install-recommends gettext \
     && mkdir -p /opt/ri-fest/locale/ru/LC_MESSAGES \

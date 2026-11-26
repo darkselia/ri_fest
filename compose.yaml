@@ -10,9 +10,10 @@ x-app: &app
     DB_NAME: ${DB_NAME:-ri_fest}
     DB_USER: ${DB_USER:-ri_fest}
     DB_PASSWORD: ${DB_PASSWORD:?Fill .env}
-    DB_HOST: db
-    DB_PORT: "5432"
-    CELERY_BROKER_URL: redis://redis:6379/0
+    DB_HOST: ${DB_HOST:-db}
+    DB_PORT: ${DB_PORT:-5432}
+    CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+    CONTENT_MEDIA_ROOT: ${CONTENT_MEDIA_ROOT:-/var/lib/ri-fest/content}
     EMAIL_HOST: ${EMAIL_HOST:-mailpit}
     EMAIL_PORT: ${EMAIL_PORT:-1025}
     EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
@@ -32,6 +33,7 @@ services:
       DB_NAME: ${DB_NAME:-ri_fest}
       DB_USER: ${DB_USER:-ri_fest}
       DB_PASSWORD: ${DB_PASSWORD:?Fill .env}
+      DB_TEST_NAME: ${DB_TEST_NAME:-ri_fest_test}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init-db.sql:/docker-entrypoint-initdb.d/10-app.sql:ro
@@ -74,6 +76,8 @@ services:
 
   web:
     <<: *app
+    volumes:
+      - content_data:${CONTENT_MEDIA_ROOT:-/var/lib/ri-fest/content}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -104,7 +108,7 @@ services:
     command: ["python", "-m", "pytest", "-q", "-m", "postgres", "--ds=ri_fest.settings_test_postgres", "--reuse-db"]
     environment:
       <<: *app-env
-      DB_TEST_NAME: ri_fest_test
+      DB_TEST_NAME: ${DB_TEST_NAME:-ri_fest_test}
     depends_on:
       db:
         condition: service_healthy
@@ -118,3 +122,4 @@ volumes:
   postgres_data:
   redis_data:
   beat_data:
+  content_data:
