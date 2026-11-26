@@ -7,8 +7,8 @@ from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Case, F, IntegerField, Value, When
-from django.http import Http404, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.http import Http404, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
@@ -16,6 +16,8 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
 from unfold.admin import ModelAdmin
+from unfold.decorators import action
+from unfold.forms import BaseDialogForm
 from unfold.widgets import UnfoldAdminSelectWidget
 
 from applications.forms import NativeDateInput, SchemaEditorWidgets, TemplatePreviewForm
@@ -47,6 +49,88 @@ from .services import (
     save_festival,
     unpublish_festival,
 )
+
+
+class FestivalActionDialogForm(BaseDialogForm):
+    confirmation = forms.CharField(widget=forms.HiddenInput)
+    form_before_template = "admin/festivals/action_dialog_details.html"
+    action_name = "archive"
+
+    def __init__(self, request, object_id=None, *args, **kwargs):
+        super().__init__(request, object_id, *args, **kwargs)
+        self.preview = festival_action_preview(
+            object_id, actor=request.user, action=self.action_name
+        )
+        self.initial["confirmation"] = self.preview["confirmation"]
+        self.notice = ""
+
+    def get_before_template_context(self, request, object_id):
+        return {
+            "preview": self.preview,
+            "notice": self.notice,
+            "action_name": self.action_name,
+        }
+
+
+class UnpublishDialogForm(FestivalActionDialogForm):
+    action_name = "unpublish"
+
+
+class DeleteFestivalDialogForm(FestivalActionDialogForm):
+    action_name = "delete"
+
+
+class SaveArchiveDialogForm(BaseDialogForm):
+    confirmation = forms.CharField(widget=forms.HiddenInput)
+    form_before_template = "admin/festivals/action_dialog_details.html"
+
+    def __init__(
+        self,
+        request,
+        object_id=None,
+        *args,
+        preview=None,
+        changes=None,
+        notice="",
+        blocked=False,
+        **kwargs,
+    ):
+        super().__init__(request, object_id, *args, **kwargs)
+        self.preview = preview
+        self.changes = changes or {}
+        self.notice = notice
+        self.blocked = blocked
+        if preview:
+            self.initial["confirmation"] = preview["confirmation"]
+
+    def get_before_template_context(self, request, object_id):
+        return {
+            "preview": self.preview,
+            "changes": self.changes,
+            "notice": self.notice,
+            "blocked": self.blocked,
+        }
+
+
+ARCHIVE_DIALOG = {
+    "title": "Архивировать фестиваль",
+    "form_submit_text": "Архивировать фестиваль",
+    "form_class": FestivalActionDialogForm,
+}
+UNPUBLISH_DIALOG = {
+    "title": "Вернуть фестиваль в черновик",
+    "form_submit_text": "Вернуть в черновик",
+    "form_class": UnpublishDialogForm,
+}
+DELETE_FESTIVAL_DIALOG = {
+    "title": "Удалить фестиваль",
+    "form_submit_text": "Удалить фестиваль",
+    "form_class": DeleteFestivalDialogForm,
+}
+SAVE_ARCHIVE_DIALOG = {
+    "title": "Сохранить и архивировать фестиваль",
+    "form_submit_text": "Сохранить и архивировать",
+}
 
 
 def timezone_choices(current):
@@ -130,7 +214,7 @@ class FestivalForm(forms.ModelForm):
 class FestivalAdmin(ModelAdmin):
     class Media:
         css = {"all": ("css/schema_editor.css",)}
-        js = ("js/schema_editor.js",)
+        js = ("js/schema_editor.js", "js/admin_confirmation_dialog.js")
 
     form = FestivalForm
     change_form_template = "admin/festivals/change_form.html"
@@ -420,6 +504,26 @@ class FestivalAdmin(ModelAdmin):
                 name="festivals_festival_archive",
             ),
             path(
+                "<int:object_id>/archive-dialog/",
+                self.admin_site.admin_view(self.archive_dialog_view),
+                name="festivals_festival_archive_dialog",
+            ),
+            path(
+                "<int:object_id>/unpublish-dialog/",
+                self.admin_site.admin_view(self.unpublish_dialog_view),
+                name="festivals_festival_unpublish_dialog",
+            ),
+            path(
+                "<int:object_id>/delete-dialog/",
+                self.admin_site.admin_view(self.delete_dialog_view),
+                name="festivals_festival_delete_dialog",
+            ),
+            path(
+                "<int:object_id>/save-dialog/",
+                self.admin_site.admin_view(self.save_archive_dialog_view),
+                name="festivals_festival_save_dialog",
+            ),
+            path(
                 "<int:object_id>/delete-permanently/",
                 self.admin_site.admin_view(self.delete_permanently_view),
                 name="festivals_festival_delete_permanently",
@@ -570,30 +674,19 @@ class FestivalAdmin(ModelAdmin):
                 status=400,
             )
         title = {
-            "unpublish": "Вернуть фестиваль в черновик",
-            "archive": "Архивировать фестиваль",
-            "save": "Сохранить и архивировать фестиваль",
-            "delete": "Удалить фестиваль",
+            "unpublish": UNPUBLISH_DIALOG["title"],
+            "archive": ARCHIVE_DIALOG["title"],
+            "save": SAVE_ARCHIVE_DIALOG["title"],
+            "delete": DELETE_FESTIVAL_DIALOG["title"],
         }[action]
-        if action == "delete":
-            description = f"Фестиваль «{preview['festival'].name}» и все его анкеты будут удалены вместе с ответами, выбранными услугами и настройками формы. Всего анкет: {preview['total_application_count']}. Аккаунты пользователей сохранятся."
-        elif action == "unpublish":
-            description = (
-                f"Приём заявок закроется. Активные и архивные анкеты владельцев станут личными черновиками: {preview['application_count']}. "
-                "После повторной публикации владельцы смогут отправить их заново; отозванные анкеты останутся в архиве."
-            )
-        else:
-            description = (
-                f"Активные анкеты будут перенесены в архив: {preview['application_count']}. "
-                "Отозванные останутся в архиве, личные черновики сохранятся у владельцев."
-            )
         return TemplateResponse(
             request,
             "admin/festivals/confirm_action.html",
             {
                 **self.admin_site.each_context(request),
                 "title": title,
-                "description": description,
+                "preview": preview,
+                "action_name": action,
                 "confirm_label": title,
                 "count_in_description": True,
                 "confirm_variant": action,
@@ -617,22 +710,10 @@ class FestivalAdmin(ModelAdmin):
         )
 
     def action_view(self, request, object_id, action):
-        festival = get_object_or_404(Festival, pk=object_id)
         if request.method == "POST":
-            operation = {
-                "unpublish": unpublish_festival,
-                "archive": archive_festival,
-                "delete": delete_festival,
-            }[action]
             try:
-                operation(
-                    object_id,
-                    actor=request.user,
-                    confirmation=request.POST.get("confirmation"),
-                )
-            except FestivalActionConflict as error:
-                return self.confirmation_response(
-                    request, object_id, action, error=error
+                destination = self.perform_festival_action(
+                    request, object_id, action, request.POST.get("confirmation")
                 )
             except ValidationError as error:
                 return self.confirmation_response(
@@ -640,17 +721,190 @@ class FestivalAdmin(ModelAdmin):
                 )
             except Festival.DoesNotExist:
                 raise Http404 from None
-            if action == "delete":
-                self.log_deletions(request, [festival])
-                self.message_user(request, "Фестиваль удалён навсегда.")
-                return redirect("admin:festivals_festival_changelist")
-            self.log_change(request, festival, "Подтверждённая смена состояния.")
-            self.message_user(request, "Состояние фестиваля изменено.")
-            return redirect("admin:festivals_festival_change", object_id)
+            return redirect(destination)
         return self.confirmation_response(request, object_id, action)
 
     def unpublish_view(self, request, object_id):
         return self.action_view(request, object_id, "unpublish")
+
+    def save_archive_dialog_view(self, request, object_id):
+        if request.method != "POST":
+            return HttpResponse(status=405, headers={"Allow": "POST"})
+        festival = get_object_or_404(Festival, pk=object_id)
+        if not self.has_change_permission(request, festival):
+            raise PermissionDenied
+        notice = ""
+        if "_form_submitted" in request.POST:
+            submitted = SaveArchiveDialogForm(request, object_id, data=request.POST)
+            if not submitted.is_valid():
+                return HttpResponse(status=400)
+            token = submitted.cleaned_data["confirmation"]
+            try:
+                changes = confirmation_changes(
+                    token, actor=request.user, festival_id=object_id
+                )
+                saved = save_festival(
+                    object_id, actor=request.user, changes=changes, confirmation=token
+                )
+            except FestivalActionConflict as error:
+                notice = " ".join(error.messages)
+                try:
+                    changes = confirmation_changes(
+                        token, actor=request.user, festival_id=object_id
+                    )
+                except FestivalActionConflict:
+                    dialog = SaveArchiveDialogForm(
+                        request, object_id, notice=notice, blocked=True
+                    )
+                    return self.render_save_archive_dialog(request, dialog)
+            except ValidationError as error:
+                dialog = SaveArchiveDialogForm(
+                    request, object_id, notice=" ".join(error.messages), blocked=True
+                )
+                return self.render_save_archive_dialog(request, dialog)
+            except Festival.DoesNotExist:
+                dialog = SaveArchiveDialogForm(
+                    request, object_id, notice="Фестиваль удалён.", blocked=True
+                )
+                return self.render_save_archive_dialog(request, dialog)
+            else:
+                self.log_change(
+                    request, saved, "Сохранение с архивированием фестиваля."
+                )
+                self.message_user(
+                    request, "Изменения сохранены. Фестиваль архивирован."
+                )
+                return HttpResponse(
+                    headers={
+                        "HX-Redirect": reverse(
+                            "admin:festivals_festival_change", args=[object_id]
+                        )
+                    }
+                )
+        else:
+            form = self.get_form(request, festival)(
+                request.POST, request.FILES, instance=copy(festival)
+            )
+            if (
+                not form.is_valid()
+                or festival.status == Festival.Status.DRAFT
+                or calendar_status(form.instance, timezone.now())
+                != Festival.Status.ARCHIVED
+            ):
+                return HttpResponse(status=204)
+            changes = form.festival_changes()
+        try:
+            preview = festival_action_preview(
+                object_id, actor=request.user, action="save", changes=changes
+            )
+        except (ValidationError, Festival.DoesNotExist) as error:
+            if not notice:
+                return HttpResponse(status=204)
+            detail = (
+                " ".join(error.messages)
+                if isinstance(error, ValidationError)
+                else "Фестиваль удалён."
+            )
+            dialog = SaveArchiveDialogForm(
+                request, object_id, notice=f"{notice} {detail}", blocked=True
+            )
+            return self.render_save_archive_dialog(request, dialog)
+        dialog = SaveArchiveDialogForm(
+            request, object_id, preview=preview, changes=changes, notice=notice
+        )
+        return self.render_save_archive_dialog(request, dialog)
+
+    @staticmethod
+    def render_save_archive_dialog(request, dialog):
+        return render(
+            request,
+            "unfold/helpers/dialog.html",
+            {
+                "dialog": SAVE_ARCHIVE_DIALOG,
+                "form": dialog,
+                "form_submit_text": SAVE_ARCHIVE_DIALOG["form_submit_text"],
+            },
+        )
+
+    def archive_dialog_view(self, request, object_id):
+        return self.festival_dialog_view(request, object_id, self.archive_dialog)
+
+    def unpublish_dialog_view(self, request, object_id):
+        return self.festival_dialog_view(request, object_id, self.unpublish_dialog)
+
+    def delete_dialog_view(self, request, object_id):
+        return self.festival_dialog_view(request, object_id, self.delete_dialog)
+
+    def festival_dialog_view(self, request, object_id, handler):
+        if request.method not in ("GET", "POST"):
+            return HttpResponse(status=405, headers={"Allow": "GET, POST"})
+        try:
+            return handler(request, object_id=object_id)
+        except Festival.DoesNotExist:
+            raise Http404 from None
+        except ValidationError as error:
+            self.message_user(request, " ".join(error.messages), messages.ERROR)
+            return HttpResponse(
+                headers={
+                    "HX-Redirect": reverse(
+                        "admin:festivals_festival_change", args=[object_id]
+                    )
+                }
+            )
+
+    @action(dialog=ARCHIVE_DIALOG)
+    def archive_dialog(self, request, form, object_id):
+        return self.confirm_dialog_action(request, form, object_id, "archive")
+
+    @action(dialog=UNPUBLISH_DIALOG)
+    def unpublish_dialog(self, request, form, object_id):
+        return self.confirm_dialog_action(request, form, object_id, "unpublish")
+
+    @action(dialog=DELETE_FESTIVAL_DIALOG)
+    def delete_dialog(self, request, form, object_id):
+        return self.confirm_dialog_action(request, form, object_id, "delete")
+
+    def confirm_dialog_action(self, request, form, object_id, action_name):
+        try:
+            destination = self.perform_festival_action(
+                request, object_id, action_name, form.cleaned_data["confirmation"]
+            )
+        except FestivalActionConflict as error:
+            config = {
+                "archive": ARCHIVE_DIALOG,
+                "unpublish": UNPUBLISH_DIALOG,
+                "delete": DELETE_FESTIVAL_DIALOG,
+            }[action_name]
+            refreshed = config["form_class"](request=request, object_id=object_id)
+            refreshed.notice = " ".join(error.messages)
+            return render(
+                request,
+                "unfold/helpers/dialog.html",
+                {
+                    "dialog": config,
+                    "form": refreshed,
+                    "form_submit_text": config["form_submit_text"],
+                },
+            )
+        return HttpResponse(headers={"HX-Redirect": destination})
+
+    def perform_festival_action(self, request, object_id, action_name, confirmation):
+        original = get_object_or_404(Festival, pk=object_id)
+        operation = {
+            "archive": archive_festival,
+            "unpublish": unpublish_festival,
+            "delete": delete_festival,
+        }[action_name]
+        festival = operation(object_id, actor=request.user, confirmation=confirmation)
+        if action_name == "delete":
+            self.log_deletions(request, [original])
+            self.message_user(request, "Фестиваль удалён навсегда.")
+            destination = reverse("admin:festivals_festival_changelist")
+        else:
+            self.log_change(request, festival, "Подтверждённая смена состояния.")
+            self.message_user(request, "Состояние фестиваля изменено.")
+            destination = reverse("admin:festivals_festival_change", args=[object_id])
+        return destination
 
     def archive_view(self, request, object_id):
         return self.action_view(request, object_id, "archive")

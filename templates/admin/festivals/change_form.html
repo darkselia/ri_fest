@@ -1,10 +1,34 @@
 {% extends "admin/change_form.html" %}
 {% load unfold %}
+{% block extrahead %}
+    {{ block.super }}
+    <noscript><style>
+        html[x-cloak] {
+            display: block !important;
+        }
+
+        @media (width < 1024px) {
+            #nav-sidebar {
+                display: none !important;
+            }
+
+            ul:has(a[hx-target="#modal-content"]) {
+                display: flex !important;
+                position: static !important;
+            }
+        }
+    </style>
+    </noscript>
+{% endblock %}
 {% block nav-global-side %}{% endblock %}
 {% block form_top %}
     <span hidden
           data-publication-url="{{ publication_readiness_url }}"
           data-festival-id="{{ original.pk|default:'0' }}"></span>
+    {% if can_archive_festival %}
+        <span hidden
+              data-save-archive-url="{% url 'admin:festivals_festival_save_dialog' original.pk %}"></span>
+    {% endif %}
     <div class="mb-4 leading-relaxed text-subtle">
         <p>Публикация открывает приём заявок до начала фестиваля. В дату начала фестиваль переходит в состояние «Проходит», после окончания — в архив. Даты учитываются по часовому поясу фестиваля.</p>
     </div>
@@ -33,7 +57,9 @@
                         <span data-button-label></span>
                     {% endcomponent %}
                 </template>
-                {% if schema_input.errors %}{% include "components/notice.html" with text=schema_input.errors error=True only %}{% endif %}
+                {% if schema_input.errors %}
+                    {% include "components/notice.html" with text=schema_input.errors error=True only %}
+                {% endif %}
                 <div class="schema-toolbar">
                     <div class="schema-toolbar__section schema-preview-tool">
                         <div class="schema-toolbar__description">
@@ -80,7 +106,9 @@
                     <p>Шаблон доступен только для просмотра.</p>
                 {% endif %}
                 {% include "components/notice.html" with name="schema" error=True only %}
-                <template data-kind-message>{% include "components/notice.html" with error=True only %}</template>
+                <template data-kind-message>
+                    {% include "components/notice.html" with error=True only %}
+                </template>
                 <p class="sr-only" data-sort-message role="status" aria-live="polite"></p>
                 <dialog id="schema-preview-dialog"
                         class="schema-preview-dialog"
@@ -97,8 +125,11 @@
                 </section>
                 <div class="schema-workspace">
                     <div class="schema-outline-column">
-                        <div class="schema-outline" data-schema-outline aria-label="Оглавление вопросов"
-                             {% if schema_editable %}x-sort="window.riSchemaSort($item, $position)" x-sort:config="{handle: '[data-drag-handle]', animation: 150}"{% endif %}></div>
+                        <div class="schema-outline"
+                             data-schema-outline
+                             aria-label="Оглавление вопросов"
+                             {% if schema_editable %}x-sort="window.riSchemaSort($item, $position)" x-sort:config="{handle: '[data-drag-handle]', animation: 150}"{% endif %}>
+                        </div>
                         {% if schema_editable %}
                             {% component "unfold/components/button.html" with type="button" extra_attrs="data-add-field" class="mt-4" %}
                                 Добавить вопрос
@@ -106,7 +137,8 @@
                         {% endif %}
                     </div>
                     <div data-schema-fields
-                         {% if schema_editable %}x-sort="window.riSchemaSort($item, $position)" x-sort:config="{handle: '[data-drag-handle]', animation: 150}"{% endif %}></div>
+                         {% if schema_editable %}x-sort="window.riSchemaSort($item, $position)" x-sort:config="{handle: '[data-drag-handle]', animation: 150}"{% endif %}>
+                    </div>
                 </div>
             </div>
         </details>
@@ -116,14 +148,17 @@
     {{ block.super }}
     {% if can_archive_festival %}
         {% url 'admin:festivals_festival_archive' original.pk as archive_url %}
-        {% include "unfold/helpers/tab_action.html" with title="В архив" link=archive_url icon="archive" %}
+        {% url 'admin:festivals_festival_archive_dialog' original.pk as archive_dialog_url %}
+        {% include "admin/dialog_action.html" with fallback_url=archive_url dialog_url=archive_dialog_url icon="archive" label="В архив" %}
     {% endif %}
     {% if can_unpublish_festival %}
         {% url 'admin:festivals_festival_unpublish' original.pk as draft_url %}
-        {% include "unfold/helpers/tab_action.html" with title="В черновик" link=draft_url icon="edit_note" %}
+        {% url 'admin:festivals_festival_unpublish_dialog' original.pk as draft_dialog_url %}
+        {% include "admin/dialog_action.html" with fallback_url=draft_url dialog_url=draft_dialog_url icon="edit_note" label="В черновик" %}
     {% endif %}
     {% if can_delete_festival %}
         {% url 'admin:festivals_festival_delete_permanently' original.pk as delete_url %}
-        {% include "unfold/helpers/tab_action.html" with title="Удалить" link=delete_url icon="delete" %}
+        {% url 'admin:festivals_festival_delete_dialog' original.pk as delete_dialog_url %}
+        {% include "admin/dialog_action.html" with fallback_url=delete_url dialog_url=delete_dialog_url icon="delete" label="Удалить" %}
     {% endif %}
 {% endblock %}

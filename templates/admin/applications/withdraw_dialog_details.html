@@ -1,0 +1,6 @@
+<div data-confirmation-dialog>
+    <p class="font-semibold mb-2">{{ subject }}</p>
+    <p>Анкета будет отозвана и перенесена в архив пользователя. Ответы и выбранные услуги сохранятся. Организатор сможет восстановить участие, пока фестиваль принимает заявки или проходит.</p>
+    {% if notice %}<p class="mt-3 text-red-600 dark:text-red-400"
+                      role="alert">{{ notice }}</p>{% endif %}
+</div>

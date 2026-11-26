@@ -1,0 +1,24 @@
+<div data-confirmation-dialog
+     {% if blocked %}data-confirmation-blocked{% endif %}>
+    {% if preview %}
+        <p class="font-semibold mb-2">{{ preview.festival.name }}</p>
+        {% if action_name == "delete" %}
+            <p>Фестиваль «{{ preview.festival.name }}» и все его анкеты будут удалены вместе с ответами, выбранными услугами и настройками формы. Всего анкет: {{ preview.total_application_count }}. Аккаунты пользователей сохранятся.</p>
+        {% elif action_name == "unpublish" %}
+            <p>Приём заявок закроется. Активные и архивные анкеты владельцев станут личными черновиками: {{ preview.application_count }}. После повторной публикации владельцы смогут отправить их заново; отозванные анкеты останутся в архиве.</p>
+        {% else %}
+            <p>Активные анкеты будут перенесены в архив: {{ preview.application_count }}. Отозванные останутся в архиве, личные черновики сохранятся у владельцев.</p>
+        {% endif %}
+        {% if changes %}
+            <dl class="mt-3">
+                {% if changes.name %}<div><dt class="font-semibold">Название</dt><dd>{{ changes.name }}</dd></div>{% endif %}
+                {% if changes.start_date %}<div><dt class="font-semibold">Начало</dt><dd>{{ changes.start_date|date:"d.m.Y"|default:changes.start_date }}</dd></div>{% endif %}
+                {% if changes.end_date %}<div><dt class="font-semibold">Окончание</dt><dd>{{ changes.end_date|date:"d.m.Y"|default:changes.end_date }}</dd></div>{% endif %}
+                {% if changes.timezone %}<div><dt class="font-semibold">Часовой пояс</dt><dd>{{ changes.timezone }}</dd></div>{% endif %}
+            </dl>
+        {% endif %}
+    {% endif %}
+    {% if notice %}
+        <p class="mt-3 text-red-600 dark:text-red-400" role="alert">{{ notice }}</p>
+    {% endif %}
+</div>

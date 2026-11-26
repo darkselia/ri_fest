@@ -1,0 +1,43 @@
+{% extends "admin/base_site.html" %}
+{% load static unfold %}
+{% block extrahead %}
+    {{ block.super }}
+    <noscript><style>
+        html[x-cloak] {
+            display: block !important;
+        }
+
+        @media (width < 1024px) {
+            #nav-sidebar {
+                display: none !important;
+            }
+        }
+    </style>
+    </noscript>
+    <script src="{% static 'admin/js/cancel.js' %}" async></script>
+{% endblock %}
+{% block content %}
+    <div class="admin-panel admin-confirmation">
+        <div class="p-4">
+            {% block confirmation_details %}{% endblock %}
+        </div>
+        {% block confirmation_form %}
+            <form method="post" class="p-4 pt-0">
+                {% csrf_token %}
+                {% block confirmation_fields %}{% endblock %}
+                <div class="flex flex-wrap gap-3 items-center mt-4">
+                    {% if file_delete_confirmation %}
+                        {% component "unfold/components/button.html" with submit=1 variant="danger" %}Да, удалить{% endcomponent %}
+                        {% component "unfold/components/button.html" with href="#" variant="default" class="cancel-link ml-auto" %}Нет, отменить{% endcomponent %}
+                    {% else %}
+                        {% if confirm_label %}
+                            <button type="submit"
+                                    class="festival-action {% if danger %}festival-action--danger{% elif confirm_variant == 'archive' or confirm_variant == 'save' %}festival-action--archive{% else %}festival-action--draft{% endif %}">{{ confirm_label }}</button>
+                        {% endif %}
+                        {% component "unfold/components/button.html" with href=cancel_url variant="default" class="ml-auto" %}Отмена{% endcomponent %}
+                    {% endif %}
+                </div>
+            </form>
+        {% endblock %}
+    </div>
+{% endblock %}

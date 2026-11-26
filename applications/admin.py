@@ -23,8 +23,8 @@ from django.db.models import (
     TextField,
     When,
 )
-from django.http import Http404, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.http import Http404, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.formats import number_format
@@ -32,6 +32,7 @@ from django.utils.html import format_html, format_html_join
 from django.utils.text import Truncator, smart_split, unescape_string_literal
 from unfold.admin import ModelAdmin
 from unfold.contrib.filters.admin import DropdownFilter
+from unfold.forms import BaseDialogForm
 from unfold.widgets import (
     UnfoldAdminSelect2Widget,
     UnfoldAdminSelectWidget,
@@ -68,6 +69,16 @@ from .services import (
     save_organizer_application,
     withdraw_application,
 )
+
+
+class WithdrawalDialogForm(BaseDialogForm):
+    form_before_template = "admin/applications/withdraw_dialog_details.html"
+
+    def get_before_template_context(self, request, object_id):
+        return {
+            "notice": getattr(self, "notice", ""),
+            "subject": getattr(self, "subject", ""),
+        }
 
 
 def ordered_festivals():
@@ -1067,14 +1078,31 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
             return self.payment_response(request, obj, form, status=status)
         return form, status
 
-    def withdrawal_confirmation(self, request, obj, version):
-        hidden = forms.Form()
+    def withdrawal_confirmation(self, request, obj, version, *, notice=""):
+        modal = request.headers.get("HX-Request") == "true"
+        hidden = (
+            WithdrawalDialogForm(request=request, object_id=obj.pk)
+            if modal
+            else forms.Form()
+        )
         hidden.fields["version"] = forms.CharField(
             initial=version, widget=forms.HiddenInput
         )
         hidden.fields["action"] = forms.CharField(
             initial="withdraw", widget=forms.HiddenInput
         )
+        if modal:
+            hidden.notice = notice
+            hidden.subject = str(obj)
+            return render(
+                request,
+                "unfold/helpers/dialog.html",
+                {
+                    "dialog": {"title": "Отозвать анкету"},
+                    "form": hidden,
+                    "form_submit_text": "Отозвать анкету",
+                },
+            )
         return TemplateResponse(
             request,
             "admin/festivals/confirm_action.html",
@@ -1239,6 +1267,15 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
                     messages.success(
                         request, "Анкета отозвана и перенесена в архив пользователя."
                     )
+                    if request.headers.get("HX-Request") == "true":
+                        return HttpResponse(
+                            headers={
+                                "HX-Redirect": reverse(
+                                    "admin:applications_application_change",
+                                    args=[obj.pk],
+                                )
+                            }
+                        )
                     return redirect("admin:applications_application_change", obj.pk)
                 data = request.POST.copy()
                 for key in ("version", "action", "csrfmiddlewaretoken", "_save"):
@@ -1366,6 +1403,13 @@ class ApplicationAdmin(FeeLockAdminMixin, ModelAdmin):
             if obj is None or not self.has_change_permission(request, obj):
                 raise PermissionDenied
             return self.withdrawal_confirmation(request, obj, version)
+        if (
+            request.headers.get("HX-Request") == "true"
+            and request.POST.get("action") == "withdraw"
+            and error
+            and obj
+        ):
+            return self.withdrawal_confirmation(request, obj, version, notice=error)
         return TemplateResponse(
             request,
             "admin/applications/edit.html",

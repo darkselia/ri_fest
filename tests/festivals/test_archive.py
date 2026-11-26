@@ -105,9 +105,7 @@ def test_stored_archive_remains_read_only_with_future_calendar(
     before = Festival.objects.values().get(pk=draft.pk)
     # Earlier time makes the existing calendar future without changing the archive.
     with pytest.raises(PermissionDenied):
-        save_festival(
-            draft.pk, actor=archive_actor, changes={"name": "Правка"}, at=now
-        )
+        save_festival(draft.pk, actor=archive_actor, changes={"name": "Правка"}, at=now)
     assert Festival.objects.values().get(pk=draft.pk) == before
 
 

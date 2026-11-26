@@ -1,0 +1,11 @@
+{% load unfold %}
+<li class="{% action_item_classes action %}">
+    <a href="{{ fallback_url }}"
+       hx-get="{{ dialog_url }}"
+       hx-target="#modal-content"
+       hx-select="#dialog"
+       x-on:htmx:after-on-load="openModal = true"
+       class="cursor-pointer flex grow items-center gap-2 px-3 py-2 text-left whitespace-nowrap">
+        <span class="material-symbols-outlined" aria-hidden="true">{{ icon }}</span>{{ label }}
+    </a>
+</li>
