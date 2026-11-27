@@ -1,5 +1,37 @@
 {% extends "layouts/site.html" %}
 {% block title %}{{ version.title }} — РИ-фест{% endblock %}
+{% block body_class %}content-page{% endblock %}
 {% block content %}
-    <h1>{{ version.title }}</h1>
+    <div class="content-page__body">
+        <h1>{{ version.title }}</h1>
+        {% for block in blocks %}
+            <section class="content-block">
+                {% if block.title %}<h2>{{ block.title }}</h2>{% endif %}
+                {% if block.kind == "text" %}
+                    {{ block.rendered_text }}
+                {% elif block.kind == "image" %}
+                    {% if preview %}
+                        <img src="{% url 'admin:content_contentfile_preview' block.file_id %}"
+                             alt="{{ block.description }}"
+                             loading="lazy">
+                    {% else %}
+                        <img src="{% url 'content_page_file' version.page_id block.pk %}"
+                             alt="{{ block.description }}"
+                             loading="lazy">
+                    {% endif %}
+                {% elif block.kind == "file" %}
+                    {% if preview %}
+                        <a href="{% url 'admin:content_contentfile_download' block.file_id %}">{{ block.file.original_name }}</a>
+                    {% else %}
+                        <a href="{% url 'content_page_file' version.page_id block.pk %}">{{ block.file.original_name }}</a>
+                    {% endif %}
+                {% elif block.kind == "festival" %}
+                    <h3>{{ block.festival.name }}</h3>
+                    <p>{{ block.festival.start_date }} — {{ block.festival.end_date }}</p>
+                    <p>{{ block.festival_status }}</p>
+                    <p>Активных анкет: {{ block.application_count }}</p>
+                {% endif %}
+            </section>
+        {% endfor %}
+    </div>
 {% endblock %}

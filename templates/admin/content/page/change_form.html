@@ -4,6 +4,143 @@
     {{ block.super }}
     {% if page_is_published %}{{ page_saved_fields|json_script:"page-saved-fields" }}{% endif %}
 {% endblock %}
+{% block after_field_sets %}
+    {{ block.super }}
+    <details class="admin-panel" open id="content-editor">
+        <summary class="cursor-pointer font-semibold p-4">Содержание страницы (<span data-block-count>0</span>)
+        </summary>
+        <div class="p-4">
+            <p>Изменения блоков появятся на сайте после публикации страницы.</p>
+            {% if adminform.form.blocks.errors %}
+                <div data-block-validation-error>
+                    {% include "components/notice.html" with text=adminform.form.blocks.errors error=True only %}
+                </div>
+            {% endif %}
+            <div class="schema-toolbar">
+                <div class="schema-toolbar__section schema-preview-tool">
+                    <div class="schema-toolbar__description">
+                        <strong>Проверьте страницу</strong>
+                        <p>Предпросмотр показывает несохранённые изменения.</p>
+                    </div>
+                    {% url 'admin:content_page_preview' as preview_url %}
+                    {% component "unfold/components/button.html" with type="button" variant="default" extra_attrs='data-page-preview' %}
+                        Предпросмотр{% endcomponent %}
+                    <span hidden data-page-preview-url="{{ preview_url }}"></span>
+                </div>
+                {% if content_page_sources %}
+                    <div class="schema-toolbar__section schema-copy-tool">
+                        <div class="schema-toolbar__description">
+                            <strong>Используйте созданную страницу</strong>
+                            <p>Блоки добавятся после текущих.</p>
+                        </div>
+                        <label>
+                            <select data-page-copy-source
+                                    aria-label="Страница для копирования"
+                                    class="admin-border rounded-default px-3 py-2 bg-white dark:bg-base-900">
+                                <option value="">Выберите страницу</option>
+                                {% for source in content_page_sources %}
+                                    <option
+                                        value="{% url 'admin:content_page_copy_blocks' source.pk %}">{{ source }}</option>{% endfor %}
+                            </select>
+                        </label>
+                        {% component "unfold/components/button.html" with type="button" variant="default" extra_attrs='data-page-copy' %}
+                            Дублировать{% endcomponent %}
+                    </div>
+                {% endif %}
+            </div>
+            <dialog id="page-preview"
+                    class="schema-preview-dialog"
+                    aria-label="Предпросмотр страницы">
+                <div class="schema-preview-dialog__header">
+                    <strong>Предпросмотр страницы</strong>
+                    <button type="button"
+                            data-close-page-preview
+                            aria-label="Закрыть предпросмотр">Закрыть ×
+                    </button>
+                </div>
+                <iframe title="Предпросмотр страницы"></iframe>
+            </dialog>
+            <template data-page-button>
+                {% component "unfold/components/button.html" with type="button" variant="default" %}
+                    <span data-button-label></span>
+                {% endcomponent %}
+            </template>
+            <template data-page-text-widget>{{ content_text_widget }}</template>
+            <template data-block-row>
+                <div class="schema-outline__item">
+                    <button type="button" class="schema-outline__choose">
+                        <span class="schema-outline__heading"><span class="schema-outline__number"></span><span
+                            class="schema-outline__summary"></span></span>
+                        <span class="schema-hidden-note" hidden>Скрыт</span>
+                        <span class="schema-outline__type"></span>
+                    </button>
+                </div>
+            </template>
+            <template data-block-card>
+                <section class="schema-card admin-panel admin-panel--muted">
+                    <div class="content-block-fields">
+                        <p data-block-error role="alert" class="text-red-600 dark:text-red-400" hidden></p>
+                        <div class="schema-card__head">
+                            <label class="schema-control">Заголовок<input data-field="title"
+                                                                         class="border border-base-200 bg-white dark:bg-base-900 dark:border-base-700 rounded-default px-3 py-2 w-full text-important"></label>
+                            <label class="schema-control"><span>Тип <span
+                                class="text-red-600 dark:text-red-400">*</span></span><select data-field="kind"
+                                                                                              aria-required="true"
+                                                                                              class="border border-base-200 bg-white dark:bg-base-900 dark:border-base-700 rounded-default px-3 py-2 w-full text-important">
+                                <option value="text">Текст</option>
+                                <option value="image">Изображение</option>
+                                <option value="file">Файл</option>
+                                <option value="festival">Фестиваль</option>
+                            </select></label>
+                        </div>
+                        <div data-text-fields class="schema-control content-text-editor" hidden><span>Текст</span></div>
+                        <div data-file-fields hidden>
+                            <div class="content-file-picker">
+                                <div class="schema-control"><span id="page-block-file-label">Файл <span
+                                    class="text-red-600 dark:text-red-400">*</span></span>
+                                    <div data-file-select></div>
+                                </div>
+                                <span data-upload-button></span>
+                            </div>
+                            <input data-upload type="file" hidden>
+                            <p data-upload-status class="text-subtle" role="status"></p>
+                            <label data-image-description class="schema-control">Описание изображения<input
+                                data-field="description"
+                                class="border border-base-200 bg-white dark:bg-base-900 dark:border-base-700 rounded-default px-3 py-2 w-full text-important"></label>
+                        </div>
+                        <label data-festival-fields class="schema-control" hidden>Фестиваль<span
+                            data-festival-select></span></label>
+                    </div>
+                    <div class="schema-flags">
+                        <div class="schema-card__tools"></div>
+                    </div>
+                </section>
+            </template>
+            {% if can_upload_content_file %}
+                <span hidden
+                      data-content-upload-url="{% url 'admin:content_contentfile_upload_inline' %}"></span>
+            {% endif %}
+            <select hidden id="block-file-options">
+                <option value="">Выберите файл</option>{% for file in content_files %}
+                <option value="{{ file.pk }}"
+                        data-filename="{{ file.file.name }}">{{ file.original_name }}</option>{% endfor %}</select>
+            <select hidden id="block-festival-options">
+                <option value="">Выберите фестиваль</option>{% for festival in content_festivals %}
+                <option value="{{ festival.pk }}">{{ festival.name }}</option>{% endfor %}</select>
+            <div class="schema-workspace">
+                <div class="schema-outline-column">
+                    <div class="schema-outline" data-block-outline
+                         x-sort="window.riPageBlockSort($item, $position)"
+                         x-sort:config="{handle: '[data-drag-handle]', draggable: '.schema-outline__item', animation: 150}"></div>
+                    {% component "unfold/components/button.html" with type="button" extra_attrs='data-block-add' class="mt-4" %}
+                        Добавить блок{% endcomponent %}
+                </div>
+                <div data-block-editor></div>
+            </div>
+            <noscript>Для редактирования блоков включите JavaScript.</noscript>
+        </div>
+    </details>
+{% endblock %}
 {% block object-tools-items %}
     {{ block.super }}
     {% if can_unpublish_page %}

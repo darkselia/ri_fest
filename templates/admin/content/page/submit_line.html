@@ -10,7 +10,7 @@
             {% if page_is_published %}
                 <span data-discard-changes
                       data-has-saved-changes="{{ page_has_changes|yesno:'true,false' }}"
-                      {% if not page_has_changes %}hidden{% endif %}>{% component "unfold/components/button.html" with submit=1 form="page_form" name="_discard_changes" value="1" variant="default" extra_attrs="formnovalidate" %}Отменить изменения{% endcomponent %}</span>
+                      {% if not page_has_changes %}hidden{% endif %}>{% component "unfold/components/button.html" with submit=1 form="page_form" name="_discard_changes" value="1" variant="ghost" extra_attrs="formnovalidate" %}Отменить изменения{% endcomponent %}</span>
             {% endif %}
         </div>
     {% else %}
