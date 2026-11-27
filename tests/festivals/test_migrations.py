@@ -16,11 +16,12 @@ def test_existing_festivals_and_applications_are_migrated_without_data_loss(
     previous = [
         target
         for target in latest
-        if target[0] not in ("applications", "festivals", "billing")
+        if target[0] not in ("applications", "festivals", "billing", "content")
     ] + [
         ("applications", "0002_anonymized_history"),
         ("festivals", "0005_soft_deletion"),
         ("billing", "0001_initial"),
+        ("content", "0003_contentfile"),
     ]
     try:
         executor.migrate(previous)
