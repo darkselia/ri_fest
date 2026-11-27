@@ -1,0 +1,32 @@
+import nh3
+
+HTML_CLEANER = nh3.Cleaner(
+    tags={
+        "a",
+        "b",
+        "blockquote",
+        "br",
+        "code",
+        "del",
+        "div",
+        "em",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "i",
+        "li",
+        "ol",
+        "p",
+        "pre",
+        "s",
+        "strike",
+        "strong",
+        "u",
+        "ul",
+    },
+    attributes={"a": {"href", "title"}},
+    url_schemes={"http", "https", "mailto"},
+)

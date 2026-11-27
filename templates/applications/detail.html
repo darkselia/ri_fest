@@ -14,7 +14,7 @@
                 </dd>
             </div>
         {% endfor %}
-        {% if application.status == 'withdrawn' %}
+        {% if application.status == "withdrawn" %}
             {% regroup financial_totals.services|dictsort:"field_id" by field_id as service_groups %}
             {% for group in service_groups %}
                 <div>
@@ -27,7 +27,7 @@
                 </div>
             {% endfor %}
         {% endif %}
-        {% if fee_entries and application.status != 'withdrawn' %}
+        {% if fee_entries and application.status != "withdrawn" %}
             {% for entry in fee_entries %}
                 {% include "components/forms/date_fee.html" %}
             {% endfor %}

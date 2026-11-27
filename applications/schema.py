@@ -8,6 +8,7 @@ from django.core import signing
 from django.core.exceptions import ValidationError
 
 from festivals.models import Festival
+from ri_fest.rich_text import HTML_CLEANER
 
 from .models import (
     Application,
@@ -340,6 +341,8 @@ def prepare_schema(festival, rows):
             for name in FIELD_NAMES:
                 if name in row:
                     setattr(field, name, row[name])
+            if field.field_type == "info" and isinstance(field.help_text, str):
+                field.help_text = HTML_CLEANER.clean(field.help_text)
             field.order = index
             field.label = (
                 field.label.strip() if isinstance(field.label, str) else field.label

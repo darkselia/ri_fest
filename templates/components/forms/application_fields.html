@@ -4,7 +4,7 @@
     {% elif entry.kind == "info" %}
         <section class="application-info">
             <h3>{{ entry.row.label }}</h3>
-            <div>{{ entry.row.help_text|urlize|linebreaksbr }}</div>
+            <div>{{ entry.rendered_info }}</div>
         </section>
     {% else %}
         {% if entry.kind == "multi" or entry.kind == "service" or entry.kind == "service1" %}

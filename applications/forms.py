@@ -1,6 +1,7 @@
 from datetime import date
 
 from django import forms
+from django.utils.safestring import mark_safe
 from unfold.widgets import (
     UnfoldAdminCheckboxSelectMultipleWidget,
     UnfoldAdminDecimalFieldWidget,
@@ -9,6 +10,8 @@ from unfold.widgets import (
     UnfoldAdminTextInputWidget,
     UnfoldBooleanWidget,
 )
+
+from ri_fest.rich_text import HTML_CLEANER
 
 from .schema import PRICE_TYPES
 
@@ -120,6 +123,8 @@ class TemplatePreviewForm(forms.Form):
                 "kind": kind,
                 "key": str(row["id"]) if row.get("id") else f"new_{i}",
             }
+            if kind == "info":
+                entry["rendered_info"] = mark_safe(HTML_CLEANER.clean(row["help_text"]))
             if kind == "datefee":
                 from .date_fees import fee_schedule
 

@@ -5,6 +5,8 @@ psycopg[binary]==3.3.4
 celery==5.6.3
 redis==8.1.0
 openpyxl==3.1.5
+markdown-it-py==4.3.0
+nh3==0.3.8
 # IANA 2026c, matching the former Conda timezone database.
 tzdata==2026.3
 pytest==9.1.1
