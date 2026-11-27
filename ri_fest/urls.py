@@ -8,7 +8,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import RedirectView
 from django.views.i18n import JavaScriptCatalog
 
-from content.views import page_view
+from content.views import page_file, page_view
 
 
 class AdminJavaScriptCatalog(JavaScriptCatalog):
@@ -47,6 +47,9 @@ def admin_festival_preference(request):
 urlpatterns = [
     path("", page_view, name="home"),
     path("info/<slug:slug>/", page_view, name="content_page"),
+    path(
+        "info/files/<int:page_id>/<int:block_id>/", page_file, name="content_page_file"
+    ),
     path("", include("accounts.urls")),
     path("account/applications/", include("applications.urls")),
     path(

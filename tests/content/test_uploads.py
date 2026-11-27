@@ -17,6 +17,35 @@ def upload(name, data):
     return SimpleUploadedFile(name, data)
 
 
+@pytest.mark.django_db
+def test_inline_upload_checks_permissions_formats_and_csrf(
+    client, admin_user, django_user_model, settings, tmp_path
+):
+    settings.MEDIA_ROOT = tmp_path
+    url = reverse("admin:content_contentfile_upload_inline")
+    staff = django_user_model.objects.create_user(
+        "no-upload@example.invalid", is_staff=True
+    )
+    client.force_login(staff)
+    assert client.post(url, {"file": upload("a.txt", b"test")}).status_code == 403
+    client.force_login(admin_user)
+    secure = Client(enforce_csrf_checks=True)
+    secure.force_login(admin_user)
+    assert secure.post(url, {"file": upload("a.txt", b"test")}).status_code == 403
+    assert (
+        client.post(
+            url, {"kind": "image", "file": upload("a.txt", b"test")}
+        ).status_code
+        == 400
+    )
+    assert client.post(url, {"file": upload("a.exe", b"test")}).status_code == 400
+    result = client.post(url, {"kind": "file", "file": upload("a.txt", b"test")})
+    assert result.status_code == 200
+    obj = ContentFile.objects.get(pk=result.json()["id"])
+    assert obj.name == obj.original_name == "a.txt"
+    assert obj.file.read() == b"test"
+
+
 @pytest.mark.parametrize(
     ("name", "data"),
     [
@@ -46,18 +75,18 @@ def test_rejects_executables_and_invalid_preview_formats(name, data):
         ("archive.zip", b"archive"),
     ],
 )
-def test_accepts_allowed_types_and_uses_filename_when_name_is_blank(name, data):
+def test_accepts_allowed_types_and_uses_original_filename(name, data):
     form = ContentFileForm({"name": ""}, {"file": upload(name, data)})
     assert form.is_valid(), form.errors
-    assert form.cleaned_data["name"] == name
+    assert form.cleaned_data["file"].name == name
 
 
-def test_keeps_entered_name():
+def test_does_not_accept_a_separate_display_name():
     form = ContentFileForm(
         {"name": "Правила"}, {"file": upload("rules.pdf", b"document")}
     )
     assert form.is_valid(), form.errors
-    assert form.cleaned_data["name"] == "Правила"
+    assert "name" not in form.cleaned_data
 
 
 def test_rejects_oversized_file():
@@ -180,7 +209,7 @@ def test_file_delete_dialog_uses_django_permissions_and_protection(
     client.force_login(staff)
     assert client.get(url).status_code == 403
     client.force_login(admin_user)
-    assert "Удалить файл «Тест»?" in client.get(url).content.decode()
+    assert "Удалить файл «test.txt»?" in client.get(url).content.decode()
     csrf_client = Client(enforce_csrf_checks=True)
     csrf_client.force_login(admin_user)
     assert csrf_client.post(url, {"_form_submitted": "on"}).status_code == 403
@@ -224,7 +253,8 @@ def test_admin_upload_is_private_immutable_and_deleted(
         {"name": "Правила", "file": upload("rules.pdf", b"example")},
     )
     assert response.status_code == 302
-    asset = ContentFile.objects.get(name="Правила")
+    asset = ContentFile.objects.get(original_name="rules.pdf")
+    assert asset.name == "rules.pdf"
     assert asset.original_name == "rules.pdf"
     assert asset.file.read() == b"example"
     with pytest.raises(ValueError):
@@ -237,6 +267,7 @@ def test_admin_upload_is_private_immutable_and_deleted(
     )
     assert response.status_code == 302
     asset.refresh_from_db()
+    assert asset.name == asset.original_name == "rules.pdf"
     assert asset.file.read() == b"example"
     response = client.post(
         reverse("admin:content_contentfile_delete", args=[asset.pk]), {"post": "yes"}
