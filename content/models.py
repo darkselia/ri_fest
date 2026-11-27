@@ -17,7 +17,7 @@ class ContentFile(models.Model):
         ordering = ("-created_at", "-pk")
 
     def __str__(self):
-        return self.name
+        return self.original_name
 
 
 class Page(models.Model):
@@ -66,3 +66,36 @@ class PageVersion(models.Model):
                 name="content_valid_page_version_state",
             ),
         ]
+
+
+class PageBlock(models.Model):
+    class Kind(models.TextChoices):
+        TEXT = "text", "Текст"
+        IMAGE = "image", "Изображение"
+        FILE = "file", "Файл"
+        FESTIVAL = "festival", "Фестиваль"
+
+    version = models.ForeignKey(
+        PageVersion, on_delete=models.CASCADE, related_name="blocks"
+    )
+    position = models.PositiveIntegerField()
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    title = models.CharField(max_length=255, blank=True)
+    visible = models.BooleanField(default=True)
+    text = models.TextField(blank=True)
+    description = models.CharField(max_length=255, blank=True)
+    file = models.ForeignKey(
+        ContentFile, null=True, blank=True, on_delete=models.PROTECT
+    )
+    festival = models.ForeignKey(
+        "festivals.Festival", null=True, blank=True, on_delete=models.SET_NULL
+    )
+
+    class Meta:
+        ordering = ("position", "pk")
+
+    def __str__(self):
+        return (
+            f"{self.version.page} — {self.get_kind_display()} "
+            f"({self.version.get_state_display()})"
+        )

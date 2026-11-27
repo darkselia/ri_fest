@@ -1,8 +1,313 @@
-import pytest
-from django.contrib.auth.models import Group, Permission
-from django.urls import reverse
+import importlib
+import json
+from datetime import timedelta
+from types import SimpleNamespace
 
-from content.models import Page, PageVersion
+import pytest
+from django.apps import apps
+from django.contrib.auth.models import Group, Permission
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
+from django.db.models.deletion import ProtectedError
+from django.urls import reverse
+from django.utils import timezone
+
+from applications.models import Application
+from content.models import ContentFile, Page, PageBlock, PageVersion
+from festivals.models import Festival
+
+
+@pytest.mark.django_db
+def test_page_list_search_and_sort_by_displayed_title_and_address(client, admin_user):
+    first = Page.objects.create(slug="z-draft", published_slug="a-public")
+    second = Page.objects.create(slug="b-draft")
+    PageVersion.objects.create(page=first, state="draft", title="Альфа")
+    PageVersion.objects.create(page=first, state="published", title="Старое имя")
+    PageVersion.objects.create(page=second, state="draft", title="Бета")
+    client.force_login(admin_user)
+    url = reverse("admin:content_page_changelist")
+
+    def ids(params):
+        return [
+            page.pk
+            for page in client.get(url, params).context["cl"].result_list
+            if page.pk in (first.pk, second.pk)
+        ]
+
+    assert ids({"q": "Альфа"}) == [first.pk]
+    assert ids({"q": "/info/a-public/"}) == [first.pk]
+    assert ids({"q": "Старое имя"}) == []
+    assert ids({"o": "0"}) == [first.pk, second.pk]
+    assert ids({"o": "-0"}) == [second.pk, first.pk]
+    assert ids({"o": "1"}) == [first.pk, second.pk]
+    assert ids({"o": "2"}) == [second.pk, first.pk]
+
+
+@pytest.mark.django_db
+def test_markdown_migration_converts_both_page_versions():
+    page = Page.objects.create(slug="migration-example")
+    for state in ("draft", "published"):
+        version = PageVersion.objects.create(page=page, state=state, title="Тест")
+        PageBlock.objects.create(
+            version=version,
+            position=0,
+            kind="text",
+            text="**Текст** [ссылка](https://example.com)",
+        )
+
+    migration = importlib.import_module(
+        "content.migrations.0005_convert_markdown_to_html"
+    )
+    migration.convert_text_blocks(apps, SimpleNamespace(connection=connection))
+
+    for block in PageBlock.objects.filter(version__page=page):
+        assert "<strong>Текст</strong>" in block.text
+        assert '<a href="https://example.com">ссылка</a>' in block.text
+
+
+@pytest.mark.django_db
+def test_page_blocks_preserve_published_version_and_sanitize_html(client, organizer):
+    client.force_login(organizer)
+    preview = client.post(
+        reverse("admin:content_page_preview"),
+        {
+            "title": "Предпросмотр",
+            "blocks": json.dumps(
+                [{"kind": "text", "text": "<strong>Без сохранения</strong>"}]
+            ),
+        },
+    )
+    assert "<strong>Без сохранения</strong>" in preview.content.decode()
+    assert not Page.objects.filter(slug="blocks").exists()
+    url = reverse("admin:content_page_add")
+    blocks = [
+        {
+            "kind": "text",
+            "title": "Блок",
+            "visible": True,
+            "text": '<strong>Текст</strong> <script>alert(1)</script><a href="javascript:alert(1)" onclick="alert(2)">ссылка</a>',
+        }
+    ]
+    response = client.post(
+        url,
+        {
+            "slug": "blocks",
+            "title": "Страница",
+            "blocks": json.dumps(blocks),
+            "_publish": "1",
+        },
+    )
+    assert response.status_code == 302
+    page = Page.objects.get(slug="blocks")
+    html = client.get(reverse("content_page", args=["blocks"])).content.decode()
+    assert "<strong>Текст</strong>" in html
+    assert "<script>alert(1)</script>" not in html
+    assert "javascript:alert" not in html
+    assert "onclick=" not in html
+    blocks[0]["text"] = "Новый текст"
+    change = reverse("admin:content_page_change", args=[page.pk])
+    response = client.post(
+        change,
+        {
+            "slug": "blocks",
+            "title": "Страница",
+            "version_revision": page.revision,
+            "blocks": json.dumps(blocks),
+            "_save": "1",
+        },
+    )
+    assert response.status_code == 302
+    assert (
+        "Новый текст"
+        not in client.get(reverse("content_page", args=["blocks"])).content.decode()
+    )
+    page.refresh_from_db()
+    assert "Есть неопубликованные изменения" in client.get(change).content.decode()
+    response = client.post(
+        change, {"version_revision": page.revision, "_discard_changes": "1"}
+    )
+    assert response.status_code == 302
+    restored = page.versions.get(state="draft").blocks.get().text
+    assert "<strong>Текст</strong>" in restored
+    assert "<script>" not in restored
+    assert "javascript:" not in restored
+
+
+@pytest.mark.django_db
+def test_draft_save_stays_in_editor_and_preview_uses_draft_blocks(client, organizer):
+    client.force_login(organizer)
+    blocks = [{"kind": "text", "text": "Текст черновика", "visible": True}]
+    response = client.post(
+        reverse("admin:content_page_add"),
+        {
+            "slug": "draft-preview",
+            "title": "Черновик",
+            "blocks": json.dumps(blocks),
+            "_save": "1",
+        },
+    )
+    page = Page.objects.get(slug="draft-preview")
+    change = reverse("admin:content_page_change", args=[page.pk])
+    assert response.url == change
+    editor_response = client.get(change)
+    assert b"data-page-text-widget" in editor_response.content
+    assert b"<trix-editor" in editor_response.content
+    form = editor_response.context["adminform"].form
+    response = client.post(
+        reverse("admin:content_page_preview"),
+        {"title": "Черновик", "blocks": form["blocks"].value()},
+    )
+    assert "Текст черновика" in response.content.decode()
+    assert not page.versions.filter(state="published").exists()
+    response = client.post(
+        change,
+        {
+            "slug": page.slug,
+            "title": "Черновик",
+            "blocks": form["blocks"].value(),
+            "version_revision": page.revision,
+            "_save": "1",
+        },
+    )
+    assert response.url == change
+
+
+@pytest.mark.django_db
+def test_published_file_access_follows_page_and_file_is_protected(
+    client, organizer, settings, tmp_path
+):
+    settings.MEDIA_ROOT = tmp_path
+    asset = ContentFile.objects.create(
+        name="Правила",
+        original_name="rules.txt",
+        file=SimpleUploadedFile("rules.txt", b"rules"),
+    )
+    blocks = [{"kind": "file", "title": "", "visible": True, "file_id": asset.pk}]
+    client.force_login(organizer)
+    organizer.user_permissions.add(
+        Permission.objects.get(
+            content_type__app_label="content", codename="view_contentfile"
+        )
+    )
+    organizer = type(organizer).objects.get(pk=organizer.pk)
+    client.force_login(organizer)
+    response = client.post(
+        reverse("admin:content_page_add"),
+        {
+            "slug": "rules-file",
+            "title": "Правила",
+            "login_required": "on",
+            "blocks": json.dumps(blocks),
+            "_publish": "1",
+        },
+    )
+    assert response.status_code == 302
+    page = Page.objects.get(slug="rules-file")
+    block = page.versions.get(state="published").blocks.get()
+    file_url = reverse("content_page_file", args=[page.pk, block.pk])
+    assert client.get(file_url).status_code == 200
+    with pytest.raises(ProtectedError):
+        asset.delete()
+    response = client.post(
+        reverse("admin:content_page_change", args=[page.pk]),
+        {
+            "slug": page.slug,
+            "title": "Правила",
+            "version_revision": page.revision,
+            "blocks": "[]",
+            "_save": "1",
+        },
+    )
+    assert response.status_code == 302
+    page.refresh_from_db()
+    with pytest.raises(ProtectedError):
+        asset.delete()
+    client.logout()
+    assert client.get(file_url).status_code == 302
+    assert (
+        client.get(
+            reverse("content_page_file", args=[page.pk, block.pk + 10000])
+        ).status_code
+        == 404
+    )
+    client.force_login(organizer)
+    response = client.post(
+        reverse("admin:content_page_change", args=[page.pk]),
+        {"version_revision": page.revision, "_unpublish": "1"},
+    )
+    assert response.status_code == 302
+    assert client.get(file_url).status_code == 404
+    asset.delete()
+
+
+@pytest.mark.django_db
+def test_festival_card_displays_only_active_count_and_hides_drafts(client, organizer):
+    today = timezone.now().date()
+    festival = Festival.objects.create(
+        name="Тест фестиваля",
+        status="open",
+        published_at=timezone.now(),
+        start_date=today + timedelta(days=30),
+        end_date=today + timedelta(days=31),
+    )
+    Application.objects.create(owner=organizer, festival=festival, status="active")
+    client.force_login(organizer)
+    response = client.post(
+        reverse("admin:content_page_add"),
+        {
+            "slug": "event-card",
+            "title": "Фестиваль",
+            "blocks": json.dumps([{"kind": "festival", "festival_id": festival.pk}]),
+            "_publish": "1",
+        },
+    )
+    assert response.status_code == 302
+    url = reverse("content_page", args=["event-card"])
+    assert "Активных анкет: 1" in client.get(url).content.decode()
+    festival.status = "archived"
+    festival.save(update_fields=["status"])
+    html = client.get(url).content.decode()
+    assert "Фестиваль завершён" in html
+    assert "Активных анкет: 0" in html
+    festival.status = "draft"
+    festival.save(update_fields=["status"])
+    assert "Тест фестиваля" not in client.get(url).content.decode()
+
+
+@pytest.mark.django_db
+def test_copy_blocks_requires_page_change_permission(
+    client, organizer, django_user_model
+):
+    page = Page.objects.create(slug="copy-source")
+    draft = PageVersion.objects.create(page=page, state="draft", title="Источник")
+    PageBlock.objects.create(version=draft, position=0, kind="text", text="Содержимое")
+    url = reverse("admin:content_page_copy_blocks", args=[page.pk])
+    staff = django_user_model.objects.create_user(
+        email="page-no-access@example.invalid", is_staff=True
+    )
+    client.force_login(staff)
+    assert client.get(url).status_code == 403
+    client.force_login(organizer)
+    assert client.get(url).json()["blocks"][0]["text"] == "Содержимое"
+    assert draft.blocks.count() == 1
+
+
+@pytest.mark.django_db
+def test_invalid_block_reports_position_without_saving(client, organizer):
+    client.force_login(organizer)
+    blocks = [{"kind": "text", "text": "Хорошо"}, {"kind": "image", "file_id": None}]
+    response = client.post(
+        reverse("admin:content_page_add"),
+        {
+            "slug": "invalid-blocks",
+            "title": "Тест",
+            "blocks": json.dumps(blocks),
+            "_save": "1",
+        },
+    )
+    assert response.status_code == 200
+    assert "Блок 2." in response.content.decode()
+    assert not Page.objects.filter(slug="invalid-blocks").exists()
 
 
 @pytest.fixture(autouse=True)

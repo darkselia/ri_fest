@@ -26,6 +26,7 @@ ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 INSTALLED_APPS = [
     "unfold",
     "unfold.contrib.filters",
+    "unfold.contrib.forms",
     "accounts.apps.AccountsConfig",
     "festivals.apps.FestivalsConfig",
     "applications.apps.ApplicationsConfig",

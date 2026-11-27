@@ -1,8 +1,19 @@
+import json
+from pathlib import Path
+
 from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotAllowed
+from django.db.models import Case, CharField, Exists, OuterRef, Subquery, Value, When
+from django.db.models.functions import Coalesce, Concat
+from django.http import (
+    FileResponse,
+    Http404,
+    HttpResponse,
+    HttpResponseNotAllowed,
+    JsonResponse,
+)
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import path, reverse
@@ -11,18 +22,27 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_protect
 from unfold.admin import ModelAdmin
+from unfold.contrib.forms.widgets import WysiwygWidget
 from unfold.decorators import action
 from unfold.forms import BaseDialogForm
-from unfold.widgets import UnfoldAdminTextInputWidget, UnfoldBooleanWidget
+from unfold.widgets import (
+    UnfoldAdminSelect2Widget,
+    UnfoldAdminTextInputWidget,
+    UnfoldBooleanWidget,
+)
 
-from .models import ContentFile, Page, PageVersion
+from festivals.models import Festival
+
+from .blocks import IMAGE_EXTENSIONS, replace_blocks, serialize_blocks, validate_blocks
+from .models import ContentFile, Page, PageBlock, PageVersion
 from .uploads import ALLOWED_EXTENSIONS, validate_content_file
+from .views import prepare_blocks
 
 
 class ContentFileForm(forms.ModelForm):
     class Meta:
         model = ContentFile
-        fields = ("name", "file")
+        fields = ("file",)
         help_texts = {
             "file": (
                 "Не более 20 МБ. Изображения: PNG, JPEG, WebP, GIF; видео: MP4, "
@@ -34,7 +54,6 @@ class ContentFileForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not self.instance.pk:
-            self.fields["name"].required = False
             self.fields["file"].widget.attrs["accept"] = ",".join(
                 sorted(ALLOWED_EXTENSIONS)
             )
@@ -43,12 +62,6 @@ class ContentFileForm(forms.ModelForm):
         upload = self.cleaned_data["file"]
         validate_content_file(upload)
         return upload
-
-    def clean(self):
-        cleaned_data = super().clean()
-        if not cleaned_data.get("name") and cleaned_data.get("file"):
-            cleaned_data["name"] = cleaned_data["file"].name
-        return cleaned_data
 
 
 class DeleteFileDialogForm(BaseDialogForm):
@@ -91,12 +104,12 @@ DELETE_FILE_DIALOG = {
 @admin.register(ContentFile)
 class ContentFileAdmin(ModelAdmin):
     class Media:
-        js = ("js/content_file.js", "js/admin_confirmation_dialog.js")
+        js = ("js/admin_confirmation_dialog.js",)
 
     form = ContentFileForm
-    list_display = ("preview", "name", "original_name", "created_at", "download")
-    list_display_links = ("name",)
-    search_fields = ("name", "original_name")
+    list_display = ("preview", "original_name", "created_at", "download")
+    list_display_links = ("original_name",)
+    search_fields = ("original_name",)
     actions = None
 
     image_types = {
@@ -124,8 +137,44 @@ class ContentFileAdmin(ModelAdmin):
                 self.admin_site.admin_view(self.delete_file_dialog),
                 name="content_contentfile_delete_dialog",
             ),
+            path(
+                "upload-inline/",
+                self.admin_site.admin_view(self.upload_inline),
+                name="content_contentfile_upload_inline",
+            ),
             *super().get_urls(),
         ]
+
+    def upload_inline(self, request):
+        if request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+        if not self.has_add_permission(request) or not self.has_view_permission(
+            request
+        ):
+            raise PermissionDenied
+        form = ContentFileForm(request.POST, request.FILES)
+        if not form.is_valid():
+            return JsonResponse(
+                {
+                    "error": " ".join(
+                        str(e) for errors in form.errors.values() for e in errors
+                    )
+                },
+                status=400,
+            )
+        obj = form.save(commit=False)
+        obj.original_name = form.cleaned_data["file"].name
+        obj.name = obj.original_name
+        if (
+            request.POST.get("kind") == "image"
+            and Path(obj.original_name).suffix.lower() not in IMAGE_EXTENSIONS
+        ):
+            return JsonResponse(
+                {"error": "Выберите изображение PNG, JPEG, WebP или GIF."}, status=400
+            )
+        obj.save()
+        self.log_addition(request, obj, [{"added": {}}])
+        return JsonResponse({"id": obj.pk, "name": obj.original_name})
 
     @action(dialog=DELETE_FILE_DIALOG)
     def delete_file_dialog(self, request, form, object_id):
@@ -229,7 +278,7 @@ class ContentFileAdmin(ModelAdmin):
         return ("created_at", "file_name") if obj else ()
 
     def get_fields(self, request, obj=None):
-        return ("name", "file_name", "created_at") if obj else ("name", "file")
+        return ("file_name", "created_at") if obj else ("file",)
 
     @admin.display(description="Файл")
     def file_name(self, obj):
@@ -238,6 +287,7 @@ class ContentFileAdmin(ModelAdmin):
     def save_model(self, request, obj, form, change):
         if not change:
             obj.original_name = form.cleaned_data["file"].name
+            obj.name = obj.original_name
         super().save_model(request, obj, form, change)
 
     def delete_model(self, request, obj):
@@ -254,6 +304,7 @@ class PageForm(forms.ModelForm):
         label="Только для авторизованных", required=False, widget=UnfoldBooleanWidget
     )
     version_revision = forms.IntegerField(widget=forms.HiddenInput, required=False)
+    blocks = forms.CharField(widget=forms.HiddenInput, required=False)
 
     class Meta:
         model = Page
@@ -271,7 +322,19 @@ class PageForm(forms.ModelForm):
                     title=draft.title,
                     login_required=draft.login_required,
                     version_revision=self.instance.revision,
+                    blocks=json.dumps(serialize_blocks(draft), ensure_ascii=False),
                 )
+
+    def clean_blocks(self):
+        value = self.cleaned_data["blocks"]
+        if not value:
+            draft = (
+                self.instance.versions.filter(state=PageVersion.State.DRAFT).first()
+                if self.instance.pk
+                else None
+            )
+            return serialize_blocks(draft)
+        return validate_blocks(value)
 
     def clean_version_revision(self):
         revision = self.cleaned_data["version_revision"]
@@ -294,13 +357,128 @@ class PageForm(forms.ModelForm):
 
 @admin.register(Page)
 class PageAdmin(ModelAdmin):
-    class Media:
-        js = ("js/content_page.js",)
-
     form = PageForm
     change_form_template = "admin/content/page/change_form.html"
-    list_display = ("__str__", "address", "publication_status")
+    list_display = ("page_title", "address", "publication_status")
+    list_display_links = ("page_title",)
+    search_fields = ("_list_title", "_list_address")
     actions = None
+
+    def get_queryset(self, request):
+        versions = PageVersion.objects.filter(page_id=OuterRef("pk"))
+        draft_title = versions.filter(state=PageVersion.State.DRAFT).values("title")[:1]
+        queryset = super().get_queryset(request)
+        return queryset.annotate(
+            _list_title=Coalesce(
+                Subquery(draft_title), "slug", output_field=CharField()
+            ),
+            _list_address=Case(
+                When(is_home=True, then=Value("/")),
+                default=Concat(
+                    Value("/info/"),
+                    Coalesce("published_slug", "slug"),
+                    Value("/"),
+                    output_field=CharField(),
+                ),
+                output_field=CharField(),
+            ),
+            _list_published=Exists(versions.filter(state=PageVersion.State.PUBLISHED)),
+        )
+
+    @admin.display(description="Страница", ordering="_list_title")
+    def page_title(self, obj):
+        return obj._list_title
+
+    @property
+    def media(self):
+        return (
+            super().media
+            + UnfoldAdminSelect2Widget().media
+            + WysiwygWidget().media
+            + forms.Media(
+                css={"all": ("css/schema_editor.css", "css/content_blocks.css")},
+                js=(
+                    "js/schema_controls.js",
+                    "js/content_page.js",
+                    "js/content_blocks.js",
+                ),
+            )
+        )
+
+    def response_add(self, request, obj, post_url_continue=None):
+        response = super().response_add(request, obj, post_url_continue)
+        if (
+            "_save" in request.POST
+            and "_popup" not in request.POST
+            and self.has_change_permission(request, obj)
+        ):
+            return redirect("admin:content_page_change", obj.pk)
+        return response
+
+    def response_change(self, request, obj):
+        response = super().response_change(request, obj)
+        if (
+            "_save" in request.POST
+            and "_popup" not in request.POST
+            and self.has_change_permission(request, obj)
+        ):
+            return redirect("admin:content_page_change", obj.pk)
+        return response
+
+    def get_urls(self):
+        return [
+            path(
+                "preview/",
+                self.admin_site.admin_view(self.preview_page),
+                name="content_page_preview",
+            ),
+            path(
+                "<int:object_id>/copy-blocks/",
+                self.admin_site.admin_view(self.copy_blocks),
+                name="content_page_copy_blocks",
+            ),
+            *super().get_urls(),
+        ]
+
+    def copy_blocks(self, request, object_id):
+        if request.method != "GET":
+            return HttpResponseNotAllowed(["GET"])
+        page = get_object_or_404(Page, pk=object_id)
+        if not self.has_change_permission(request, page):
+            raise PermissionDenied
+        draft = get_object_or_404(page.versions, state=PageVersion.State.DRAFT)
+        blocks = serialize_blocks(draft)
+        if any(block["file_id"] for block in blocks) and not request.user.has_perm(
+            "content.view_contentfile"
+        ):
+            raise PermissionDenied
+        return JsonResponse({"blocks": blocks})
+
+    def preview_page(self, request):
+        if request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+        if not (
+            self.has_add_permission(request) or self.has_change_permission(request)
+        ):
+            raise PermissionDenied
+        try:
+            items = validate_blocks(request.POST.get("blocks", "[]"))
+        except ValidationError as error:
+            return HttpResponse(" ".join(error.messages), status=400)
+        if any(item["file_id"] for item in items) and not request.user.has_perm(
+            "content.view_contentfile"
+        ):
+            raise PermissionDenied
+        blocks = [PageBlock(**item) for item in items]
+        return render(
+            request,
+            "content/page.html",
+            {
+                "version": {"title": request.POST.get("title", "")},
+                "blocks": prepare_blocks(blocks),
+                "preview": True,
+            },
+        )
 
     def get_readonly_fields(self, request, obj=None):
         fields = ("publication_status", "published_address")
@@ -311,9 +489,9 @@ class PageAdmin(ModelAdmin):
         fields = ["title", address, "login_required", "publication_status"]
         if obj and obj.versions.filter(state=PageVersion.State.PUBLISHED).exists():
             fields.append("published_address")
-        return (*fields, "version_revision")
+        return (*fields, "version_revision", "blocks")
 
-    @admin.display(description="Адрес")
+    @admin.display(description="Адрес", ordering="_list_address")
     def address(self, obj):
         return "/" if obj.is_home else f"/info/{obj.published_slug or obj.slug}/"
 
@@ -321,7 +499,7 @@ class PageAdmin(ModelAdmin):
     def published_address(self, obj):
         return "/" if obj.is_home else f"/info/{obj.published_slug}/"
 
-    @admin.display(description="Статус")
+    @admin.display(description="Статус", ordering="_list_published")
     def publication_status(self, obj):
         if not obj or not obj.pk:
             return "Черновик"
@@ -341,6 +519,7 @@ class PageAdmin(ModelAdmin):
                 draft.title != published.title
                 or draft.login_required != published.login_required
                 or (not page.is_home and page.slug != page.published_slug)
+                or serialize_blocks(draft) != serialize_blocks(published)
             )
         )
 
@@ -361,6 +540,15 @@ class PageAdmin(ModelAdmin):
                     "_discard_changes" in request.POST or "_unpublish" in request.POST
                 ):
                     return self.change_publication(request, page)
+                if request.POST.get("blocks") and not request.user.has_perm(
+                    "content.view_contentfile"
+                ):
+                    try:
+                        blocks = validate_blocks(request.POST["blocks"])
+                    except ValidationError:
+                        blocks = []
+                    if any(block["file_id"] for block in blocks):
+                        raise PermissionDenied
                 return super().changeform_view(
                     request,
                     object_id,
@@ -399,9 +587,22 @@ class PageAdmin(ModelAdmin):
                 "title": draft.title,
                 "slug": page.slug,
                 "login_required": draft.login_required,
+                "blocks": json.dumps(serialize_blocks(draft), ensure_ascii=False),
             }
             if draft
             else {},
+            "content_files": ContentFile.objects.all()
+            if request.user.has_perm("content.view_contentfile")
+            else ContentFile.objects.none(),
+            "content_festivals": Festival.objects.all(),
+            "content_text_widget": WysiwygWidget().render("page_block_text", ""),
+            "can_upload_content_file": request.user.has_perm("content.add_contentfile")
+            and request.user.has_perm("content.view_contentfile"),
+            "content_page_sources": Page.objects.filter(
+                versions__state=PageVersion.State.DRAFT
+            ).exclude(pk=page.pk if page else None)
+            if self.has_change_permission(request)
+            else Page.objects.none(),
         }
 
     def change_publication(self, request, page):
@@ -418,7 +619,7 @@ class PageAdmin(ModelAdmin):
         if "_discard_changes" in request.POST:
             if not page.is_home:
                 page.slug = page.published_slug
-            PageVersion.objects.update_or_create(
+            draft, _ = PageVersion.objects.update_or_create(
                 page=page,
                 state=PageVersion.State.DRAFT,
                 defaults={
@@ -426,6 +627,7 @@ class PageAdmin(ModelAdmin):
                     "login_required": published.login_required,
                 },
             )
+            replace_blocks(draft, serialize_blocks(published))
             message = "Неопубликованные изменения отменены."
         else:
             published.delete()
@@ -446,10 +648,12 @@ class PageAdmin(ModelAdmin):
             "title": form.cleaned_data["title"],
             "login_required": form.cleaned_data["login_required"],
         }
-        PageVersion.objects.update_or_create(
+        draft, _ = PageVersion.objects.update_or_create(
             page=obj, state=PageVersion.State.DRAFT, defaults=values
         )
+        replace_blocks(draft, form.cleaned_data["blocks"])
         if "_publish" in request.POST:
-            PageVersion.objects.update_or_create(
+            published, _ = PageVersion.objects.update_or_create(
                 page=obj, state=PageVersion.State.PUBLISHED, defaults=values
             )
+            replace_blocks(published, form.cleaned_data["blocks"])
