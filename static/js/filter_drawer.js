@@ -18,7 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             sessionStorage.setItem(key, open ? "open" : "closed");
         } catch {
-            /* Storage can be disabled. */ }
+            /* Storage can be disabled. */
+        }
     };
     const setExpanded = open => {
         trigger.setAttribute("aria-expanded", String(open));

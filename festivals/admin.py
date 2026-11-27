@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
 from unfold.admin import ModelAdmin
+from unfold.contrib.forms.widgets import WysiwygWidget
 from unfold.decorators import action
 from unfold.forms import BaseDialogForm
 from unfold.widgets import UnfoldAdminSelectWidget
@@ -213,8 +214,14 @@ class FestivalForm(forms.ModelForm):
 @admin.register(Festival)
 class FestivalAdmin(ModelAdmin):
     class Media:
-        css = {"all": ("css/schema_editor.css",)}
-        js = ("js/schema_editor.js", "js/admin_confirmation_dialog.js")
+        css = {"all": ("unfold/forms/css/trix/trix.css", "css/schema_editor.css")}
+        js = (
+            "unfold/forms/js/trix/trix.js",
+            "unfold/forms/js/trix.config.js",
+            "js/schema_controls.js",
+            "js/schema_editor.js",
+            "js/admin_confirmation_dialog.js",
+        )
 
     form = FestivalForm
     change_form_template = "admin/festivals/change_form.html"
@@ -420,6 +427,7 @@ class FestivalAdmin(ModelAdmin):
             "admin:festivals_publication_readiness"
         )
         context["schema_widgets"] = SchemaEditorWidgets()
+        context["schema_text_widget"] = WysiwygWidget().render("schema_info_text", "")
         context["can_view_schema"] = all(
             request.user.has_perm(f"applications.view_{model}")
             for model in ("formfield", "formoption", "serviceoption")

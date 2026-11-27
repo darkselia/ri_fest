@@ -133,6 +133,26 @@ h2 {
     padding-block: 28px clamp(40px, 6vw, 88px);
 }
 
+.content-page .site-main {
+    align-items: start;
+}
+
+.content-page__body > h1 {
+    margin-bottom: 32px;
+}
+
+.content-block + .content-block {
+    margin-top: 40px;
+}
+
+.content-block > h2 {
+    margin-bottom: 20px;
+}
+
+.content-block > :last-child {
+    margin-bottom: 0;
+}
+
 .site-footer {
     display: flex;
     flex-wrap: wrap;

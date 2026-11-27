@@ -46,12 +46,32 @@
                  {% if schema_input.errors %}open{% endif %}>
             <summary class="cursor-pointer font-semibold p-4">Шаблон анкеты <span data-schema-count></span></summary>
             <div class="p-4">
-                <p class="mb-4 text-subtle">Изменения вопросов и вариантов применяются после сохранения фестиваля. Предпросмотр показывает текущий шаблон, включая несохранённые изменения.</p>
+                <p class="mb-4 text-subtle">Изменения вопросов и вариантов применяются после сохранения фестиваля. Предпросмотр показывает текущий шаблон, включая несохранённые изменения. Названия вопросов и подписи вариантов со звёздочкой необходимо заполнить перед публикацией; в черновике их можно оставить пустыми.</p>
                 {{ schema_input }}{{ schema_revision_input }}{{ adminform.form.schema_hiding }}
                 {{ schema_types|json_script:"schema-types" }}
                 {% for widget in schema_widgets %}
                     <template data-editor-control="{{ widget.name }}">{{ widget }}</template>
                 {% endfor %}
+                <template data-schema-text-widget>{{ schema_text_widget }}</template>
+                <template data-schema-row>
+                    <div class="schema-outline__item">
+                        <button type="button" class="schema-outline__choose">
+                            <span class="schema-outline__heading"><span class="schema-outline__number"></span><span class="schema-outline__summary"></span></span>
+                            <span class="schema-hidden-note" hidden>Скрыт</span><span class="schema-outline__type"></span>
+                        </button>
+                    </div>
+                </template>
+                <template data-schema-card>
+                    <section class="schema-card admin-panel admin-panel--muted">
+                        <div class="schema-card__title"><span data-card-number></span><span class="schema-card__summary"></span><span class="schema-hidden-note" hidden>Скрыт</span><span class="schema-card__type"></span></div>
+                    </section>
+                </template>
+                <template data-schema-periods>
+                    <div class="schema-options"><h3 class="font-semibold">Тарифы платы по дате</h3><p class="help">Укажите, до какого числа включительно действует каждая цена. После этой даты применяется следующий тариф по часовому поясу фестиваля. Последний тариф задаётся без конечной даты.</p></div>
+                </template>
+                <template data-schema-period><div class="schema-option schema-fee-period"><span data-period-title></span></div></template>
+                <template data-schema-variants><div class="schema-options"><h3 class="font-semibold" data-variants-title></h3><div data-variants-list></div></div></template>
+                <template data-schema-option><div class="schema-option"></div></template>
                 <template data-editor-button>
                     {% component "unfold/components/button.html" with type="button" variant="default" %}
                         <span data-button-label></span>

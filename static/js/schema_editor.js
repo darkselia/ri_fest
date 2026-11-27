@@ -187,8 +187,11 @@
             sync();
             render();
         });
-        const control = (parent, object, name, title, type = "text", values = null) => {
-            const label = node("label", type === "checkbox" ? undefined : title, type === "checkbox" ? "schema-check" : "schema-control text-subtle");
+        const control = (parent, object, name, title, type = "text", values = null, required = false) => {
+            const label = node("label", undefined, type === "checkbox" ? "schema-check" : "schema-control text-subtle");
+            if (type !== "checkbox") {
+                label.append(window.schemaControls.caption(title, required));
+            }
             label.dataset.control = name;
             const widget = root.querySelector(`[data-editor-control="${values ? "select" : type}"]`).content.cloneNode(true);
             const el = widget.querySelector("input, select, textarea");
@@ -240,11 +243,7 @@
         };
         const iconButton = (label, icon, action) => {
             const el = button("", action);
-            el.replaceChildren(node("span", icon, "material-symbols-outlined"));
-            el.classList.add("schema-editor-icon");
-            el.setAttribute("aria-label", label);
-            el.title = label;
-            return el;
+            return window.schemaControls.icon(el, label, icon);
         };
         const reorder = (list, id, position) => {
             const from = list.findIndex(item => identity(item) === id);
@@ -291,36 +290,33 @@
                 row.options ||= [];
                 row.services ||= [];
                 const rowId = identity(row);
-                const card = node("section", undefined, "schema-card admin-panel admin-panel--muted");
+                const card = root.querySelector("[data-schema-card]").content.firstElementChild.cloneNode(true);
                 if (!row.is_active) card.classList.add("schema-card--hidden");
                 if (row.field_type === "info") card.classList.add("schema-card--info");
                 if (row.field_type !== "info") questionNumber += 1;
-                const entry = node("div", undefined, "schema-outline__item");
+                const entry = root.querySelector("[data-schema-row]").content.firstElementChild.cloneNode(true);
                 entry.dataset.editorId = rowId;
                 entry.setAttribute("x-sort:item", JSON.stringify(rowId));
-                if (editable) entry.append(handle(rows, row));
-                const choose = node("button", undefined, "schema-outline__choose");
-                choose.type = "button";
+                const choose = entry.querySelector(".schema-outline__choose");
+                if (editable) choose.before(handle(rows, row));
                 choose.setAttribute("aria-pressed", String(selected === row));
-                const heading = node("span", undefined, "schema-outline__heading");
-                heading.append(node("span", row.field_type === "info" ? "Текст" : `${questionNumber}`, "schema-outline__number"));
-                const outlineSummary = node("span", row.label || "Без названия", "schema-outline__summary");
-                heading.append(outlineSummary);
-                choose.append(heading);
-                if (!row.is_active) choose.append(node("span", "Скрыт", "schema-hidden-note"));
-                choose.append(node("span", types.find(([value]) => value === row.field_type)?.[1] || row.field_type, "schema-outline__type"));
+                entry.querySelector(".schema-outline__number").textContent = row.field_type === "info" ? "" : `${questionNumber}`;
+                const outlineSummary = entry.querySelector(".schema-outline__summary");
+                outlineSummary.textContent = row.label || "Без названия";
+                if (row.is_active) entry.querySelector(".schema-hidden-note").remove();
+                else entry.querySelector(".schema-hidden-note").hidden = false;
+                entry.querySelector(".schema-outline__type").textContent = types.find(([value]) => value === row.field_type)?.[1] || row.field_type;
                 choose.addEventListener("click", () => {
                     selected = row;
                     render();
                     outline.querySelector(`[data-editor-id="${rowId}"] .schema-outline__choose`)?.focus();
                 });
-                entry.append(choose);
                 outline.append(entry);
                 card.setAttribute("aria-label", row.field_type === "info" ? "Текст блок" : `${questionNumber}`);
                 card.dataset.number = row.field_type === "info" ? "" : String(questionNumber);
                 card.setAttribute("x-sort:item", JSON.stringify(rowId));
                 card.dataset.editorId = rowId;
-                const title = node("div", undefined, "schema-card__title");
+                const title = card.querySelector(".schema-card__title");
                 const toggle = iconButton("Раскрыть вопрос", "expand_more", () => {
                     if (expanded.has(row)) expanded.delete(row);
                     else expanded.add(row);
@@ -337,21 +333,21 @@
                     title.classList.toggle("schema-card__title--open", open);
                 };
                 toggle.disabled = false;
-                title.append(toggle);
-                if (editable) title.append(handle(rows, row));
-                title.append(node("span", row.field_type === "info" ? "Текст" : `${questionNumber}`));
-                const summary = node("span", row.label || "Без названия", "schema-card__summary");
-                title.append(summary);
-                if (!row.is_active) title.append(node("span", "Скрыт", "schema-hidden-note"));
-                title.append(node("span", types.find(([value]) => value === row.field_type)?.[1] || row.field_type, "schema-card__type"));
-                card.append(title);
+                title.prepend(toggle);
+                if (editable) toggle.after(handle(rows, row));
+                title.querySelector("[data-card-number]").textContent = row.field_type === "info" ? "Текст" : `${questionNumber}`;
+                const summary = title.querySelector(".schema-card__summary");
+                summary.textContent = row.label || "Без названия";
+                if (row.is_active) title.querySelector(".schema-hidden-note").remove();
+                else title.querySelector(".schema-hidden-note").hidden = false;
+                title.querySelector(".schema-card__type").textContent = types.find(([value]) => value === row.field_type)?.[1] || row.field_type;
                 const head = node("div", undefined, "schema-card__head");
-                control(head, row, "label", "Название").addEventListener("input", () => {
+                control(head, row, "label", "Название", "text", null, true).addEventListener("input", () => {
                     summary.textContent = row.label || "Без названия";
                     outlineSummary.textContent = row.label || "Без названия";
                 });
                 const originalKind = row.field_type;
-                const kind = control(head, row, "field_type", "Тип", "text", types);
+                const kind = control(head, row, "field_type", "Тип", "text", types, true);
                 const kindMessage = root.querySelector("[data-kind-message]").content.firstElementChild.cloneNode(true);
                 head.append(kindMessage);
                 kind.addEventListener("change", () => {
@@ -381,7 +377,27 @@
                     render();
                 });
                 card.append(head);
-                control(card, row, "help_text", row.field_type === "info" ? "Текст и ссылки" : "Пояснение", "textarea");
+                if (row.field_type === "info") {
+                    const wrapper = node("div", undefined, "schema-control");
+                    const widget = root.querySelector("[data-schema-text-widget]").content.cloneNode(true);
+                    const value = widget.querySelector('input[type="hidden"]');
+                    const wysiwyg = widget.querySelector("trix-editor");
+                    value.id = `schema-info-text-${i}`;
+                    value.value = row.help_text || "";
+                    value.removeAttribute("name");
+                    wysiwyg.setAttribute("input", value.id);
+                    wysiwyg.setAttribute("aria-label", "Текст и ссылки");
+                    if (!editable) wrapper.inert = true;
+                    wysiwyg.addEventListener("trix-file-accept", event => event.preventDefault());
+                    wysiwyg.addEventListener("trix-change", () => {
+                        row.help_text = value.value;
+                        sync();
+                    });
+                    wrapper.append(node("span", "Текст и ссылки"), widget);
+                    card.append(wrapper);
+                } else {
+                    control(card, row, "help_text", "Пояснение", "textarea");
+                }
                 const settings = node("div", undefined, "schema-flags");
                 if (!["info", "datefee"].includes(row.field_type)) control(settings, row, "is_required", "Обязательно", "checkbox");
                 if (row.field_type === "text") control(settings, row, "in_application_name", "Использовать для идентификации участника", "checkbox");
@@ -389,14 +405,12 @@
                 const priced = ["service", "service1"].includes(row.field_type);
                 if (row.field_type === "datefee") {
                     row.fee_periods ||= [];
-                    const periods = node("div", undefined, "schema-options");
-                    periods.append(node("h3", "Тарифы платы по дате", "font-semibold"));
-                    periods.append(node("p", "Укажите, до какого числа включительно действует каждая цена. После этой даты применяется следующий тариф по часовому поясу фестиваля. Последний тариф задаётся без конечной даты.", "help"));
+                    const periods = root.querySelector("[data-schema-periods]").content.firstElementChild.cloneNode(true);
                     row.fee_periods.forEach((period, index) => {
-                        const line = node("div", undefined, "schema-option schema-fee-period");
-                        line.append(node("span", period.ends_on === null ? "Последний тариф без конечной даты" : "Тариф до даты"));
-                        if (period.ends_on !== null) control(line, period, "ends_on", "До включительно", "date");
-                        control(line, period, "amount", "Сумма, ₽", "number");
+                        const line = root.querySelector("[data-schema-period]").content.firstElementChild.cloneNode(true);
+                        line.querySelector("[data-period-title]").textContent = period.ends_on === null ? "Последний тариф без конечной даты" : "Тариф до даты";
+                        if (period.ends_on !== null) control(line, period, "ends_on", "До включительно", "date", null, true);
+                        control(line, period, "amount", "Сумма, ₽", "number", null, true);
                         if (editable) line.append(iconButton("Удалить тариф", "delete", () => {
                             row.fee_periods.splice(index, 1);
                             sync();
@@ -430,28 +444,28 @@
                 if (priced || ["single", "multi"].includes(row.field_type)) {
                     const list = priced ? row.services : row.options;
                     if (priced) list.sort((a, b) => Number(Boolean(a.is_opt_out)) - Number(Boolean(b.is_opt_out)));
-                    const variants = node("div", undefined, "schema-options");
-                    variants.append(node("h3", priced ? "Варианты услуг" : "Варианты ответа", "font-semibold"));
-                    const sortable = node("div");
+                    const variants = root.querySelector("[data-schema-variants]").content.firstElementChild.cloneNode(true);
+                    variants.querySelector("[data-variants-title]").textContent = priced ? "Варианты услуг" : "Варианты ответа";
+                    const sortable = variants.querySelector("[data-variants-list]");
                     if (editable) {
                         sortable.setAttribute("x-sort", `window.riSchemaOptionSort('${rowId}', $item, $position)`);
                         sortable.setAttribute("x-sort:config", "{handle: '[data-drag-handle]', animation: 150}");
                     }
                     list.forEach((option, j) => {
                         const optionCount = hiding.option_counts?.[`${priced ? "s" : "a"}:${option.id}`] || 0;
-                        const line = node("div", undefined, "schema-option");
+                        const line = root.querySelector("[data-schema-option]").content.firstElementChild.cloneNode(true);
                         line.classList.add(priced ? "schema-option--service" : "schema-option--choice");
                         if (!option.is_opt_out) line.setAttribute("x-sort:item", JSON.stringify(identity(option)));
                         else line.classList.add("schema-option--refusal");
                         line.dataset.editorId = identity(option);
                         if (editable && !option.is_opt_out) line.append(handle(list, option));
-                        control(line, option, "label", "Подпись");
+                        control(line, option, "label", "Подпись", "text", null, true);
                         if (priced) {
                             if (option.is_opt_out) {
                                 line.prepend(node("span", "Отказ от услуги · бесплатно", "schema-refusal-note"));
                             } else {
                                 control(line, option, "service_date", "Дата", "date");
-                                control(line, option, "price", "Цена, ₽", "number");
+                                control(line, option, "price", "Цена, ₽", "number", null, true);
                             }
                         }
                         if (!option.is_active) {
@@ -492,7 +506,6 @@
                         }
                         sortable.append(line);
                     });
-                    variants.append(sortable);
                     if (editable) variants.append(button("Добавить вариант", () => {
                         list.push(priced ? {
                             id: null,

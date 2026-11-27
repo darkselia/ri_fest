@@ -81,7 +81,6 @@
 
 .schema-card {
     position: relative;
-    margin-top: 16px;
     padding: 20px;
     border-left: 3px solid var(--color-primary-600);
 }
